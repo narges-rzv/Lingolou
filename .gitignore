@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+
+# Sensitive config (contains API voice IDs)
+voices_config.json
+
+# Test outputs
+test_output.mp3
+*.mp3
+
+# Voice samples/data
+voices/
+voices_list.txt
+
+# Python
+__pycache__/
+*.pyc
+.env
+
+# IDE
+.vscode/
+.idea/

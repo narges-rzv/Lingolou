@@ -1,0 +1,72 @@
+{
+  "NARRATOR": {
+    "voice_id": "YOUR_NARRATOR_VOICE_ID",
+    "stability": 0.6,
+    "similarity_boost": 0.8,
+    "style": 0.2,
+    "use_speaker_boost": true
+  },
+  "RYDER": {
+    "voice_id": "YOUR_RYDER_VOICE_ID",
+    "stability": 0.5,
+    "similarity_boost": 0.75,
+    "style": 0.3,
+    "use_speaker_boost": true
+  },
+  "CHASE": {
+    "voice_id": "YOUR_CHASE_VOICE_ID",
+    "stability": 0.5,
+    "similarity_boost": 0.75,
+    "style": 0.4,
+    "use_speaker_boost": true
+  },
+  "MARSHALL": {
+    "voice_id": "YOUR_MARSHALL_VOICE_ID",
+    "stability": 0.4,
+    "similarity_boost": 0.75,
+    "style": 0.5,
+    "use_speaker_boost": true
+  },
+  "SKYE": {
+    "voice_id": "YOUR_SKYE_VOICE_ID",
+    "stability": 0.5,
+    "similarity_boost": 0.75,
+    "style": 0.4,
+    "use_speaker_boost": true
+  },
+  "ROCKY": {
+    "voice_id": "YOUR_ROCKY_VOICE_ID",
+    "stability": 0.5,
+    "similarity_boost": 0.75,
+    "style": 0.3,
+    "use_speaker_boost": true
+  },
+  "RUBBLE": {
+    "voice_id": "YOUR_RUBBLE_VOICE_ID",
+    "stability": 0.5,
+    "similarity_boost": 0.75,
+    "style": 0.4,
+    "use_speaker_boost": true
+  },
+  "ZUMA": {
+    "voice_id": "YOUR_ZUMA_VOICE_ID",
+    "stability": 0.5,
+    "similarity_boost": 0.75,
+    "style": 0.4,
+    "use_speaker_boost": true
+  },
+  "EVEREST": {
+    "voice_id": "YOUR_EVEREST_VOICE_ID",
+    "stability": 0.5,
+    "similarity_boost": 0.75,
+    "style": 0.3,
+    "use_speaker_boost": true
+  },
+  "POUYA": {
+    "voice_id": "YOUR_POUYA_VOICE_ID",
+    "stability": 0.55,
+    "similarity_boost": 0.8,
+    "style": 0.35,
+    "use_speaker_boost": true
+  }
+}

@@ -1,0 +1,288 @@
+[
+  { "type": "scene", "id": "ch1_s1", "title": "Lookout Morning" },
+  { "type": "bg", "value": "Adventure Bay lookout, gentle morning breeze, distant seagulls" },
+  { "type": "music", "value": "Bright, playful theme", "volume": 0.25 },
+  {
+    "type": "line",
+    "speaker": "NARRATOR",
+    "lang": "en",
+    "text": "The morning sun shimmered over Adventure Bay, making the water sparkle like a thousand tiny diamonds. Up at the Lookout, Ryder stood on the platform with his binoculars while the pups gathered around, tails wagging."
+  },
+  { "type": "pause", "seconds": 0.4 },
+
+  {
+    "type": "line",
+    "speaker": "RYDER",
+    "lang": "en",
+    "text": "Alright, PAW Patrol. It’s a beautiful day—and that usually means a new adventure is right around the corner."
+  },
+  { "type": "line", "speaker": "CHASE", "lang": "en", "text": "Ready for action, Ryder!" },
+  { "type": "line", "speaker": "MARSHALL", "lang": "en", "text": "Let’s roll!" },
+  { "type": "sfx", "value": "tiny stumble, paws scuffing" },
+  { "type": "line", "speaker": "MARSHALL", "lang": "en", "text": "Whoaa—still rolling!" },
+  { "type": "line", "speaker": "SKYE", "lang": "en", "text": "The skies are clear and perfect for flying!" },
+  { "type": "line", "speaker": "ROCKY", "lang": "en", "text": "Reuse it or fix it—either way, I’m in." },
+  { "type": "line", "speaker": "RUBBLE", "lang": "en", "text": "Rubble on the double!" },
+  { "type": "line", "speaker": "ZUMA", "lang": "en", "text": "Water rescue? I’m your pup!" },
+  { "type": "line", "speaker": "EVEREST", "lang": "en", "text": "Snow problem too big, snow pup too small!" },
+
+  { "type": "pause", "seconds": 0.5 },
+  { "type": "sfx", "value": "Pup-Pad alert beep-beep" },
+
+  { "type": "line", "speaker": "NARRATOR", "lang": "en", "text": "Just then, Ryder’s Pup-Pad beeped." },
+  {
+    "type": "line",
+    "speaker": "RYDER",
+    "lang": "en",
+    "text": "Uh-oh. We’ve got a call—from the icy cove near Seal Island. There’s a lost baby penguin drifting on a small ice floe, and her parents can’t find her."
+  },
+  { "type": "line", "speaker": "SKYE", "lang": "en", "text": "A baby penguin? All alone?" },
+  { "type": "line", "speaker": "EVEREST", "lang": "en", "text": "We have to help her!" },
+  { "type": "line", "speaker": "RYDER", "lang": "en", "text": "PAW Patrol, to the Arctic Rescue!" },
+
+  { "type": "music", "value": "Adventure build (light)", "volume": 0.3 },
+  { "type": "sfx", "value": "pups barking excitedly, gear clicks" },
+
+  { "type": "scene", "id": "ch1_s2", "title": "Icy Shore / Approaching the Floe" },
+  { "type": "bg", "value": "Arctic cove ambience, wind whoosh, distant waves against ice" },
+  { "type": "sfx", "value": "vehicle engines, hovercraft hum, snowplow crunch" },
+  {
+    "type": "line",
+    "speaker": "NARRATOR",
+    "lang": "en",
+    "text": "The pups raced toward the icy shore. Zuma’s hovercraft led across the water, while Everest’s snowplow carved a safe path over the ice. Skye flew overhead, scanning the horizon."
+  },
+  { "type": "line", "speaker": "SKYE", "lang": "en", "text": "There! I see a tiny penguin on a floating ice chunk!" },
+  { "type": "line", "speaker": "ZUMA", "lang": "en", "text": "Easy does it… we don’t want to scare her." },
+  { "type": "sfx", "value": "hovercraft slowing, gentle water lapping" },
+
+  {
+    "type": "line",
+    "speaker": "NARRATOR",
+    "lang": "en",
+    "text": "As they got closer, they noticed something surprising. On a nearby ice ledge stood another pup—one they had never seen before. He had soft gray-and-white fur, bright curious eyes, and a colorful scarf."
+  },
+  { "type": "sfx", "value": "light wind gust" },
+
+  {
+    "type": "line",
+    "speaker": "POUYA",
+    "lang": "fa",
+    "text": "سلام!",
+    "transliteration": "Salâm!",
+    "gloss_en": "Hello!"
+  },
+  { "type": "pause", "seconds": 0.4 },
+
+  { "type": "line", "speaker": "CHASE", "lang": "en", "text": "Uh… did he just say “salami”?" },
+  { "type": "performance", "value": "LAUGH" },
+  {
+    "type": "line",
+    "speaker": "POUYA",
+    "lang": "en",
+    "text": "No, no! Salâm means “hello.”"
+  },
+
+  { "type": "line", "speaker": "RYDER", "lang": "en", "text": "Hi there! I’m Ryder. Who are you?" },
+  {
+    "type": "line",
+    "speaker": "POUYA",
+    "lang": "fa",
+    "text": "من پویا هستم.",
+    "transliteration": "Man Pouya hastam.",
+    "gloss_en": "I am Pouya."
+  },
+  { "type": "pause", "seconds": 0.3 },
+
+  { "type": "line", "speaker": "NARRATOR", "lang": "en", "text": "The pups blinked." },
+
+  {
+    "type": "line",
+    "speaker": "POUYA",
+    "lang": "en",
+    "text": "Let’s try together. Man means “I.”"
+  },
+  {
+    "type": "line",
+    "speaker": "POUYA",
+    "lang": "fa",
+    "text": "من.",
+    "transliteration": "Man.",
+    "gloss_en": "I."
+  },
+  { "type": "line", "speaker": "SKYE", "lang": "fa", "text": "من.", "transliteration": "Man." },
+  { "type": "line", "speaker": "MARSHALL", "lang": "fa", "text": "من!", "transliteration": "Man!" },
+  { "type": "line", "speaker": "MARSHALL", "lang": "en", "text": "Hey, that’s easy!" },
+
+  {
+    "type": "line",
+    "speaker": "POUYA",
+    "lang": "en",
+    "text": "Great! And hastam means “am.” So: Man hastam—“I am.”"
+  },
+  {
+    "type": "line",
+    "speaker": "CHASE",
+    "lang": "fa",
+    "text": "من… هستم.",
+    "transliteration": "Man… hastam.",
+    "gloss_en": "I am."
+  },
+  { "type": "line", "speaker": "POUYA", "lang": "en", "text": "Perfect!" },
+
+  { "type": "sfx", "value": "baby penguin chirp (soft)" },
+  { "type": "line", "speaker": "NARRATOR", "lang": "en", "text": "The baby penguin chirped softly, as if she liked the sound." },
+  { "type": "line", "speaker": "RYDER", "lang": "en", "text": "Looks like we’ve made a new friend—and learned a new word!" },
+
+  { "type": "scene", "id": "ch1_s3", "title": "Ice Rescue Begins" },
+  { "type": "bg", "value": "wind slightly stronger, ice creaking" },
+
+  {
+    "type": "line",
+    "speaker": "POUYA",
+    "lang": "fa",
+    "text": "پنگوئن کوچولو گم شده.",
+    "transliteration": "Penguin kucheloo gom shodeh.",
+    "gloss_en": "The little penguin is lost."
+  },
+  { "type": "line", "speaker": "POUYA", "lang": "en", "text": "That means the little penguin is lost." },
+
+  { "type": "line", "speaker": "EVEREST", "lang": "en", "text": "She must be freezing!" },
+  { "type": "line", "speaker": "RUBBLE", "lang": "en", "text": "We need to get her somewhere warm and safe." },
+  { "type": "line", "speaker": "ZUMA", "lang": "en", "text": "I can scoop her up gently." },
+
+  { "type": "sfx", "value": "rescue net extending" },
+  { "type": "sfx", "value": "ice cracking—CRRKKK!" },
+
+  { "type": "line", "speaker": "MARSHALL", "lang": "en", "text": "Oh no! That ice won’t hold much longer!" },
+  { "type": "line", "speaker": "RYDER", "lang": "en", "text": "Skye, can you airlift the penguin?" },
+  { "type": "line", "speaker": "SKYE", "lang": "en", "text": "I’m on it!" },
+
+  { "type": "sfx", "value": "harness whir, pup-pack rotor" },
+  { "type": "sfx", "value": "wind gust whoosh" },
+
+  {
+    "type": "line",
+    "speaker": "NARRATOR",
+    "lang": "en",
+    "text": "But just as Skye reached down, a gust of cold wind pushed the ice farther away."
+  },
+
+  {
+    "type": "line",
+    "speaker": "POUYA",
+    "lang": "fa",
+    "text": "نگران نباشید!",
+    "transliteration": "Negarân nabâshid!",
+    "gloss_en": "Don’t worry! (plural/polite)"
+  },
+  { "type": "line", "speaker": "POUYA", "lang": "en", "text": "Don’t worry!" },
+  { "type": "line", "speaker": "CHASE", "lang": "en", "text": "How do you say “don’t worry” again?" },
+  {
+    "type": "line",
+    "speaker": "POUYA",
+    "lang": "fa",
+    "text": "نگران نباشید.",
+    "transliteration": "Negarân nabâshid.",
+    "gloss_en": "Don’t worry."
+  },
+  {
+    "type": "line",
+    "speaker": "RUBBLE",
+    "lang": "fa",
+    "text": "نگران… نباشید!",
+    "transliteration": "Negarân… nabâshid!"
+  },
+  { "type": "line", "speaker": "POUYA", "lang": "en", "text": "Yes! Great job." },
+
+  {
+    "type": "line",
+    "speaker": "NARRATOR",
+    "lang": "en",
+    "text": "Working together, Zuma steadied the ice, Skye gently lifted the baby penguin, and Everest built a snow wall to block the wind."
+  },
+  { "type": "sfx", "value": "hovercraft stabilizing, snow shove, gentle lift" },
+  { "type": "sfx", "value": "baby penguin peep (happy)" },
+
+  {
+    "type": "line",
+    "speaker": "NARRATOR",
+    "lang": "en",
+    "text": "In moments, the tiny penguin was safe in a warm rescue blanket."
+  },
+
+  { "type": "scene", "id": "ch1_s4", "title": "Warm Blanket / Teaching Moment" },
+  { "type": "bg", "value": "wind softens slightly, calmer ambience" },
+  { "type": "music", "value": "Soft, cozy reassurance", "volume": 0.22 },
+
+  {
+    "type": "line",
+    "speaker": "POUYA",
+    "lang": "fa",
+    "text": "او یک پنگوئن است.",
+    "transliteration": "U yek penguin ast.",
+    "gloss_en": "She is a penguin."
+  },
+  {
+    "type": "line",
+    "speaker": "RYDER",
+    "lang": "fa",
+    "text": "او… یک… پنگوئن است.",
+    "transliteration": "U… yek… penguin ast."
+  },
+  { "type": "line", "speaker": "POUYA", "lang": "en", "text": "U means “she” or “he.”" },
+  { "type": "line", "speaker": "SKYE", "lang": "fa", "text": "او!", "transliteration": "U!" },
+
+  {
+    "type": "line",
+    "speaker": "CHASE",
+    "lang": "fa",
+    "text": "او یک توله است!",
+    "transliteration": "U yek tuleh ast!",
+    "gloss_en": "He/She is a pup!"
+  },
+  { "type": "performance", "value": "LAUGH" },
+
+  {
+    "type": "line",
+    "speaker": "NARRATOR",
+    "lang": "en",
+    "text": "The baby penguin snuggled closer, safe at last—but her parents were still missing."
+  },
+  {
+    "type": "line",
+    "speaker": "RYDER",
+    "lang": "en",
+    "text": "Alright, team. We’ve rescued the baby—but our mission isn’t over. We still need to reunite her with her family."
+  },
+  {
+    "type": "line",
+    "speaker": "POUYA",
+    "lang": "fa",
+    "text": "با هم می‌توانیم.",
+    "transliteration": "Bâ ham mitavânim.",
+    "gloss_en": "Together, we can."
+  },
+  { "type": "line", "speaker": "POUYA", "lang": "en", "text": "Together, we can." },
+
+  {
+    "type": "line",
+    "speaker": "ALL_PUPS_AND_RYDER",
+    "lang": "fa",
+    "text": "با هم می‌توانیم!",
+    "transliteration": "Bâ ham mitavânim!"
+  },
+
+  { "type": "music", "value": "Hopeful swell", "volume": 0.28 },
+  {
+    "type": "line",
+    "speaker": "NARRATOR",
+    "lang": "en",
+    "text": "And with that, the PAW Patrol—and their new Farsi-speaking friend—prepared for the next part of their chilly, exciting adventure…"
+  },
+  { "type": "music", "value": "Gentle suspense sting", "volume": 0.25 },
+  { "type": "sfx", "value": "distant wind whoosh" },
+  { "type": "line", "speaker": "NARRATOR", "lang": "en", "text": "To be continued in Chapter 2: Following the Footprints on the Ice!" },
+  { "type": "end", "value": "END_CHAPTER_1" }
+]
+
