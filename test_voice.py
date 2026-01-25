@@ -52,7 +52,7 @@ def test_voice(
     stability: float = 0.5,
     similarity_boost: float = 0.75,
     style: float = 0.0,
-    model_id: str = "eleven_multilingual_v2"
+    model_id: str = "eleven_v3"
 ) -> bool:
     """Generate test audio with specified voice and settings."""
     headers = {
@@ -102,7 +102,7 @@ def test_from_story(
     story_path: str,
     line_index: int,
     output_path: str,
-    model_id: str = "eleven_multilingual_v2"
+    model_id: str = "eleven_v3"
 ) -> bool:
     """Test a specific line from a story file."""
     # Load voices config
@@ -144,8 +144,8 @@ def test_from_story(
         voice_id=voice_config["voice_id"],
         text=text,
         output_path=output_path,
-        stability=voice_config.get("stability", 0.5),
-        similarity_boost=voice_config.get("similarity_boost", 0.75),
+        stability=voice_config.get("stability", 1.0),
+        similarity_boost=voice_config.get("similarity_boost", 0.95),
         style=voice_config.get("style", 0.0),
         model_id=model_id
     )
@@ -165,10 +165,10 @@ def main():
     test_parser.add_argument("--voice-id", required=True, help="Voice ID to test")
     test_parser.add_argument("--text", required=True, help="Text to speak")
     test_parser.add_argument("--output", "-o", default="test_output.mp3", help="Output file")
-    test_parser.add_argument("--stability", type=float, default=0.5)
-    test_parser.add_argument("--similarity", type=float, default=0.75)
+    test_parser.add_argument("--stability", type=float, default=1.0)
+    test_parser.add_argument("--similarity", type=float, default=0.95)
     test_parser.add_argument("--style", type=float, default=0.0)
-    test_parser.add_argument("--model", default="eleven_multilingual_v2")
+    test_parser.add_argument("--model", default="eleven_v3")
 
     # Test from story command
     story_parser = subparsers.add_parser("story-line", help="Test a line from story file")
@@ -177,7 +177,7 @@ def main():
     story_parser.add_argument("--story", required=True, help="Story JSON file")
     story_parser.add_argument("--line", type=int, required=True, help="Line index (0-based)")
     story_parser.add_argument("--output", "-o", default="test_line.mp3", help="Output file")
-    story_parser.add_argument("--model", default="eleven_multilingual_v2")
+    story_parser.add_argument("--model", default="eleven_v3")
 
     args = parser.parse_args()
 

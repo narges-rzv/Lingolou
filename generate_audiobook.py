@@ -13,9 +13,10 @@ import time
 import subprocess
 import tempfile
 import shutil
+import re
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Tuple
 import requests
 
 
@@ -23,8 +24,8 @@ import requests
 class VoiceConfig:
     """Configuration for a character's voice."""
     voice_id: str
-    stability: float = 0.5
-    similarity_boost: float = 0.75
+    stability: float = 1.0
+    similarity_boost: float = 0.95
     style: float = 0.0  # 0-1, higher = more expressive
     use_speaker_boost: bool = True
 
@@ -44,7 +45,7 @@ class AudiobookGenerator:
         self,
         api_key: str,
         voice_map: dict[str, VoiceConfig],
-        model_id: str = "eleven_multilingual_v2",
+        model_id: str = "eleven_v3",
         output_format: str = "mp3_44100_128"
     ):
         """
@@ -53,7 +54,7 @@ class AudiobookGenerator:
         Args:
             api_key: ElevenLabs API key
             voice_map: Mapping of speaker names to VoiceConfig
-            model_id: ElevenLabs model ID (eleven_multilingual_v2 recommended for multilingual)
+            model_id: ElevenLabs model ID (default: eleven_v3)
             output_format: Audio output format
         """
         self.api_key = api_key
@@ -75,24 +76,90 @@ class AudiobookGenerator:
             return self.voice_map.get("NARRATOR", list(self.voice_map.values())[0])
         return self.voice_map.get("NARRATOR", list(self.voice_map.values())[0])
 
+    def _parse_emotion_tag(self, text: str) -> Tuple[Optional[str], str]:
+        """
+        Parse [emotion] tag from beginning of text.
+
+        Returns:
+            Tuple of (emotion, clean_text) where emotion may be None
+        """
+        match = re.match(r'^\[([^\]]+)\]\s*', text)
+        if match:
+            emotion = match.group(1).lower()
+            clean_text = text[match.end():]
+            return emotion, clean_text
+        return None, text
+
     def _add_ssml_emotions(self, text: str, speaker: str, context: Optional[dict] = None) -> str:
         """
         Enhance text for emotional delivery.
 
-        ElevenLabs responds well to natural punctuation and formatting:
-        - Ellipsis (...) creates hesitation/pause
-        - Em-dash (—) creates dramatic pause
-        - Exclamation marks add energy
-        - ALL CAPS for emphasis (use sparingly)
-        - Commas for natural breathing pauses
+        Removes [emotion] tags and enhances punctuation for natural speech.
         """
-        enhanced = text
+        # Remove emotion tag if present (it's used for voice settings, not spoken)
+        _, enhanced = self._parse_emotion_tag(text)
 
         # Ensure ellipsis has proper spacing for natural pause
         enhanced = enhanced.replace("...", " ... ")
         enhanced = enhanced.replace("  ", " ")
 
         return enhanced.strip()
+
+    # Emotion tag to style adjustments mapping
+    EMOTION_STYLES = {
+        # High energy emotions
+        "excited": {"stability": 0.5, "style": 0.6},
+        "enthusiastic": {"stability": 0.5, "style": 0.6},
+        "happy": {"stability": 1.0, "style": 0.5},
+        "cheerful": {"stability": 1.0, "style": 0.5},
+        "playful": {"stability": 0.5, "style": 0.5},
+        "laughing": {"stability": 0.5, "style": 0.6},
+        # Calm/steady emotions
+        "warm": {"stability": 1.0, "style": 0.3},
+        "gentle": {"stability": 1.0, "style": 0.2},
+        "calm": {"stability": 1.0, "style": 0.2},
+        "relaxed": {"stability": 1.0, "style": 0.2},
+        "steady": {"stability": 1.0, "style": 0.2},
+        "matter-of-fact": {"stability": 1.0, "style": 0.1},
+        # Confident/strong emotions
+        "confident": {"stability": 1.0, "style": 0.4},
+        "commanding": {"stability": 1.0, "style": 0.5},
+        "determined": {"stability": 1.0, "style": 0.4},
+        "proud": {"stability": 1.0, "style": 0.4},
+        "strong": {"stability": 1.0, "style": 0.5},
+        # Teaching/clear emotions
+        "teacherly": {"stability": 1.0, "style": 0.2},
+        "encouraging": {"stability": 1.0, "style": 0.4},
+        "clear": {"stability": 1.0, "style": 0.2},
+        "thoughtful": {"stability": 1.0, "style": 0.2},
+        # Concerned/worried emotions
+        "concerned": {"stability": 1.0, "style": 0.3},
+        "worried": {"stability": 1.0, "style": 0.3},
+        "serious": {"stability": 1.0, "style": 0.2},
+        "urgent": {"stability": 0.5, "style": 0.5},
+        "alarmed": {"stability": 0.5, "style": 0.6},
+        # Soft/uncertain emotions
+        "confused": {"stability": 1.0, "style": 0.3},
+        "sheepish": {"stability": 1.0, "style": 0.3},
+        "careful": {"stability": 1.0, "style": 0.2},
+        "trying": {"stability": 1.0, "style": 0.2},
+        # Positive reactions
+        "pleased": {"stability": 1.0, "style": 0.4},
+        "smiling": {"stability": 1.0, "style": 0.4},
+        "welcoming": {"stability": 1.0, "style": 0.4},
+        "friendly": {"stability": 1.0, "style": 0.4},
+        "amused": {"stability": 1.0, "style": 0.4},
+        # Narrative emotions
+        "adventurous": {"stability": 1.0, "style": 0.4},
+        "curious": {"stability": 1.0, "style": 0.3},
+        "hopeful": {"stability": 1.0, "style": 0.3},
+        "teasing": {"stability": 1.0, "style": 0.4},
+        # Alert/focused emotions
+        "alert": {"stability": 1.0, "style": 0.4},
+        "focused": {"stability": 1.0, "style": 0.3},
+        "reassuring": {"stability": 1.0, "style": 0.3},
+        "bright": {"stability": 1.0, "style": 0.4},
+    }
 
     def _adjust_voice_for_emotion(
         self,
@@ -101,48 +168,41 @@ class AudiobookGenerator:
         speaker: str
     ) -> VoiceConfig:
         """
-        Adjust voice settings based on detected emotion in text.
+        Adjust voice settings based on [emotion] tag and text patterns.
 
         Returns a modified copy of voice_config with adjusted parameters.
         """
-        # Detect emotional indicators
-        has_exclamation = "!" in text
-        has_question = "?" in text
-        has_ellipsis = "..." in text
-        is_shouting = text.isupper() and len(text) > 3
+        # Parse emotion tag from text
+        emotion, clean_text = self._parse_emotion_tag(text)
 
         # Start with base config
         stability = voice_config.stability
         style = voice_config.style
         similarity = voice_config.similarity_boost
 
-        # Adjust for excitement/urgency
-        if has_exclamation:
-            style = min(1.0, style + 0.15)
-            stability = max(0.3, stability - 0.1)
+        # Apply emotion-based adjustments if tag is present
+        if emotion and emotion in self.EMOTION_STYLES:
+            emotion_settings = self.EMOTION_STYLES[emotion]
+            stability = emotion_settings["stability"]
+            style = emotion_settings["style"]
+        else:
+            # Fallback to punctuation-based detection
+            has_exclamation = "!" in clean_text
+            has_question = "?" in clean_text
+            has_ellipsis = "..." in clean_text
 
-        # Adjust for questions (slight upturn, more expressive)
-        if has_question:
-            style = min(1.0, style + 0.1)
-
-        # Adjust for hesitation/uncertainty
-        if has_ellipsis:
-            stability = min(0.8, stability + 0.1)
-            style = max(0.0, style - 0.1)
-
-        # Adjust for emphasis
-        if is_shouting:
-            style = min(1.0, style + 0.25)
-            stability = max(0.25, stability - 0.15)
+            if has_exclamation:
+                style = min(1.0, style + 0.15)
+            if has_question:
+                style = min(1.0, style + 0.1)
+            if has_ellipsis:
+                style = max(0.0, style - 0.1)
 
         # Character-specific adjustments
-        if speaker == "MARSHALL":
-            style = min(1.0, style + 0.1)
-        elif speaker == "NARRATOR":
-            stability = min(0.8, stability + 0.1)
-            style = max(0.0, style - 0.05)
+        if speaker == "NARRATOR":
+            stability = 1.0
         elif speaker == "POUYA":
-            stability = min(0.75, stability + 0.05)
+            stability = 1.0
 
         return VoiceConfig(
             voice_id=voice_config.voice_id,
@@ -155,9 +215,7 @@ class AudiobookGenerator:
     def _generate_speech(
         self,
         text: str,
-        voice_config: VoiceConfig,
-        previous_text: Optional[str] = None,
-        next_text: Optional[str] = None
+        voice_config: VoiceConfig
     ) -> bytes:
         """
         Generate speech audio for given text using ElevenLabs API.
@@ -165,29 +223,31 @@ class AudiobookGenerator:
         Args:
             text: Text to convert to speech
             voice_config: Voice configuration
-            previous_text: Previous text for context (improves prosody)
-            next_text: Next text for context
 
         Returns:
             Audio data as bytes
         """
         url = f"{self.API_BASE}/text-to-speech/{voice_config.voice_id}"
 
+        # Quantize stability to valid values for eleven_v3: 0, 0.5, or 1.0
+        stability = voice_config.stability
+        if stability <= 0.25:
+            stability = 0.0
+        elif stability <= 0.75:
+            stability = 0.5
+        else:
+            stability = 1.0
+
         payload = {
             "text": text,
             "model_id": self.model_id,
             "voice_settings": {
-                "stability": voice_config.stability,
+                "stability": stability,
                 "similarity_boost": voice_config.similarity_boost,
                 "style": voice_config.style,
                 "use_speaker_boost": voice_config.use_speaker_boost
             }
         }
-
-        # Add context for better prosody if available
-        if previous_text or next_text:
-            payload["previous_text"] = previous_text
-            payload["next_text"] = next_text
 
         response = requests.post(
             url,
@@ -300,15 +360,12 @@ class AudiobookGenerator:
         if not text.strip():
             return None
 
-        prev_text = prev_line.get("text") if prev_line and prev_line.get("type") == "line" else None
-        next_text = next_line.get("text") if next_line and next_line.get("type") == "line" else None
-
         display_text = text[:50] + "..." if len(text) > 50 else text
 
         # Check if this is a group speaker (concurrent chatter)
         if self._is_group_speaker(speaker):
             return self._process_group_line(
-                speaker, text, prev_text, next_text, output_path, temp_dir, display_text
+                speaker, text, output_path, temp_dir, display_text
             )
 
         # Single speaker
@@ -318,12 +375,7 @@ class AudiobookGenerator:
         adjusted_voice = self._adjust_voice_for_emotion(voice_config, text, speaker)
         enhanced_text = self._add_ssml_emotions(text, speaker)
 
-        audio_bytes = self._generate_speech(
-            enhanced_text,
-            adjusted_voice,
-            previous_text=prev_text,
-            next_text=next_text
-        )
+        audio_bytes = self._generate_speech(enhanced_text, adjusted_voice)
 
         with open(output_path, 'wb') as f:
             f.write(audio_bytes)
@@ -334,8 +386,6 @@ class AudiobookGenerator:
         self,
         group_speaker: str,
         text: str,
-        prev_text: Optional[str],
-        next_text: Optional[str],
         output_path: str,
         temp_dir: str,
         display_text: str
@@ -356,7 +406,7 @@ class AudiobookGenerator:
             voice_config = self._get_voice_for_speaker("NARRATOR")
             adjusted_voice = self._adjust_voice_for_emotion(voice_config, text, "NARRATOR")
             enhanced_text = self._add_ssml_emotions(text, "NARRATOR")
-            audio_bytes = self._generate_speech(enhanced_text, adjusted_voice, prev_text, next_text)
+            audio_bytes = self._generate_speech(enhanced_text, adjusted_voice)
             with open(output_path, 'wb') as f:
                 f.write(audio_bytes)
             return output_path
@@ -371,12 +421,7 @@ class AudiobookGenerator:
             adjusted_voice = self._adjust_voice_for_emotion(voice_config, text, member)
             enhanced_text = self._add_ssml_emotions(text, member)
 
-            audio_bytes = self._generate_speech(
-                enhanced_text,
-                adjusted_voice,
-                previous_text=prev_text,
-                next_text=next_text
-            )
+            audio_bytes = self._generate_speech(enhanced_text, adjusted_voice)
 
             # Save to temp file
             member_path = os.path.join(temp_dir, f"group_{group_speaker}_{member}_{i}.mp3")
@@ -506,7 +551,7 @@ def create_voice_map(voice_config_path: Optional[str] = None) -> dict[str, Voice
 
     Config file format (JSON):
     {
-        "NARRATOR": {"voice_id": "...", "stability": 0.5, ...},
+        "NARRATOR": {"voice_id": "...", "stability": 1.0, ...},
         "RYDER": {"voice_id": "...", ...}
     }
     """
@@ -517,8 +562,8 @@ def create_voice_map(voice_config_path: Optional[str] = None) -> dict[str, Voice
         return {
             speaker: VoiceConfig(
                 voice_id=vc["voice_id"],
-                stability=vc.get("stability", 0.5),
-                similarity_boost=vc.get("similarity_boost", 0.75),
+                stability=vc.get("stability", 1.0),
+                similarity_boost=vc.get("similarity_boost", 0.95),
                 style=vc.get("style", 0.0),
                 use_speaker_boost=vc.get("use_speaker_boost", True)
             )
@@ -557,8 +602,8 @@ def main():
     )
     parser.add_argument(
         "--model",
-        default="eleven_multilingual_v2",
-        help="ElevenLabs model ID (default: eleven_multilingual_v2)"
+        default="eleven_v3",
+        help="ElevenLabs model ID (default: eleven_v3)"
     )
 
     args = parser.parse_args()
