@@ -1,14 +1,20 @@
 # Lingolou - Language Learning Audiobook Generator
 
-A tool for generating audiobooks from JSON story scripts using ElevenLabs API. Designed for kids' language learning apps with support for multiple characters, languages (English + Farsi), emotions, and concurrent group dialogue.
+A complete pipeline for generating children's language learning audiobooks:
+1. **Story Generation** - Create story scripts using OpenAI
+2. **Emotion Enhancement** - Add voice emotion tags automatically
+3. **Audio Generation** - Convert to audiobook using ElevenLabs
+
+Designed for kids' language learning apps with support for multiple characters, languages (English + Farsi), emotions, and concurrent group dialogue.
 
 ## Features
 
+- **AI Story Generation**: Create story scripts with OpenAI GPT-4
 - **Multi-character voices**: Each character gets their own distinct voice
-- **Multilingual support**: Uses `eleven_multilingual_v2` model for English and Farsi
-- **Emotion detection**: Automatically adjusts voice parameters based on punctuation (!, ?, ...)
-- **Group dialogue**: `ALL_PUPS` and `ALL_PUPS_AND_RYDER` generate concurrent chatter by mixing multiple voices
-- **Pauses & pacing**: Respects pause markers and adds natural spacing between lines
+- **Multilingual support**: Uses `eleven_v3` model for English and Farsi
+- **Emotion tags**: `[excited]`, `[warm]`, `[concerned]` etc. control voice delivery
+- **Group dialogue**: `ALL_PUPS` generates concurrent chatter by mixing voices
+- **Pauses & pacing**: Respects pause markers and adds natural spacing
 
 ## Prerequisites
 
@@ -19,67 +25,109 @@ A tool for generating audiobooks from JSON story scripts using ElevenLabs API. D
    ```
 3. **Python packages**
    ```bash
-   pip install requests
+   pip install -r requirements.txt
    ```
-4. **ElevenLabs API key** - Get one at [elevenlabs.io](https://elevenlabs.io)
+4. **API Keys**
+   - **OpenAI API key** - For story generation
+   - **ElevenLabs API key** - For audio generation
 
 ## Project Structure
 
 ```
 Lingolou/
 ├── stories/
-│   └── s1/                    # Story 1
-│       ├── ch1.json           # Chapter 1
-│       ├── ch2.json           # Chapter 2
+│   └── s1/                       # Story 1
+│       ├── ch1.json              # Chapter 1 (base)
+│       ├── ch1_enhanced.json     # Chapter 1 (with emotion tags)
 │       └── ...
-├── generate_audiobook.py      # Main generation script
-├── test_voice.py              # Voice testing utility
-├── voices_config.json         # Your voice configuration
-└── voices_config.example.json # Example template
+├── generate_story.py             # Story generation script (OpenAI)
+├── generate_audiobook.py         # Audio generation script (ElevenLabs)
+├── test_voice.py                 # Voice testing utility
+├── voices_config.json            # Your voice configuration
+└── voices_config.example.json    # Example template
 ```
 
-## Setup
+## Quick Start
 
-### 1. Set your API key
+### 1. Set API keys
 
 ```bash
-export ELEVENLABS_API_KEY="your-api-key-here"
+export OPENAI_API_KEY="your-openai-key"
+export ELEVENLABS_API_KEY="your-elevenlabs-key"
 ```
 
-### 2. Configure voices
+### 2. Generate a new story
 
-List your available ElevenLabs voices:
+```bash
+python generate_story.py -o stories/s2
+```
+
+This will:
+- Generate 3 chapters using the default PAW Patrol + Farsi learning prompt
+- Enhance each chapter with emotion tags
+- Save to `stories/s2/`
+
+### 3. Configure voices
+
 ```bash
 python test_voice.py list
 ```
 
-Edit `voices_config.json` with your voice IDs:
-```json
-{
-  "NARRATOR": {
-    "voice_id": "your-narrator-voice-id",
-    "stability": 0.6,
-    "similarity_boost": 0.8,
-    "style": 0.2,
-    "use_speaker_boost": true
-  },
-  "RYDER": {
-    "voice_id": "your-ryder-voice-id",
-    "stability": 0.5,
-    "similarity_boost": 0.75,
-    "style": 0.3,
-    "use_speaker_boost": true
-  }
-  // ... add all characters
-}
+Edit `voices_config.json` with your voice IDs.
+
+### 4. Generate audiobook
+
+```bash
+python generate_audiobook.py stories/s2 --voices voices_config.json
 ```
 
-## Usage
+---
+
+## Story Generation
+
+### Generate with default prompt
+
+```bash
+python generate_story.py -o stories/s2
+```
+
+### Generate with custom prompt
+
+```bash
+python generate_story.py -o stories/s2 -p "Create a story about space exploration teaching Spanish to kids..."
+```
+
+### Generate from prompt file
+
+```bash
+python generate_story.py -o stories/s2 --prompt-file my_prompt.txt
+```
+
+### Full options
+
+```
+usage: generate_story.py [-h] [--prompt PROMPT] [--prompt-file FILE]
+                         --output OUTPUT [--chapters N] [--model MODEL]
+                         [--no-enhance] [--api-key KEY]
+
+Options:
+  --prompt, -p       Story prompt/description
+  --prompt-file      Read prompt from a text file
+  --output, -o       Output directory for story files (required)
+  --chapters, -n     Number of chapters (default: 3)
+  --model, -m        OpenAI model (default: gpt-4o)
+  --no-enhance       Skip emotion tag enhancement
+  --api-key          OpenAI API key (or set OPENAI_API_KEY env var)
+```
+
+---
+
+## Audio Generation
 
 ### Generate a single chapter
 
 ```bash
-python generate_audiobook.py stories/s1 --voices voices_config.json -c ch1
+python generate_audiobook.py stories/s1 --voices voices_config.json -c ch1_enhanced
 ```
 
 ### Generate all chapters
@@ -107,9 +155,11 @@ Arguments:
   --voices VOICES       Path to voice configuration JSON file
   --api-key API_KEY     ElevenLabs API key (or set ELEVENLABS_API_KEY env var)
   --output, -o OUTPUT   Output directory (default: same as story folder)
-  --chapter, -c CHAPTER Specific chapter (e.g., 'ch1'). Omit to generate all.
-  --model MODEL         ElevenLabs model ID (default: eleven_multilingual_v2)
+  --chapter, -c CHAPTER Specific chapter (e.g., 'ch1_enhanced')
+  --model MODEL         ElevenLabs model ID (default: eleven_v3)
 ```
+
+---
 
 ## Testing Voices
 
@@ -128,23 +178,45 @@ python test_voice.py test --voice-id "abc123" --text "سلام!" --output test.m
 python test_voice.py story-line --voices voices_config.json --story stories/s1/ch1.json --line 5
 ```
 
-## Voice Settings Guide
+---
 
-| Parameter | Range | Effect |
-|-----------|-------|--------|
-| `stability` | 0-1 | Higher = more consistent, Lower = more variable/emotional |
-| `similarity_boost` | 0-1 | How closely to match the original voice |
-| `style` | 0-1 | Higher = more expressive delivery |
+## Voice Configuration
+
+Edit `voices_config.json`:
+
+```json
+{
+  "NARRATOR": {
+    "voice_id": "your-narrator-voice-id",
+    "stability": 1.0,
+    "similarity_boost": 0.95,
+    "style": 0.2,
+    "use_speaker_boost": true
+  },
+  "RYDER": {
+    "voice_id": "your-ryder-voice-id",
+    "stability": 1.0,
+    "similarity_boost": 0.95,
+    "style": 0.3,
+    "use_speaker_boost": true
+  }
+}
+```
+
+### Voice Settings (eleven_v3)
+
+| Parameter | Valid Values | Effect |
+|-----------|--------------|--------|
+| `stability` | 0, 0.5, 1.0 | Higher = more consistent delivery |
+| `similarity_boost` | 0-1 | How closely to match the voice (0.95 recommended) |
+| `style` | 0-1 | Higher = more expressive |
 | `use_speaker_boost` | bool | Enhances voice clarity |
 
-**Character presets:**
-- **Narrator**: Higher stability (0.6), lower style (0.2) - calm, clear
-- **Marshall**: Lower stability (0.4), higher style (0.5) - excitable, energetic
-- **Pouya**: Moderate stability (0.55) - clear for teaching
+---
 
 ## JSON Story Format
 
-Stories are JSON arrays with different entry types:
+Stories are JSON arrays with these entry types:
 
 ```json
 [
@@ -155,7 +227,7 @@ Stories are JSON arrays with different entry types:
     "type": "line",
     "speaker": "POUYA",
     "lang": "fa",
-    "text": "سلام!",
+    "text": "[friendly] سلام!",
     "transliteration": "Salâm!",
     "gloss_en": "Hello!"
   },
@@ -179,27 +251,38 @@ Stories are JSON arrays with different entry types:
 | `bg` | Background description (metadata) | None |
 | `end` | Chapter end marker | None |
 
+### Valid Speakers
+
+`NARRATOR`, `RYDER`, `CHASE`, `MARSHALL`, `SKYE`, `ROCKY`, `RUBBLE`, `ZUMA`, `EVEREST`, `POUYA`, `ALL_PUPS`, `ALL_PUPS_AND_RYDER`
+
 ### Group Speakers
 
-When the script encounters `ALL_PUPS` or `ALL_PUPS_AND_RYDER`, it automatically:
-1. Generates audio for each character in the group
-2. Mixes all voices together for concurrent chatter effect
+`ALL_PUPS` and `ALL_PUPS_AND_RYDER` automatically mix all character voices for concurrent chatter.
 
-Groups are defined as:
-- `ALL_PUPS`: CHASE, MARSHALL, SKYE, ROCKY, RUBBLE, ZUMA, EVEREST
-- `ALL_PUPS_AND_RYDER`: All pups + RYDER
+---
 
-No need to configure these in `voices_config.json` - just configure the individual characters.
+## Emotion Tags
 
-## Emotion Handling
+Enhanced chapters use `[emotion]` tags at the start of each line:
 
-The script automatically adjusts voice parameters based on text:
+```json
+{"text": "[excited] Ready for action, Ryder!"}
+{"text": "[warm] The morning sun shimmered over Adventure Bay..."}
+{"text": "[concerned] A baby penguin? All alone?"}
+```
 
-| Text Pattern | Effect |
-|--------------|--------|
-| `!` exclamation | More expressive, less stable |
-| `?` question | Slightly more expressive |
-| `...` ellipsis | More stable, hesitant |
-| `ALL CAPS` | Maximum expressiveness |
+### Available Emotions
 
-Character-specific adjustments are also applied (e.g., Marshall is always more excitable).
+| Category | Tags |
+|----------|------|
+| High energy | `excited`, `enthusiastic`, `happy`, `cheerful`, `playful`, `laughing` |
+| Calm | `warm`, `gentle`, `calm`, `relaxed`, `steady`, `matter-of-fact` |
+| Confident | `confident`, `commanding`, `determined`, `proud`, `strong` |
+| Teaching | `teacherly`, `encouraging`, `clear`, `thoughtful` |
+| Concerned | `concerned`, `worried`, `serious`, `urgent`, `alarmed` |
+| Uncertain | `confused`, `sheepish`, `careful`, `trying` |
+| Positive | `pleased`, `smiling`, `welcoming`, `friendly`, `amused` |
+| Narrative | `adventurous`, `curious`, `hopeful`, `teasing` |
+| Alert | `alert`, `focused`, `reassuring`, `bright` |
+
+Each emotion maps to specific `stability` and `style` values for natural delivery.
