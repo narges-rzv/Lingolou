@@ -4,6 +4,8 @@ Story Script Generator for Lingolou Language Learning App
 
 Uses OpenAI to generate JSON story scripts, then enhances them with
 emotion tags for ElevenLabs voice synthesis.
+
+Configuration is loaded from story_config.json
 """
 
 import json
@@ -13,132 +15,98 @@ from pathlib import Path
 from openai import OpenAI
 
 
-DEFAULT_PROMPT = """Create a children's story for language learning featuring the PAW Patrol characters.
-The story should teach basic Farsi (Persian) words and phrases to English-speaking children.
+DEFAULT_CONFIG_PATH = Path(__file__).parent / "story_config.json"
 
-Characters:
-- NARRATOR: Tells the story
-- RYDER: The human leader
-- CHASE: Police pup, brave and loyal
-- MARSHALL: Fire pup, clumsy but enthusiastic
-- SKYE: Aviation pup, cheerful and confident
-- ROCKY: Recycling pup, clever and resourceful
-- RUBBLE: Construction pup, strong and friendly
-- ZUMA: Water rescue pup, laid-back and cool
-- EVEREST: Snow rescue pup, adventurous
-- POUYA: A new Farsi-speaking pup who teaches the others
 
-The story should:
-1. Have an exciting adventure plot appropriate for ages 4-8
-2. Introduce 5-10 Farsi words/phrases naturally through dialogue
-3. Include Pouya teaching the other pups simple Farsi expressions
-4. Have moments of humor and teamwork
-5. Be split into 3 chapters with clear scene breaks
-"""
+def load_config(config_path: str = None) -> dict:
+    """Load configuration from JSON file."""
+    path = Path(config_path) if config_path else DEFAULT_CONFIG_PATH
 
-STORY_SYSTEM_PROMPT = """You are a children's story writer creating scripts for an audiobook language learning app.
+    if not path.exists():
+        raise FileNotFoundError(f"Config file not found: {path}")
 
-Generate stories in JSON format. Each chapter is a JSON array with the following entry types:
+    with open(path, 'r', encoding='utf-8') as f:
+        return json.load(f)
 
-1. Scene markers:
-   {"type": "scene", "id": "ch1_s1", "title": "Scene Title"}
 
-2. Background/ambience descriptions (for audio production):
-   {"type": "bg", "value": "Description of environment sounds"}
+def build_story_system_prompt(config: dict) -> str:
+    """Build the system prompt for story generation, incorporating config."""
+    base_prompt = config.get("story_system_prompt", "")
 
-3. Music cues:
-   {"type": "music", "value": "Music description", "volume": 0.25}
+    # Add character list
+    characters = config.get("characters", {})
+    if characters:
+        char_list = "\n".join(f"- {name}: {desc}" for name, desc in characters.items())
+        base_prompt += f"\n\nCharacters:\n{char_list}"
 
-4. Character dialogue:
-   {"type": "line", "speaker": "CHARACTER_NAME", "lang": "en", "text": "Dialogue text"}
+    # Add valid speakers
+    speakers = config.get("valid_speakers", [])
+    if speakers:
+        base_prompt += f"\n\nValid speakers: {', '.join(speakers)}"
 
-   For Farsi lines, include transliteration and translation:
-   {"type": "line", "speaker": "POUYA", "lang": "fa", "text": "سلام!", "transliteration": "Salâm!", "gloss_en": "Hello!"}
+    return base_prompt
 
-5. Pauses:
-   {"type": "pause", "seconds": 0.5}
 
-6. Sound effects:
-   {"type": "sfx", "value": "Description of sound effect"}
+def build_chapter_prompt(
+    config: dict,
+    user_prompt: str,
+    chapter_num: int,
+    total_chapters: int,
+    previous_summary: str = ""
+) -> str:
+    """Build the prompt for generating a specific chapter."""
+    prompt = user_prompt
 
-7. Performance markers (crowd reactions):
-   {"type": "performance", "value": "LAUGH"} or {"type": "performance", "value": "CHEER"}
+    # Add character descriptions if not already in user prompt
+    characters = config.get("characters", {})
+    if characters and "Characters:" not in user_prompt:
+        char_list = "\n".join(f"- {name}: {desc}" for name, desc in characters.items())
+        prompt += f"\n\nCharacters:\n{char_list}"
 
-8. Chapter end:
-   {"type": "end", "value": "END_CHAPTER_1"}
+    prompt += f"\n\nGenerate Chapter {chapter_num} of {total_chapters}."
 
-Valid speakers: NARRATOR, RYDER, CHASE, MARSHALL, SKYE, ROCKY, RUBBLE, ZUMA, EVEREST, POUYA, ALL_PUPS, ALL_PUPS_AND_RYDER
+    if previous_summary:
+        prompt += f"\n\nPrevious chapter summary: {previous_summary}"
+    else:
+        prompt += "\n\nThis is the first chapter - introduce the characters and set up the adventure."
 
-Important:
-- Keep dialogue natural and age-appropriate
-- Include pauses after important Farsi words for learning
-- Use sfx and music cues to make the story engaging
-- Each chapter should be 2-4 scenes
-- Farsi text must use actual Persian script with accurate transliteration
-"""
+    if chapter_num == 2 and total_chapters > 2:
+        prompt += "\n\nContinue the story, building tension."
 
-ENHANCE_SYSTEM_PROMPT = """You are an audio director adding emotion and delivery tags to a story script.
+    if chapter_num == total_chapters:
+        prompt += "\n\nThis is the final chapter - resolve the adventure with a satisfying conclusion."
 
-Add emotion tags in square brackets at the START of each line's text field. The tag describes HOW the line should be spoken.
+    prompt += "\n\nReturn ONLY valid JSON array, no markdown formatting or explanation."
 
-Example transformations:
-- "Ready for action, Ryder!" → "[excited] Ready for action, Ryder!"
-- "We have to help her!" → "[determined] We have to help her!"
-- "سلام!" → "[friendly] سلام!"
-
-Available emotion tags:
-- High energy: excited, enthusiastic, happy, cheerful, playful, laughing
-- Calm/steady: warm, gentle, calm, relaxed, steady, matter-of-fact
-- Confident: confident, commanding, determined, proud, strong
-- Teaching: teacherly, encouraging, clear, thoughtful
-- Concerned: concerned, worried, serious, urgent, alarmed
-- Uncertain: confused, sheepish, careful, trying
-- Positive: pleased, smiling, welcoming, friendly, amused
-- Narrative: adventurous, curious, hopeful, teasing
-- Alert: alert, focused, reassuring, bright
-
-Guidelines:
-- Match the emotion to the context and punctuation
-- NARRATOR lines often use: warm, matter-of-fact, adventurous, curious, hopeful
-- Exclamations (!) often pair with: excited, enthusiastic, alarmed, determined
-- Questions (?) often pair with: curious, confused, concerned
-- Teaching moments use: teacherly, encouraging, clear
-- Keep the JSON structure exactly the same, only add [emotion] tags to text fields
-- Only add tags to "line" type entries
-
-Return the complete enhanced JSON.
-"""
+    return prompt
 
 
 def generate_chapter(
     client: OpenAI,
-    prompt: str,
+    config: dict,
+    user_prompt: str,
     chapter_num: int,
     total_chapters: int,
     previous_summary: str = "",
-    model: str = "gpt-4o"
-) -> dict:
+    model: str = None
+) -> list:
     """Generate a single chapter using OpenAI."""
+    settings = config.get("generation_settings", {})
+    model = model or settings.get("default_model", "gpt-4o")
 
-    chapter_prompt = f"""{prompt}
-
-Generate Chapter {chapter_num} of {total_chapters}.
-
-{"Previous chapter summary: " + previous_summary if previous_summary else "This is the first chapter - introduce the characters and set up the adventure."}
-
-{"Continue the story, building tension." if chapter_num == 2 else ""}
-{"This is the final chapter - resolve the adventure with a satisfying conclusion." if chapter_num == total_chapters else ""}
-
-Return ONLY valid JSON array, no markdown formatting or explanation."""
+    system_prompt = build_story_system_prompt(config)
+    chapter_prompt = build_chapter_prompt(
+        config, user_prompt, chapter_num, total_chapters, previous_summary
+    )
 
     response = client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": STORY_SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": chapter_prompt}
         ],
-        temperature=0.8,
-        max_tokens=4000
+        temperature=settings.get("story_temperature", 0.8),
+        max_tokens=settings.get("story_max_tokens", 4000)
     )
 
     content = response.choices[0].message.content.strip()
@@ -151,12 +119,19 @@ Return ONLY valid JSON array, no markdown formatting or explanation."""
     return json.loads(content)
 
 
-def summarize_chapter(client: OpenAI, chapter: list, model: str = "gpt-4o") -> str:
+def summarize_chapter(
+    client: OpenAI,
+    config: dict,
+    chapter: list,
+    model: str = None
+) -> str:
     """Generate a brief summary of a chapter for continuity."""
+    settings = config.get("generation_settings", {})
+    model = model or settings.get("default_model", "gpt-4o")
 
     # Extract dialogue for context
     lines = [e.get("text", "") for e in chapter if e.get("type") == "line"]
-    text_sample = " ".join(lines[:20])  # First 20 lines
+    text_sample = " ".join(lines[:20])
 
     response = client.chat.completions.create(
         model=model,
@@ -164,24 +139,33 @@ def summarize_chapter(client: OpenAI, chapter: list, model: str = "gpt-4o") -> s
             {"role": "system", "content": "Summarize this story chapter in 2-3 sentences for continuity with the next chapter."},
             {"role": "user", "content": text_sample}
         ],
-        temperature=0.3,
-        max_tokens=200
+        temperature=settings.get("summary_temperature", 0.3),
+        max_tokens=settings.get("summary_max_tokens", 200)
     )
 
     return response.choices[0].message.content.strip()
 
 
-def enhance_chapter(client: OpenAI, chapter: list, model: str = "gpt-4o") -> list:
+def enhance_chapter(
+    client: OpenAI,
+    config: dict,
+    chapter: list,
+    model: str = None
+) -> list:
     """Add emotion tags to a chapter using OpenAI."""
+    settings = config.get("generation_settings", {})
+    model = model or settings.get("default_model", "gpt-4o")
+
+    enhance_prompt = config.get("enhance_system_prompt", "Add emotion tags to dialogue.")
 
     response = client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": ENHANCE_SYSTEM_PROMPT},
+            {"role": "system", "content": enhance_prompt},
             {"role": "user", "content": f"Add emotion tags to this story script:\n\n{json.dumps(chapter, ensure_ascii=False, indent=2)}"}
         ],
-        temperature=0.4,
-        max_tokens=8000
+        temperature=settings.get("enhance_temperature", 0.4),
+        max_tokens=settings.get("enhance_max_tokens", 8000)
     )
 
     content = response.choices[0].message.content.strip()
@@ -195,16 +179,18 @@ def enhance_chapter(client: OpenAI, chapter: list, model: str = "gpt-4o") -> lis
 
 
 def generate_story(
+    config: dict,
     prompt: str,
     output_dir: str,
-    num_chapters: int = 3,
-    model: str = "gpt-4o",
+    num_chapters: int = None,
+    model: str = None,
     enhance: bool = True
 ) -> str:
     """
     Generate a complete story with multiple chapters.
 
     Args:
+        config: Configuration dictionary
         prompt: Story description/requirements
         output_dir: Directory to save the story files
         num_chapters: Number of chapters to generate
@@ -215,9 +201,18 @@ def generate_story(
         Path to the output directory
     """
     client = OpenAI()
+    settings = config.get("generation_settings", {})
+
+    num_chapters = num_chapters or settings.get("default_chapters", 3)
+    model = model or settings.get("default_model", "gpt-4o")
 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
+
+    # Save config used for this generation
+    config_copy_path = output_path / "story_config_used.json"
+    with open(config_copy_path, 'w', encoding='utf-8') as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
 
     previous_summary = ""
 
@@ -229,7 +224,8 @@ def generate_story(
         # Generate chapter
         chapter = generate_chapter(
             client=client,
-            prompt=prompt,
+            config=config,
+            user_prompt=prompt,
             chapter_num=ch_num,
             total_chapters=num_chapters,
             previous_summary=previous_summary,
@@ -245,7 +241,7 @@ def generate_story(
         # Enhance with emotion tags
         if enhance:
             print(f"Enhancing Chapter {ch_num} with emotion tags...")
-            enhanced = enhance_chapter(client, chapter, model)
+            enhanced = enhance_chapter(client, config, chapter, model)
 
             enhanced_path = output_path / f"ch{ch_num}_enhanced.json"
             with open(enhanced_path, 'w', encoding='utf-8') as f:
@@ -255,7 +251,7 @@ def generate_story(
         # Get summary for next chapter
         if ch_num < num_chapters:
             print("Generating summary for continuity...")
-            previous_summary = summarize_chapter(client, chapter, model)
+            previous_summary = summarize_chapter(client, config, chapter, model)
 
     print(f"\n{'='*50}")
     print(f"Story generation complete!")
@@ -270,13 +266,17 @@ def main():
         description="Generate story scripts using OpenAI"
     )
     parser.add_argument(
+        "--config",
+        default=str(DEFAULT_CONFIG_PATH),
+        help=f"Path to config JSON file (default: {DEFAULT_CONFIG_PATH})"
+    )
+    parser.add_argument(
         "--prompt", "-p",
-        default=DEFAULT_PROMPT,
-        help="Story prompt/description (default: PAW Patrol Farsi learning story)"
+        help="Story prompt/description (overrides config default_prompt)"
     )
     parser.add_argument(
         "--prompt-file",
-        help="Read prompt from a text file instead"
+        help="Read prompt from a text file"
     )
     parser.add_argument(
         "--output", "-o",
@@ -286,13 +286,11 @@ def main():
     parser.add_argument(
         "--chapters", "-n",
         type=int,
-        default=3,
-        help="Number of chapters to generate (default: 3)"
+        help="Number of chapters to generate (default from config)"
     )
     parser.add_argument(
         "--model", "-m",
-        default="gpt-4o",
-        help="OpenAI model to use (default: gpt-4o)"
+        help="OpenAI model to use (default from config)"
     )
     parser.add_argument(
         "--no-enhance",
@@ -314,15 +312,25 @@ def main():
         print("Error: OpenAI API key required. Use --api-key or set OPENAI_API_KEY")
         return 1
 
-    # Get prompt
+    # Load config
+    try:
+        config = load_config(args.config)
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        return 1
+
+    # Get prompt (priority: prompt-file > prompt arg > config default)
     if args.prompt_file:
         with open(args.prompt_file, 'r') as f:
             prompt = f.read()
-    else:
+    elif args.prompt:
         prompt = args.prompt
+    else:
+        prompt = config.get("default_prompt", "Create a children's story for language learning.")
 
     try:
         generate_story(
+            config=config,
             prompt=prompt,
             output_dir=args.output,
             num_chapters=args.chapters,

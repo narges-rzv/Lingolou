@@ -43,6 +43,7 @@ Lingolou/
 ├── generate_story.py             # Story generation script (OpenAI)
 ├── generate_audiobook.py         # Audio generation script (ElevenLabs)
 ├── test_voice.py                 # Voice testing utility
+├── story_config.json             # Story generation config (prompts, characters, settings)
 ├── voices_config.json            # Your voice configuration
 └── voices_config.example.json    # Example template
 ```
@@ -103,22 +104,70 @@ python generate_story.py -o stories/s2 -p "Create a story about space exploratio
 python generate_story.py -o stories/s2 --prompt-file my_prompt.txt
 ```
 
+### Use custom config
+
+```bash
+python generate_story.py -o stories/s2 --config my_story_config.json
+```
+
 ### Full options
 
 ```
-usage: generate_story.py [-h] [--prompt PROMPT] [--prompt-file FILE]
-                         --output OUTPUT [--chapters N] [--model MODEL]
+usage: generate_story.py [-h] [--config CONFIG] [--prompt PROMPT]
+                         [--prompt-file FILE] --output OUTPUT
+                         [--chapters N] [--model MODEL]
                          [--no-enhance] [--api-key KEY]
 
 Options:
-  --prompt, -p       Story prompt/description
+  --config           Path to config JSON file (default: story_config.json)
+  --prompt, -p       Story prompt/description (overrides config)
   --prompt-file      Read prompt from a text file
   --output, -o       Output directory for story files (required)
-  --chapters, -n     Number of chapters (default: 3)
-  --model, -m        OpenAI model (default: gpt-4o)
+  --chapters, -n     Number of chapters (default from config)
+  --model, -m        OpenAI model (default from config)
   --no-enhance       Skip emotion tag enhancement
   --api-key          OpenAI API key (or set OPENAI_API_KEY env var)
 ```
+
+### Story Configuration
+
+All story generation settings are in `story_config.json`:
+
+```json
+{
+  "default_prompt": "Your default story prompt...",
+
+  "characters": {
+    "NARRATOR": "Tells the story",
+    "RYDER": "The human leader",
+    "POUYA": "A new Farsi-speaking pup"
+  },
+
+  "valid_speakers": ["NARRATOR", "RYDER", "POUYA", "ALL_PUPS"],
+
+  "target_language": {
+    "name": "Farsi",
+    "code": "fa"
+  },
+
+  "generation_settings": {
+    "default_model": "gpt-4o",
+    "default_chapters": 3,
+    "story_temperature": 0.8,
+    "enhance_temperature": 0.4
+  },
+
+  "story_system_prompt": "System prompt for story generation...",
+  "enhance_system_prompt": "System prompt for emotion enhancement...",
+
+  "emotion_tags": {
+    "high_energy": ["excited", "enthusiastic"],
+    "calm": ["warm", "gentle"]
+  }
+}
+```
+
+To create a different story (e.g., Spanish learning with different characters), copy and modify `story_config.json`.
 
 ---
 
