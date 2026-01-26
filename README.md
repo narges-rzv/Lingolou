@@ -335,3 +335,112 @@ Enhanced chapters use `[emotion]` tags at the start of each line:
 | Alert | `alert`, `focused`, `reassuring`, `bright` |
 
 Each emotion maps to specific `stability` and `style` values for natural delivery.
+
+---
+
+## Web App API
+
+The project includes a FastAPI backend for hosting as a web application.
+
+### Running the Server
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Set environment variables
+export OPENAI_API_KEY="your-key"
+export ELEVENLABS_API_KEY="your-key"
+
+# Run the server
+cd /path/to/Lingolou
+python -m uvicorn webapp.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+API documentation available at: `http://localhost:8000/docs`
+
+### API Endpoints
+
+#### Authentication
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/register` | Register new user |
+| POST | `/api/auth/login` | Login, get JWT token |
+| GET | `/api/auth/me` | Get current user info |
+| POST | `/api/auth/logout` | Logout |
+
+#### Stories
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/stories/` | List user's stories |
+| POST | `/api/stories/` | Create new story |
+| GET | `/api/stories/{id}` | Get story with chapters |
+| PATCH | `/api/stories/{id}` | Update story metadata |
+| DELETE | `/api/stories/{id}` | Delete story |
+| POST | `/api/stories/{id}/generate` | Generate story scripts |
+| POST | `/api/stories/{id}/generate-audio` | Generate audio files |
+| GET | `/api/stories/{id}/chapters/{num}/script` | Get chapter script JSON |
+| GET | `/api/stories/tasks/{task_id}` | Check generation task status |
+
+### Example Usage
+
+```bash
+# Register
+curl -X POST http://localhost:8000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "username": "user", "password": "secret"}'
+
+# Login
+TOKEN=$(curl -s -X POST http://localhost:8000/api/auth/login \
+  -d "username=user@example.com&password=secret" | jq -r .access_token)
+
+# Create story
+curl -X POST http://localhost:8000/api/stories/ \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "My Story", "num_chapters": 3}'
+
+# Generate story content
+curl -X POST http://localhost:8000/api/stories/1/generate \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "My Story", "num_chapters": 3, "enhance": true}'
+
+# Check task status
+curl http://localhost:8000/api/stories/tasks/story_1_1 \
+  -H "Authorization: Bearer $TOKEN"
+
+# Generate audio
+curl -X POST http://localhost:8000/api/stories/1/generate-audio \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"story_id": 1}'
+```
+
+### Database
+
+SQLite database (`lingolou.db`) stores:
+- **Users**: Account info, authentication
+- **Stories**: Story metadata, prompts, config
+- **Chapters**: Scripts, audio paths, status
+- **UsageLog**: API usage tracking per user
+
+### Project Structure (Web App)
+
+```
+webapp/
+├── main.py              # FastAPI application
+├── api/
+│   ├── auth.py          # Auth endpoints
+│   └── stories.py       # Story endpoints
+├── models/
+│   ├── database.py      # SQLAlchemy models
+│   └── schemas.py       # Pydantic schemas
+├── services/
+│   ├── auth.py          # Auth logic, JWT
+│   └── generation.py    # Background tasks
+└── static/
+    └── audio/           # Generated audio files
+```
