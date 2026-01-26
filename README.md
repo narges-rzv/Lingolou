@@ -342,6 +342,19 @@ Each emotion maps to specific `stability` and `style` values for natural deliver
 
 The project includes a FastAPI backend for hosting as a web application.
 
+### Prerequisites
+
+1. **Redis** - Required for background task processing
+   ```bash
+   # macOS
+   brew install redis
+   brew services start redis
+
+   # Ubuntu/Debian
+   sudo apt install redis-server
+   sudo systemctl start redis
+   ```
+
 ### Running the Server
 
 ```bash
@@ -351,9 +364,16 @@ pip install -r requirements.txt
 # Set environment variables
 export OPENAI_API_KEY="your-key"
 export ELEVENLABS_API_KEY="your-key"
+export REDIS_URL="redis://localhost:6379/0"  # Optional, this is the default
 
-# Run the server
+# Terminal 1: Start Redis (if not running as service)
+redis-server
+
+# Terminal 2: Start Celery worker
 cd /path/to/Lingolou
+celery -A webapp.celery_app worker --loglevel=info
+
+# Terminal 3: Start FastAPI server
 python -m uvicorn webapp.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -383,6 +403,7 @@ API documentation available at: `http://localhost:8000/docs`
 | POST | `/api/stories/{id}/generate-audio` | Generate audio files |
 | GET | `/api/stories/{id}/chapters/{num}/script` | Get chapter script JSON |
 | GET | `/api/stories/tasks/{task_id}` | Check generation task status |
+| DELETE | `/api/stories/tasks/{task_id}` | Cancel a running task |
 
 ### Example Usage
 
@@ -432,6 +453,8 @@ SQLite database (`lingolou.db`) stores:
 ```
 webapp/
 ├── main.py              # FastAPI application
+├── celery_app.py        # Celery configuration
+├── tasks.py             # Celery background tasks
 ├── api/
 │   ├── auth.py          # Auth endpoints
 │   └── stories.py       # Story endpoints
@@ -439,8 +462,16 @@ webapp/
 │   ├── database.py      # SQLAlchemy models
 │   └── schemas.py       # Pydantic schemas
 ├── services/
-│   ├── auth.py          # Auth logic, JWT
-│   └── generation.py    # Background tasks
+│   └── auth.py          # Auth logic, JWT
 └── static/
     └── audio/           # Generated audio files
 ```
+
+### Background Tasks (Celery)
+
+Story and audio generation run as background tasks via Celery with Redis:
+
+- **Progress tracking**: Tasks report progress (0-100%) and status messages
+- **Retry logic**: Failed tasks automatically retry up to 2 times
+- **Time limits**: Soft limit 10 min, hard limit 15 min per task
+- **Task cancellation**: Running tasks can be cancelled via API

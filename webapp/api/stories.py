@@ -4,22 +4,64 @@ Stories API endpoints.
 
 import json
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from celery.result import AsyncResult
 
-from webapp.models.database import get_db, Story, Chapter, UsageLog, User
+from webapp.models.database import get_db, Story, Chapter, User
 from webapp.models.schemas import (
     StoryCreate, StoryUpdate, StoryResponse, StoryListResponse,
     ChapterResponse, GenerateStoryRequest, GenerateAudioRequest,
     TaskStatusResponse
 )
 from webapp.services.auth import get_current_active_user
-from webapp.services.generation import (
-    generate_story_task, generate_audio_task,
-    get_task_status, task_store
-)
+from webapp.celery_app import celery_app
+from webapp.tasks import generate_story_task, generate_audio_task
 
 router = APIRouter(prefix="/api/stories", tags=["Stories"])
+
+
+def get_task_status_from_celery(task_id: str) -> dict:
+    """Get task status from Celery."""
+    result = AsyncResult(task_id, app=celery_app)
+
+    if result.state == "PENDING":
+        return {
+            "task_id": task_id,
+            "status": "pending",
+            "progress": 0,
+            "message": "Task is waiting to start..."
+        }
+    elif result.state == "PROGRESS":
+        info = result.info or {}
+        return {
+            "task_id": task_id,
+            "status": "running",
+            "progress": info.get("progress", 0),
+            "message": info.get("message", "Processing...")
+        }
+    elif result.state == "SUCCESS":
+        return {
+            "task_id": task_id,
+            "status": "completed",
+            "progress": 100,
+            "message": "Task completed",
+            "result": result.result
+        }
+    elif result.state == "FAILURE":
+        return {
+            "task_id": task_id,
+            "status": "failed",
+            "progress": 0,
+            "message": str(result.info) if result.info else "Task failed"
+        }
+    else:
+        return {
+            "task_id": task_id,
+            "status": result.state.lower(),
+            "progress": 0,
+            "message": f"Task state: {result.state}"
+        }
 
 
 @router.get("/", response_model=List[StoryListResponse])
@@ -148,11 +190,10 @@ async def delete_story(
 async def generate_story_content(
     story_id: int,
     request: GenerateStoryRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Start story script generation (async task)."""
+    """Start story script generation (async task via Celery)."""
     story = db.query(Story).filter(
         Story.id == story_id,
         Story.user_id == current_user.id
@@ -169,11 +210,8 @@ async def generate_story_content(
     story.status = "generating"
     db.commit()
 
-    # Start background task
-    task_id = f"story_{story_id}_{current_user.id}"
-    background_tasks.add_task(
-        generate_story_task,
-        task_id=task_id,
+    # Start Celery task
+    task = generate_story_task.delay(
         story_id=story_id,
         user_id=current_user.id,
         prompt=request.prompt,
@@ -182,7 +220,7 @@ async def generate_story_content(
     )
 
     return TaskStatusResponse(
-        task_id=task_id,
+        task_id=task.id,
         status="pending",
         message="Story generation started"
     )
@@ -192,11 +230,10 @@ async def generate_story_content(
 async def generate_story_audio(
     story_id: int,
     request: GenerateAudioRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Start audio generation for chapters (async task)."""
+    """Start audio generation for chapters (async task via Celery)."""
     story = db.query(Story).filter(
         Story.id == story_id,
         Story.user_id == current_user.id
@@ -222,20 +259,16 @@ async def generate_story_audio(
                 detail=f"Chapter {chapter.chapter_number} has no script"
             )
 
-    # Start background task
-    task_id = f"audio_{story_id}_{current_user.id}"
+    # Start Celery task
     chapter_ids = [c.id for c in chapters]
-
-    background_tasks.add_task(
-        generate_audio_task,
-        task_id=task_id,
+    task = generate_audio_task.delay(
         story_id=story_id,
         user_id=current_user.id,
         chapter_ids=chapter_ids
     )
 
     return TaskStatusResponse(
-        task_id=task_id,
+        task_id=task.id,
         status="pending",
         message=f"Audio generation started for {len(chapters)} chapters"
     )
@@ -307,7 +340,22 @@ async def get_generation_status(
     current_user: User = Depends(get_current_active_user)
 ):
     """Get status of a generation task."""
-    status = get_task_status(task_id)
-    if not status:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return status
+    status_info = get_task_status_from_celery(task_id)
+    return TaskStatusResponse(**status_info)
+
+
+@router.delete("/tasks/{task_id}")
+async def cancel_task(
+    task_id: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    """Cancel a running task."""
+    result = AsyncResult(task_id, app=celery_app)
+
+    if result.state in ["PENDING", "PROGRESS"]:
+        result.revoke(terminate=True)
+        return {"message": "Task cancelled", "task_id": task_id}
+    elif result.state == "SUCCESS":
+        return {"message": "Task already completed", "task_id": task_id}
+    else:
+        return {"message": f"Task in state: {result.state}", "task_id": task_id}

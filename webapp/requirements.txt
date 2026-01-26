@@ -10,6 +10,10 @@ python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
 python-multipart>=0.0.6
 
+# Background task processing
+celery[redis]>=5.3.0
+redis>=4.5.0
+
 # Existing dependencies
 requests>=2.28.0
 openai>=1.0.0
