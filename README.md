@@ -18,18 +18,88 @@ Designed for kids' language learning apps with support for multiple characters, 
 
 ## Prerequisites
 
-1. **Python 3.9+**
-2. **ffmpeg** (for audio processing)
-   ```bash
-   brew install ffmpeg
-   ```
-3. **Python packages**
-   ```bash
-   pip install -r requirements.txt
-   ```
-4. **API Keys**
-   - **OpenAI API key** - For story generation
-   - **ElevenLabs API key** - For audio generation
+- **Python 3.9+**
+- **ffmpeg** (for audio processing)
+- **Redis** (for Celery background task queue)
+- **API Keys**: OpenAI (story generation) + ElevenLabs (audio generation)
+
+## Setup
+
+### 1. Install system dependencies
+
+```bash
+# macOS
+brew install ffmpeg redis
+
+# Ubuntu/Debian
+sudo apt install ffmpeg redis-server
+```
+
+### 2. Create a virtual environment
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### 3. Install Python packages
+
+```bash
+pip install -r requirements.txt
+pip install email-validator
+```
+
+### 4. Set API keys
+
+```bash
+export OPENAI_API_KEY="your-openai-key"
+export ELEVENLABS_API_KEY="your-elevenlabs-key"
+export REDIS_URL="redis://localhost:6379/0"  # optional, this is the default
+```
+
+### 5. Configure voices
+
+Copy the example and fill in your ElevenLabs voice IDs:
+
+```bash
+cp voices_config.example.json voices_config.json
+```
+
+You can list available voices with:
+
+```bash
+python test_voice.py list
+```
+
+### 6. Start Redis
+
+```bash
+# macOS (run as background service)
+brew services start redis
+
+# Or run in a dedicated terminal
+redis-server
+```
+
+### 7. Start the Celery worker
+
+In a dedicated terminal:
+
+```bash
+source venv/bin/activate
+celery -A webapp.celery_app worker --loglevel=info
+```
+
+### 8. Start the FastAPI server
+
+In another terminal:
+
+```bash
+source venv/bin/activate
+python -m uvicorn webapp.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+The API docs are at http://localhost:8000/docs.
 
 ## Project Structure
 
@@ -48,37 +118,13 @@ Lingolou/
 └── voices_config.example.json    # Example template
 ```
 
-## Quick Start
-
-### 1. Set API keys
+## Quick Start (CLI)
 
 ```bash
-export OPENAI_API_KEY="your-openai-key"
-export ELEVENLABS_API_KEY="your-elevenlabs-key"
-```
-
-### 2. Generate a new story
-
-```bash
+# Generate a 3-chapter story
 python generate_story.py -o stories/s2
-```
 
-This will:
-- Generate 3 chapters using the default PAW Patrol + Farsi learning prompt
-- Enhance each chapter with emotion tags
-- Save to `stories/s2/`
-
-### 3. Configure voices
-
-```bash
-python test_voice.py list
-```
-
-Edit `voices_config.json` with your voice IDs.
-
-### 4. Generate audiobook
-
-```bash
+# Generate the audiobook
 python generate_audiobook.py stories/s2 --voices voices_config.json
 ```
 
@@ -340,44 +386,7 @@ Each emotion maps to specific `stability` and `style` values for natural deliver
 
 ## Web App API
 
-The project includes a FastAPI backend for hosting as a web application.
-
-### Prerequisites
-
-1. **Redis** - Required for background task processing
-   ```bash
-   # macOS
-   brew install redis
-   brew services start redis
-
-   # Ubuntu/Debian
-   sudo apt install redis-server
-   sudo systemctl start redis
-   ```
-
-### Running the Server
-
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Set environment variables
-export OPENAI_API_KEY="your-key"
-export ELEVENLABS_API_KEY="your-key"
-export REDIS_URL="redis://localhost:6379/0"  # Optional, this is the default
-
-# Terminal 1: Start Redis (if not running as service)
-redis-server
-
-# Terminal 2: Start Celery worker
-cd /path/to/Lingolou
-celery -A webapp.celery_app worker --loglevel=info
-
-# Terminal 3: Start FastAPI server
-python -m uvicorn webapp.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-API documentation available at: `http://localhost:8000/docs`
+The project includes a FastAPI backend with Celery/Redis for background task processing. See [Setup](#setup) for installation and running instructions.
 
 ### API Endpoints
 
