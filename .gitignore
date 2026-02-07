@@ -1,6 +1,9 @@
 # macOS
 .DS_Store
 
+# virtual environment
+.venv
+
 # Sensitive config (contains API voice IDs)
 voices_config.json
 
