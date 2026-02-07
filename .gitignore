@@ -17,6 +17,17 @@ __pycache__/
 *.pyc
 .env
 
+# Secrets / credentials
+*.ignore
+client_secret*.json
+
+# Database
+*.db
+
 # IDE
 .vscode/
 .idea/
+
+# Frontend
+frontend/node_modules/
+webapp/static/frontend/

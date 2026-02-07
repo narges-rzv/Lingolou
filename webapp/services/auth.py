@@ -4,7 +4,7 @@ Authentication service for user management and JWT tokens.
 
 from datetime import datetime, timedelta
 from typing import Optional
-from passlib.context import CryptContext
+import bcrypt
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -17,9 +17,6 @@ from webapp.models.database import get_db, User
 SECRET_KEY = "your-secret-key-change-in-production"  # TODO: Move to env var
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
-
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
@@ -54,11 +51,15 @@ class TokenData(BaseModel):
 
 # Password utilities
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(
+        plain_password.encode("utf-8"), hashed_password.encode("utf-8")
+    )
 
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(
+        password.encode("utf-8"), bcrypt.gensalt()
+    ).decode("utf-8")
 
 
 # Token utilities
@@ -72,10 +73,10 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def decode_token(token: str) -> Optional[TokenData]:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: int = payload.get("sub")
-        if user_id is None:
+        sub = payload.get("sub")
+        if sub is None:
             return None
-        return TokenData(user_id=user_id)
+        return TokenData(user_id=int(sub))
     except JWTError:
         return None
 
@@ -106,9 +107,11 @@ def create_user(db: Session, user: UserCreate) -> User:
     return db_user
 
 
-def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
-    user = get_user_by_email(db, email)
-    if not user or not verify_password(password, user.hashed_password):
+def authenticate_user(db: Session, login: str, password: str) -> Optional[User]:
+    user = get_user_by_email(db, login) or get_user_by_username(db, login)
+    if not user or not user.hashed_password:
+        return None
+    if not verify_password(password, user.hashed_password):
         return None
     return user
 

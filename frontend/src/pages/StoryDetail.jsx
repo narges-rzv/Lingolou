@@ -1,0 +1,250 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { apiFetch } from '../api';
+import ChapterList from '../components/ChapterList';
+import AudioPlayer from '../components/AudioPlayer';
+import TaskProgress from '../components/TaskProgress';
+
+function statusClass(status) {
+  return `status-badge status-${status || 'created'}`;
+}
+
+export default function StoryDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [story, setStory] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [taskId, setTaskId] = useState(null);
+  const [taskType, setTaskType] = useState(null);
+  const [showDelete, setShowDelete] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [autoExpand, setAutoExpand] = useState(0);
+
+  const fetchStory = useCallback(async () => {
+    try {
+      const data = await apiFetch(`/stories/${id}`);
+      setStory(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    fetchStory();
+  }, [fetchStory]);
+
+  // Pick up task ID passed from EditStory via navigation state
+  useEffect(() => {
+    if (location.state?.taskId) {
+      setTaskId(location.state.taskId);
+      setTaskType(location.state.taskType || 'script');
+      setGenerating(true);
+      // Clear the state so refreshing the page doesn't re-trigger
+      window.history.replaceState({}, '');
+    }
+  }, [location.state]);
+
+  const handleGenerate = () => {
+    navigate(`/stories/${id}/edit`);
+  };
+
+  const handleGenerateAllAudio = async () => {
+    setError(null);
+    setGenerating(true);
+    try {
+      const data = await apiFetch(`/stories/${id}/generate-audio`, {
+        method: 'POST',
+        json: { story_id: Number(id) },
+      });
+      setTaskId(data.task_id);
+      setTaskType('audio');
+    } catch (err) {
+      setError(err.message);
+      setGenerating(false);
+    }
+  };
+
+  const handleTaskComplete = () => {
+    setTaskId(null);
+    setTaskType(null);
+    setGenerating(false);
+    setAutoExpand((c) => c + 1);
+    fetchStory();
+  };
+
+  const handleTaskError = (msg) => {
+    setTaskId(null);
+    setTaskType(null);
+    setGenerating(false);
+    setError(msg);
+    fetchStory();
+  };
+
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownloadFull = async () => {
+    setDownloading(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem('token');
+      const resp = await fetch(`/api/stories/${id}/audio/combined`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!resp.ok) {
+        const text = await resp.text();
+        let msg = `Download failed (${resp.status})`;
+        try { msg = JSON.parse(text).detail || msg; } catch {}
+        throw new Error(msg);
+      }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${story?.title || 'story'}.mp3`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      await apiFetch(`/stories/${id}`, { method: 'DELETE' });
+      navigate('/');
+    } catch (err) {
+      setError(err.message);
+      setShowDelete(false);
+    }
+  };
+
+  if (loading) return <div className="loading">Loading story...</div>;
+  if (!story) return <div className="error-message">{error || 'Story not found'}</div>;
+
+  const chapters = story.chapters || [];
+  const sorted = [...chapters].sort((a, b) => a.chapter_number - b.chapter_number);
+  const hasScripts = chapters.some(
+    (ch) => ch.status === 'completed' || ch.status === 'generating_audio'
+  );
+  const audioChapters = sorted.filter((ch) => ch.audio_path);
+  const hasAudio = audioChapters.length > 0;
+  const allAudio = chapters.length > 0 && chapters.every((ch) => ch.audio_path);
+  const someWithoutAudio = hasScripts && !allAudio;
+  const canGenerate = story.status !== 'generating' && !generating;
+
+  return (
+    <div>
+      <div className="story-detail-header">
+        <div>
+          <h1>{story.title}</h1>
+          <div className="story-meta">
+            <span className={statusClass(story.status)}>{story.status}</span>
+            <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
+              {chapters.length} chapter{chapters.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          {story.description && (
+            <p className="description" style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
+              {story.description}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {error && <div className="error-message">{error}</div>}
+
+      {taskId && (
+        <TaskProgress
+          taskId={taskId}
+          onComplete={handleTaskComplete}
+          onError={handleTaskError}
+        />
+      )}
+
+      {/* Play Story section */}
+      {hasAudio && (
+        <div className="play-story-section">
+          <div className="play-story-header">
+            <h2 className="section-title" style={{ marginBottom: 0, borderBottom: 'none', paddingBottom: 0 }}>
+              Play Story
+            </h2>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={handleDownloadFull}
+              disabled={downloading}
+            >
+              {downloading ? 'Downloading...' : 'Download Full Story'}
+            </button>
+          </div>
+          {audioChapters.map((ch) => (
+            <div key={ch.id} className="play-story-item">
+              <span className="play-story-label">
+                Ch {ch.chapter_number}: {ch.title || `Chapter ${ch.chapter_number}`}
+              </span>
+              <AudioPlayer
+                storyId={story.id}
+                chapterNumber={ch.chapter_number}
+                duration={ch.audio_duration}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="story-actions">
+        <button
+          className="btn btn-primary"
+          onClick={handleGenerate}
+          disabled={!canGenerate}
+        >
+          {story.status === 'created' ? 'Generate Story' : 'Regenerate Story'}
+        </button>
+        {someWithoutAudio && (
+          <button
+            className="btn btn-primary"
+            onClick={handleGenerateAllAudio}
+            disabled={generating}
+          >
+            Generate All Audio
+          </button>
+        )}
+        <button
+          className="btn btn-danger"
+          onClick={() => setShowDelete(true)}
+        >
+          Delete Story
+        </button>
+      </div>
+
+      <h2 className="section-title">Chapters</h2>
+      <ChapterList
+        chapters={chapters}
+        storyId={story.id}
+        autoExpand={autoExpand}
+        onRefresh={fetchStory}
+      />
+
+      {showDelete && (
+        <div className="confirm-overlay" onClick={() => setShowDelete(false)}>
+          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <p>Delete "{story.title}"? This cannot be undone.</p>
+            <div className="confirm-actions">
+              <button className="btn btn-ghost" onClick={() => setShowDelete(false)}>
+                Cancel
+              </button>
+              <button className="btn btn-danger" onClick={handleDelete}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

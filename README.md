@@ -49,13 +49,28 @@ pip install -r requirements.txt
 pip install email-validator
 ```
 
-### 4. Set API keys
+### 4. Set environment variables
+
+Create a `.env` file (or export these in your shell):
 
 ```bash
-export OPENAI_API_KEY="your-openai-key"
-export ELEVENLABS_API_KEY="your-elevenlabs-key"
-export REDIS_URL="redis://localhost:6379/0"  # optional, this is the default
+# Required for story/audio generation
+OPENAI_API_KEY="your-openai-key"
+ELEVENLABS_API_KEY="your-elevenlabs-key"
+
+# Optional (defaults shown)
+REDIS_URL="redis://localhost:6379/0"
+
+# OAuth (optional - for social login)
+GOOGLE_CLIENT_ID="your-google-client-id"
+GOOGLE_CLIENT_SECRET="your-google-client-secret"
+FACEBOOK_CLIENT_ID="your-facebook-app-id"
+FACEBOOK_CLIENT_SECRET="your-facebook-app-secret"
+SESSION_SECRET_KEY="a-random-string-at-least-32-chars"
+FRONTEND_URL="http://localhost:5173"
 ```
+
+> **Note:** `.env` is in `.gitignore` — never commit API keys to the repo.
 
 ### 5. Configure voices
 
@@ -399,6 +414,15 @@ The project includes a FastAPI backend with Celery/Redis for background task pro
 | GET | `/api/auth/me` | Get current user info |
 | POST | `/api/auth/logout` | Logout |
 
+#### OAuth (Social Login)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/auth/oauth/google/login` | Redirect to Google consent |
+| GET | `/api/auth/oauth/google/callback` | Google OAuth callback |
+| GET | `/api/auth/oauth/facebook/login` | Redirect to Facebook consent |
+| GET | `/api/auth/oauth/facebook/callback` | Facebook OAuth callback |
+
 #### Stories
 
 | Method | Endpoint | Description |
@@ -484,3 +508,129 @@ Story and audio generation run as background tasks via Celery with Redis:
 - **Retry logic**: Failed tasks automatically retry up to 2 times
 - **Time limits**: Soft limit 10 min, hard limit 15 min per task
 - **Task cancellation**: Running tasks can be cancelled via API
+
+---
+
+## OAuth Setup (Google & Facebook Login)
+
+The app supports "Sign in with Google" and "Sign in with Facebook" via OAuth2 authorization code flow.
+
+### How it works
+
+1. User clicks a social login button on the Login page
+2. Browser redirects to the provider's consent screen
+3. User grants consent → provider redirects back to `/api/auth/oauth/{provider}/callback`
+4. Backend exchanges the authorization code for user info, finds or creates the user, issues a JWT
+5. Backend redirects to `http://localhost:5173/login?token=<jwt>`
+6. Frontend stores the token and loads the dashboard
+
+### Account Linking
+
+When a user signs in via OAuth:
+1. **Match by OAuth ID**: If user previously signed in with this provider, log them in
+2. **Match by email**: If email matches an existing account, link the OAuth identity to it
+3. **No match**: Create a new account (username from email prefix, no password)
+
+OAuth-only users cannot log in via the password form.
+
+---
+
+### Setting up Google OAuth (Development)
+
+1. **Go to [Google Cloud Console](https://console.cloud.google.com/)**
+
+2. **Create a project** (or select an existing one)
+
+3. **Configure the OAuth consent screen:**
+   - Go to **APIs & Services > OAuth consent screen**
+   - Choose **External** user type (for testing)
+   - Fill in:
+     - App name: e.g., "Lingolou Dev"
+     - User support email: your email
+     - Developer contact email: your email
+   - Click **Save and Continue**
+   - Under **Scopes**, click **Add or Remove Scopes**, add:
+     - `email`
+     - `profile`
+     - `openid`
+   - Click **Save and Continue**
+   - Under **Test users**, click **Add Users** and add your own Google email address
+     - (While in "Testing" mode, only listed test users can sign in)
+   - Click **Save and Continue**, then **Back to Dashboard**
+
+4. **Create credentials:**
+   - Go to **APIs & Services > Credentials**
+   - Click **Create Credentials > OAuth client ID**
+   - Application type: **Web application**
+   - Name: e.g., "Lingolou Dev"
+   - Under **Authorized redirect URIs**, add:
+     ```
+     http://localhost:8000/api/auth/oauth/google/callback
+     ```
+   - Click **Create**
+
+5. **Copy the credentials** to your `.env` file:
+   ```bash
+   GOOGLE_CLIENT_ID="xxxx.apps.googleusercontent.com"
+   GOOGLE_CLIENT_SECRET="GOCSPX-xxxx"
+   SESSION_SECRET_KEY="$(openssl rand -hex 32)"
+   ```
+
+6. **Test it:**
+   - Start the backend: `uvicorn webapp.main:app --reload`
+   - Start the frontend: `cd frontend && npm run dev`
+   - Go to http://localhost:5173/login
+   - Click "Sign in with Google"
+
+> **Note:** The redirect URI must exactly match `http://localhost:8000/api/auth/oauth/google/callback`. If you run the backend on a different port, update the redirect URI in Google Console accordingly.
+
+---
+
+### Setting up Facebook OAuth (Development)
+
+1. **Go to [Facebook Developers](https://developers.facebook.com/)**
+
+2. **Create an app:**
+   - Click **My Apps > Create App**
+   - Choose **Consumer** or **None** as the app type
+   - Fill in app name (e.g., "Lingolou Dev") and contact email
+   - Click **Create App**
+
+3. **Add Facebook Login product:**
+   - In the app dashboard, click **Add Product**
+   - Find **Facebook Login** and click **Set Up**
+   - Choose **Web**
+   - For Site URL, enter: `http://localhost:5173`
+   - Click **Save**, then **Continue**
+
+4. **Configure OAuth settings:**
+   - Go to **Facebook Login > Settings** (in the left sidebar)
+   - Under **Valid OAuth Redirect URIs**, add:
+     ```
+     http://localhost:8000/api/auth/oauth/facebook/callback
+     ```
+   - Click **Save Changes**
+
+5. **Get your credentials:**
+   - Go to **Settings > Basic** (in the left sidebar)
+   - Copy **App ID** and **App Secret** to your `.env`:
+     ```bash
+     FACEBOOK_CLIENT_ID="your-app-id"
+     FACEBOOK_CLIENT_SECRET="your-app-secret"
+     ```
+
+6. **Enable email permission:**
+   - Go to **App Review > Permissions and Features**
+   - Find **email** and click **Get Advanced Access** (if needed for production)
+   - For development, **email** should work in test mode
+
+7. **Add test users (optional):**
+   - Go to **Roles > Test Users**
+   - Add test users if you want to test with accounts other than your own
+
+8. **Test it:**
+   - Make sure the app is in **Development** mode (toggle at top of dashboard)
+   - Start backend and frontend
+   - Click "Sign in with Facebook" on the login page
+
+> **Note:** In development mode, only app admins and test users can log in. For production, you'll need to complete App Review.
