@@ -1,5 +1,5 @@
 """
-OAuth2 authorization code flow endpoints for Google and Facebook.
+OAuth2 authorization code flow endpoints for Google.
 """
 
 import os
@@ -108,41 +108,6 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         return _redirect_with_error("oauth_no_email")
 
     user = _get_or_create_oauth_user(db, "google", oauth_id, email, name)
-    if not user:
-        return _redirect_with_error("oauth_no_email")
-
-    return _redirect_with_token(user, db)
-
-
-# ── Facebook ─────────────────────────────────────────────────────────
-
-@router.get("/facebook/login")
-async def facebook_login(request: Request):
-    redirect_uri = request.url_for("facebook_callback")
-    return await oauth.facebook.authorize_redirect(request, str(redirect_uri))
-
-
-@router.get("/facebook/callback", name="facebook_callback")
-async def facebook_callback(request: Request, db: Session = Depends(get_db)):
-    try:
-        token = await oauth.facebook.authorize_access_token(request)
-    except Exception:
-        return _redirect_with_error("oauth_failed")
-
-    # Fetch user info from Graph API
-    resp = await oauth.facebook.get("me?fields=id,name,email", token=token)
-    profile = resp.json()
-
-    oauth_id = profile.get("id")
-    email = profile.get("email")
-    name = profile.get("name")
-
-    if not oauth_id:
-        return _redirect_with_error("oauth_failed")
-    if not email:
-        return _redirect_with_error("oauth_no_email")
-
-    user = _get_or_create_oauth_user(db, "facebook", oauth_id, email, name)
     if not user:
         return _redirect_with_error("oauth_no_email")
 

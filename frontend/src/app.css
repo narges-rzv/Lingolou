@@ -317,16 +317,6 @@ a:hover {
   background: #f8f8f8;
 }
 
-.btn-facebook {
-  background: #1877F2;
-  color: white;
-  border-color: #1877F2;
-}
-
-.btn-facebook:hover {
-  background: #166FE5;
-}
-
 .oauth-divider {
   display: flex;
   align-items: center;

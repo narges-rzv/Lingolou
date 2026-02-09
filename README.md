@@ -61,11 +61,9 @@ ELEVENLABS_API_KEY="your-elevenlabs-key"
 # Optional (defaults shown)
 REDIS_URL="redis://localhost:6379/0"
 
-# OAuth (optional - for social login)
+# OAuth (optional - for Google login)
 GOOGLE_CLIENT_ID="your-google-client-id"
 GOOGLE_CLIENT_SECRET="your-google-client-secret"
-FACEBOOK_CLIENT_ID="your-facebook-app-id"
-FACEBOOK_CLIENT_SECRET="your-facebook-app-secret"
 SESSION_SECRET_KEY="a-random-string-at-least-32-chars"
 FRONTEND_URL="http://localhost:5173"
 ```
@@ -414,14 +412,12 @@ The project includes a FastAPI backend with Celery/Redis for background task pro
 | GET | `/api/auth/me` | Get current user info |
 | POST | `/api/auth/logout` | Logout |
 
-#### OAuth (Social Login)
+#### OAuth (Google Login)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/auth/oauth/google/login` | Redirect to Google consent |
 | GET | `/api/auth/oauth/google/callback` | Google OAuth callback |
-| GET | `/api/auth/oauth/facebook/login` | Redirect to Facebook consent |
-| GET | `/api/auth/oauth/facebook/callback` | Facebook OAuth callback |
 
 #### Stories
 
@@ -511,9 +507,9 @@ Story and audio generation run as background tasks via Celery with Redis:
 
 ---
 
-## OAuth Setup (Google & Facebook Login)
+## OAuth Setup (Google Login)
 
-The app supports "Sign in with Google" and "Sign in with Facebook" via OAuth2 authorization code flow.
+The app supports "Sign in with Google" via OAuth2 authorization code flow.
 
 ### How it works
 
@@ -583,54 +579,3 @@ OAuth-only users cannot log in via the password form.
    - Click "Sign in with Google"
 
 > **Note:** The redirect URI must exactly match `http://localhost:8000/api/auth/oauth/google/callback`. If you run the backend on a different port, update the redirect URI in Google Console accordingly.
-
----
-
-### Setting up Facebook OAuth (Development)
-
-1. **Go to [Facebook Developers](https://developers.facebook.com/)**
-
-2. **Create an app:**
-   - Click **My Apps > Create App**
-   - Choose **Consumer** or **None** as the app type
-   - Fill in app name (e.g., "Lingolou Dev") and contact email
-   - Click **Create App**
-
-3. **Add Facebook Login product:**
-   - In the app dashboard, click **Add Product**
-   - Find **Facebook Login** and click **Set Up**
-   - Choose **Web**
-   - For Site URL, enter: `http://localhost:5173`
-   - Click **Save**, then **Continue**
-
-4. **Configure OAuth settings:**
-   - Go to **Facebook Login > Settings** (in the left sidebar)
-   - Under **Valid OAuth Redirect URIs**, add:
-     ```
-     http://localhost:8000/api/auth/oauth/facebook/callback
-     ```
-   - Click **Save Changes**
-
-5. **Get your credentials:**
-   - Go to **Settings > Basic** (in the left sidebar)
-   - Copy **App ID** and **App Secret** to your `.env`:
-     ```bash
-     FACEBOOK_CLIENT_ID="your-app-id"
-     FACEBOOK_CLIENT_SECRET="your-app-secret"
-     ```
-
-6. **Enable email permission:**
-   - Go to **App Review > Permissions and Features**
-   - Find **email** and click **Get Advanced Access** (if needed for production)
-   - For development, **email** should work in test mode
-
-7. **Add test users (optional):**
-   - Go to **Roles > Test Users**
-   - Add test users if you want to test with accounts other than your own
-
-8. **Test it:**
-   - Make sure the app is in **Development** mode (toggle at top of dashboard)
-   - Start backend and frontend
-   - Click "Sign in with Facebook" on the login page
-
-> **Note:** In development mode, only app admins and test users can log in. For production, you'll need to complete App Review.
