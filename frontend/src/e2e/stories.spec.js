@@ -1,14 +1,14 @@
 import { test, expect } from '@playwright/test'
 
 async function registerAndLogin(page) {
-  const ts = Date.now()
+  const ts = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   await page.goto('/login')
   await page.click('button:has-text("Register")')
   await page.fill('#reg-email', `story-${ts}@example.com`)
   await page.fill('#reg-user', `storyuser-${ts}`)
   await page.fill('#reg-pass', 'testpass123')
   await page.click('button[type="submit"]:has-text("Create account")')
-  await expect(page).toHaveURL(/dashboard/, { timeout: 10000 })
+  await expect(page).toHaveURL(/dashboard/, { timeout: 15000 })
 }
 
 test.describe('Stories', () => {
@@ -44,12 +44,11 @@ test.describe('Stories', () => {
     await page.click('button[type="submit"]:has-text("Create Story")')
     await expect(page).toHaveURL(/stories\/\d+/, { timeout: 10000 })
 
-    // Delete it
-    await page.click('button:has-text("Delete")')
+    // Click "Delete Story" to open the confirmation overlay
+    await page.click('button:has-text("Delete Story")')
 
-    // Confirm if there's a confirmation dialog
-    page.on('dialog', (dialog) => dialog.accept())
-    await page.click('button:has-text("Delete")')
+    // Click the "Delete" button inside the confirmation overlay
+    await page.getByRole('button', { name: 'Delete', exact: true }).click()
 
     // Should be back at dashboard
     await expect(page).toHaveURL(/dashboard/, { timeout: 10000 })

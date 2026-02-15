@@ -1,41 +1,42 @@
 import { test, expect } from '@playwright/test'
 
-const TEST_USER = {
-  email: `test-${Date.now()}@example.com`,
-  username: `testuser-${Date.now()}`,
-  password: 'testpass123',
+function uniqueId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 test.describe('Authentication', () => {
   test('register new user', async ({ page }) => {
+    const id = uniqueId()
     await page.goto('/login')
 
     // Switch to register tab
     await page.click('button:has-text("Register")')
 
     // Fill registration form
-    await page.fill('#reg-email', TEST_USER.email)
-    await page.fill('#reg-user', TEST_USER.username)
-    await page.fill('#reg-pass', TEST_USER.password)
+    await page.fill('#reg-email', `test-${id}@example.com`)
+    await page.fill('#reg-user', `testuser-${id}`)
+    await page.fill('#reg-pass', 'testpass123')
 
     // Submit
     await page.click('button[type="submit"]:has-text("Create account")')
 
     // Should redirect to dashboard
-    await expect(page).toHaveURL(/dashboard/, { timeout: 10000 })
+    await expect(page).toHaveURL(/dashboard/, { timeout: 15000 })
   })
 
   test('login with credentials', async ({ page }) => {
+    const id = uniqueId()
+    const email = `login-${id}@example.com`
+    const username = `loginuser-${id}`
+
     // First register
     await page.goto('/login')
     await page.click('button:has-text("Register")')
-    const email = `login-${Date.now()}@example.com`
-    const username = `loginuser-${Date.now()}`
     await page.fill('#reg-email', email)
     await page.fill('#reg-user', username)
     await page.fill('#reg-pass', 'testpass123')
     await page.click('button[type="submit"]:has-text("Create account")')
-    await expect(page).toHaveURL(/dashboard/, { timeout: 10000 })
+    await expect(page).toHaveURL(/dashboard/, { timeout: 15000 })
 
     // Logout
     await page.click('button:has-text("Log out")')
@@ -46,7 +47,7 @@ test.describe('Authentication', () => {
     await page.fill('#login-pass', 'testpass123')
     await page.click('button[type="submit"]:has-text("Log in")')
 
-    await expect(page).toHaveURL(/dashboard/, { timeout: 10000 })
+    await expect(page).toHaveURL(/dashboard/, { timeout: 15000 })
   })
 
   test('access private route when logged out redirects to login', async ({ page }) => {

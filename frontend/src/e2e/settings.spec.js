@@ -1,14 +1,14 @@
 import { test, expect } from '@playwright/test'
 
 async function registerAndLogin(page) {
-  const ts = Date.now()
+  const ts = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   await page.goto('/login')
   await page.click('button:has-text("Register")')
   await page.fill('#reg-email', `settings-${ts}@example.com`)
   await page.fill('#reg-user', `setuser-${ts}`)
   await page.fill('#reg-pass', 'testpass123')
   await page.click('button[type="submit"]:has-text("Create account")')
-  await expect(page).toHaveURL(/dashboard/, { timeout: 10000 })
+  await expect(page).toHaveURL(/dashboard/, { timeout: 15000 })
 }
 
 test.describe('Settings', () => {
