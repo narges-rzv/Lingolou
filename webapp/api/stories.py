@@ -3,65 +3,82 @@ Stories API endpoints.
 """
 
 import json
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+import os
+import shutil
+import subprocess
+import tempfile
+import time
+import uuid
+from pathlib import Path
+from typing import Any, List
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Request, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from celery.result import AsyncResult
+import requests as http_requests
 
-from webapp.models.database import get_db, Story, Chapter, User
+from webapp.models.database import get_db, Story, Chapter, User, PlatformBudget, FREE_STORIES_PER_USER
+from webapp.services.crypto import decrypt_key
 from webapp.models.schemas import (
     StoryCreate, StoryUpdate, StoryResponse, StoryListResponse,
     ChapterResponse, GenerateStoryRequest, GenerateAudioRequest,
-    TaskStatusResponse
+    TaskStatusResponse, ShareLinkResponse
 )
 from webapp.services.auth import get_current_active_user
-from webapp.celery_app import celery_app
-from webapp.tasks import generate_story_task, generate_audio_task
+from webapp.services.generation import (
+    generate_story, generate_audio,
+    get_task_status, cancel_task, update_task_status,
+    find_active_task_for_story
+)
 
 router = APIRouter(prefix="/api/stories", tags=["Stories"])
 
 
-def get_task_status_from_celery(task_id: str) -> dict:
-    """Get task status from Celery."""
-    result = AsyncResult(task_id, app=celery_app)
+@router.get("/defaults")
+async def get_story_defaults(
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get default story generation config."""
+    config_path = Path(__file__).parent.parent.parent / "story_config.json"
+    if not config_path.exists():
+        raise HTTPException(status_code=404, detail="Config file not found")
+    with open(config_path) as f:
+        config = json.load(f)
+    return {
+        "default_prompt": config.get("default_prompt", ""),
+        "characters": config.get("characters", {}),
+        "target_language": config.get("target_language", {}),
+        "num_chapters": config.get("generation_settings", {}).get("default_chapters", 3),
+    }
 
-    if result.state == "PENDING":
-        return {
-            "task_id": task_id,
-            "status": "pending",
-            "progress": 0,
-            "message": "Task is waiting to start..."
+
+@router.get("/voices")
+async def get_available_voices(
+    current_user: User = Depends(get_current_active_user)
+):
+    """Fetch available voices from ElevenLabs API."""
+    api_key = os.environ.get("ELEVENLABS_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="ElevenLabs API key not configured")
+
+    resp = http_requests.get(
+        "https://api.elevenlabs.io/v1/voices",
+        headers={"xi-api-key": api_key},
+        timeout=10,
+    )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to fetch voices from ElevenLabs")
+
+    voices = resp.json().get("voices", [])
+    return [
+        {
+            "voice_id": v["voice_id"],
+            "name": v["name"],
+            "category": v.get("category", ""),
+            "labels": v.get("labels", {}),
+            "preview_url": v.get("preview_url", ""),
         }
-    elif result.state == "PROGRESS":
-        info = result.info or {}
-        return {
-            "task_id": task_id,
-            "status": "running",
-            "progress": info.get("progress", 0),
-            "message": info.get("message", "Processing...")
-        }
-    elif result.state == "SUCCESS":
-        return {
-            "task_id": task_id,
-            "status": "completed",
-            "progress": 100,
-            "message": "Task completed",
-            "result": result.result
-        }
-    elif result.state == "FAILURE":
-        return {
-            "task_id": task_id,
-            "status": "failed",
-            "progress": 0,
-            "message": str(result.info) if result.info else "Task failed"
-        }
-    else:
-        return {
-            "task_id": task_id,
-            "status": result.state.lower(),
-            "progress": 0,
-            "message": f"Task state: {result.state}"
-        }
+        for v in voices
+    ]
 
 
 @router.get("/", response_model=List[StoryListResponse])
@@ -81,7 +98,9 @@ async def list_stories(
             id=s.id,
             title=s.title,
             description=s.description,
+            language=s.language,
             status=s.status,
+            visibility=s.visibility,
             chapter_count=len(s.chapters),
             created_at=s.created_at
         )
@@ -101,6 +120,7 @@ async def create_story(
         title=story.title,
         description=story.description,
         prompt=story.prompt,
+        language=story.language,
         config_json=json.dumps(story.config_override) if story.config_override else None,
         status="created"
     )
@@ -122,6 +142,35 @@ async def create_story(
     return db_story
 
 
+# Task routes must be defined before /{story_id} to avoid route conflicts
+@router.get("/tasks/{task_id}", response_model=TaskStatusResponse)
+async def get_generation_status(
+    task_id: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get status of a generation task."""
+    status_info = get_task_status(task_id)
+    if not status_info:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return TaskStatusResponse(**status_info)
+
+
+@router.delete("/tasks/{task_id}")
+async def cancel_generation_task(
+    task_id: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    """Cancel a running task."""
+    was_running = cancel_task(task_id)
+    if was_running:
+        return {"message": "Task cancelled", "task_id": task_id}
+
+    status_info = get_task_status(task_id)
+    if not status_info:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {"message": f"Task already {status_info['status']}", "task_id": task_id}
+
+
 @router.get("/{story_id}", response_model=StoryResponse)
 async def get_story(
     story_id: int,
@@ -137,7 +186,20 @@ async def get_story(
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
 
-    return story
+    response = StoryResponse.model_validate(story)
+
+    # If the story is generating, look for an active in-memory task
+    if story.status == "generating":
+        active = find_active_task_for_story(story_id)
+        if active:
+            response.active_task = TaskStatusResponse(**active)
+        else:
+            # Task lost (e.g. server restart) — mark as failed so user can retry
+            story.status = "failed"
+            db.commit()
+            response.status = "failed"
+
+    return response
 
 
 @router.patch("/{story_id}", response_model=StoryResponse)
@@ -160,10 +222,44 @@ async def update_story(
         story.title = story_update.title
     if story_update.description:
         story.description = story_update.description
+    if story_update.visibility is not None:
+        if story_update.visibility not in ("private", "link_only", "public"):
+            raise HTTPException(status_code=400, detail="Invalid visibility value")
+        story.visibility = story_update.visibility
+        if story_update.visibility in ("link_only", "public") and not story.share_code:
+            story.share_code = str(uuid.uuid4())
 
     db.commit()
     db.refresh(story)
     return story
+
+
+@router.post("/{story_id}/generate-share-link", response_model=ShareLinkResponse)
+async def generate_share_link(
+    story_id: int,
+    request: Request,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Generate or return a share link for a story."""
+    story = db.query(Story).filter(
+        Story.id == story_id,
+        Story.user_id == current_user.id
+    ).first()
+
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    if not story.share_code:
+        story.share_code = str(uuid.uuid4())
+        db.commit()
+        db.refresh(story)
+
+    frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+    return ShareLinkResponse(
+        share_code=story.share_code,
+        share_url=f"{frontend_url}/share/{story.share_code}"
+    )
 
 
 @router.delete("/{story_id}")
@@ -181,6 +277,11 @@ async def delete_story(
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
 
+    # Delete audio files from disk
+    audio_dir = Path(__file__).parent.parent / "static" / "audio" / str(story_id)
+    if audio_dir.exists():
+        shutil.rmtree(audio_dir, ignore_errors=True)
+
     db.delete(story)
     db.commit()
     return {"message": "Story deleted"}
@@ -190,10 +291,11 @@ async def delete_story(
 async def generate_story_content(
     story_id: int,
     request: GenerateStoryRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Start story script generation (async task via Celery)."""
+    """Start story script generation (async background task)."""
     story = db.query(Story).filter(
         Story.id == story_id,
         Story.user_id == current_user.id
@@ -208,19 +310,77 @@ async def generate_story_content(
     # Update story with request data
     story.prompt = request.prompt
     story.status = "generating"
+
+    # Reset existing chapters for regeneration and adjust count
+    existing_chapters = sorted(story.chapters, key=lambda c: c.chapter_number)
+    audio_dir = Path(__file__).parent.parent / "static" / "audio" / str(story_id)
+
+    for ch in existing_chapters:
+        if ch.chapter_number <= request.num_chapters:
+            ch.script_json = None
+            ch.enhanced_json = None
+            ch.audio_path = None
+            ch.audio_duration = None
+            ch.status = "pending"
+        else:
+            db.delete(ch)
+
+    # Delete old audio files from disk
+    if audio_dir.exists():
+        shutil.rmtree(audio_dir, ignore_errors=True)
+
+    # Create any missing chapters if count was increased
+    existing_nums = {ch.chapter_number for ch in existing_chapters}
+    for i in range(1, request.num_chapters + 1):
+        if i not in existing_nums:
+            db.add(Chapter(
+                story_id=story_id,
+                chapter_number=i,
+                status="pending"
+            ))
+
     db.commit()
 
-    # Start Celery task
-    task = generate_story_task.delay(
+    # Resolve OpenAI API key
+    openai_api_key = None
+    use_platform_key = False
+    if current_user.openai_api_key:
+        openai_api_key = decrypt_key(current_user.openai_api_key)
+    else:
+        # Free tier check
+        used = current_user.free_stories_used or 0
+        budget = db.query(PlatformBudget).first()
+        if used >= FREE_STORIES_PER_USER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Free tier limit reached (3/3 stories used). Add your own OpenAI API key in Settings to continue."
+            )
+        if budget and budget.total_spent >= budget.total_budget:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Community free tier budget exhausted. Add your own OpenAI API key in Settings to continue."
+            )
+        use_platform_key = True
+        current_user.free_stories_used = used + 1
+        db.commit()
+
+    # Start background task
+    task_id = f"story_{story_id}_{int(time.time())}"
+    update_task_status(task_id, "pending", 0, "Task queued, waiting to start...")
+    background_tasks.add_task(
+        generate_story,
+        task_id=task_id,
         story_id=story_id,
         user_id=current_user.id,
         prompt=request.prompt,
         num_chapters=request.num_chapters,
-        enhance=request.enhance
+        enhance=request.enhance,
+        openai_api_key=openai_api_key,
+        use_platform_key=use_platform_key,
     )
 
     return TaskStatusResponse(
-        task_id=task.id,
+        task_id=task_id,
         status="pending",
         message="Story generation started"
     )
@@ -230,10 +390,11 @@ async def generate_story_content(
 async def generate_story_audio(
     story_id: int,
     request: GenerateAudioRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Start audio generation for chapters (async task via Celery)."""
+    """Start audio generation for chapters (async background task)."""
     story = db.query(Story).filter(
         Story.id == story_id,
         Story.user_id == current_user.id
@@ -259,19 +420,96 @@ async def generate_story_audio(
                 detail=f"Chapter {chapter.chapter_number} has no script"
             )
 
-    # Start Celery task
+    # Resolve ElevenLabs API key
+    elevenlabs_api_key = None
+    if current_user.elevenlabs_api_key:
+        elevenlabs_api_key = decrypt_key(current_user.elevenlabs_api_key)
+    elif not os.environ.get("ELEVENLABS_API_KEY"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Add your own ElevenLabs API key in Settings to generate audio."
+        )
+
+    # Start background task
     chapter_ids = [c.id for c in chapters]
-    task = generate_audio_task.delay(
+    task_id = f"audio_{story_id}_{int(time.time())}"
+    update_task_status(task_id, "pending", 0, "Task queued, waiting to start...")
+    background_tasks.add_task(
+        generate_audio,
+        task_id=task_id,
         story_id=story_id,
         user_id=current_user.id,
-        chapter_ids=chapter_ids
+        chapter_ids=chapter_ids,
+        elevenlabs_api_key=elevenlabs_api_key,
     )
 
     return TaskStatusResponse(
-        task_id=task.id,
+        task_id=task_id,
         status="pending",
         message=f"Audio generation started for {len(chapters)} chapters"
     )
+
+
+@router.get("/{story_id}/audio/combined")
+async def download_combined_audio(
+    story_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Combine all chapter audio files into a single MP3 download."""
+    story = db.query(Story).filter(
+        Story.id == story_id,
+        Story.user_id == current_user.id
+    ).first()
+
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    audio_dir = Path(__file__).parent.parent / "static" / "audio" / str(story_id)
+    chapters_with_audio = sorted(
+        [c for c in story.chapters if c.audio_path],
+        key=lambda c: c.chapter_number
+    )
+
+    if not chapters_with_audio:
+        raise HTTPException(status_code=404, detail="No audio files available")
+
+    if len(chapters_with_audio) == 1:
+        single = audio_dir / f"ch{chapters_with_audio[0].chapter_number}.mp3"
+        if not single.exists():
+            raise HTTPException(status_code=404, detail="Audio file not found")
+        return FileResponse(
+            str(single),
+            media_type="audio/mpeg",
+            filename=f"{story.title}.mp3"
+        )
+
+    # Build ffmpeg concat file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        for ch in chapters_with_audio:
+            ch_path = audio_dir / f"ch{ch.chapter_number}.mp3"
+            if ch_path.exists():
+                f.write(f"file '{ch_path}'\n")
+        concat_list = f.name
+
+    with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp:
+        output_path = tmp.name
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-y", "-f", "concat", "-safe", "0",
+             "-i", concat_list, "-c", "copy", output_path],
+            capture_output=True, text=True, timeout=120
+        )
+        if result.returncode != 0:
+            raise HTTPException(status_code=500, detail="Failed to combine audio files")
+
+        return FileResponse(
+            output_path,
+            media_type="audio/mpeg",
+            filename=f"{story.title}.mp3",
+        )
+    finally:
+        os.unlink(concat_list)
 
 
 @router.get("/{story_id}/chapters/{chapter_number}", response_model=ChapterResponse)
@@ -334,28 +572,37 @@ async def get_chapter_script(
     return json.loads(script)
 
 
-@router.get("/tasks/{task_id}", response_model=TaskStatusResponse)
-async def get_generation_status(
-    task_id: str,
-    current_user: User = Depends(get_current_active_user)
+@router.put("/{story_id}/chapters/{chapter_number}/script")
+async def update_chapter_script(
+    story_id: int,
+    chapter_number: int,
+    script: Any = Body(...),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
 ):
-    """Get status of a generation task."""
-    status_info = get_task_status_from_celery(task_id)
-    return TaskStatusResponse(**status_info)
+    """Update the JSON script for a chapter."""
+    story = db.query(Story).filter(
+        Story.id == story_id,
+        Story.user_id == current_user.id
+    ).first()
 
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
 
-@router.delete("/tasks/{task_id}")
-async def cancel_task(
-    task_id: str,
-    current_user: User = Depends(get_current_active_user)
-):
-    """Cancel a running task."""
-    result = AsyncResult(task_id, app=celery_app)
+    chapter = next(
+        (c for c in story.chapters if c.chapter_number == chapter_number),
+        None
+    )
 
-    if result.state in ["PENDING", "PROGRESS"]:
-        result.revoke(terminate=True)
-        return {"message": "Task cancelled", "task_id": task_id}
-    elif result.state == "SUCCESS":
-        return {"message": "Task already completed", "task_id": task_id}
+    if not chapter:
+        raise HTTPException(status_code=404, detail="Chapter not found")
+
+    script_str = json.dumps(script, ensure_ascii=False)
+    # Save to enhanced_json if it existed, otherwise script_json
+    if chapter.enhanced_json:
+        chapter.enhanced_json = script_str
     else:
-        return {"message": f"Task in state: {result.state}", "task_id": task_id}
+        chapter.script_json = script_str
+    db.commit()
+
+    return {"message": "Script updated"}

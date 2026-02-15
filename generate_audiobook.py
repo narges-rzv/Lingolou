@@ -448,7 +448,8 @@ class AudiobookGenerator:
         self,
         story_path: str,
         output_path: str,
-        include_scene_markers: bool = True
+        include_scene_markers: bool = True,
+        progress_callback=None
     ) -> str:
         """
         Generate audio for an entire chapter.
@@ -457,6 +458,7 @@ class AudiobookGenerator:
             story_path: Path to JSON story file
             output_path: Path for output audio file
             include_scene_markers: Whether to include scene transition pauses
+            progress_callback: Optional callable(entries_done, total_entries) called after each entry
 
         Returns:
             Path to generated audio file
@@ -529,6 +531,9 @@ class AudiobookGenerator:
 
                 elif entry_type == "end":
                     print(f"\n--- {entry.get('value', 'END')} ---")
+
+                if progress_callback:
+                    progress_callback(i + 1, len(story))
 
             # Concatenate all audio files
             if audio_files:

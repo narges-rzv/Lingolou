@@ -2,6 +2,9 @@
 Main FastAPI application for Lingolou.
 """
 
+from dotenv import load_dotenv
+load_dotenv()  # Load .env before any module reads os.getenv
+
 import os
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
@@ -11,7 +14,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from pathlib import Path
 
 from webapp.models.database import init_db
-from webapp.api import auth, stories, oauth
+from webapp.api import auth, stories, oauth, public, votes, reports
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -51,6 +54,9 @@ if frontend_assets.exists():
 app.include_router(auth.router)
 app.include_router(stories.router)
 app.include_router(oauth.router)
+app.include_router(public.router)
+app.include_router(votes.router)
+app.include_router(reports.router)
 
 
 # Exception handler

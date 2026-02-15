@@ -26,16 +26,32 @@ export default function StoryDetail() {
     try {
       const data = await apiFetch(`/stories/${id}`);
       setStory(data);
+
+      // Auto-reconnect: if there's an active task and we're not already tracking one
+      if (data.active_task && !taskId) {
+        setTaskId(data.active_task.task_id);
+        setTaskType(data.active_task.task_id.startsWith('audio_') ? 'audio' : 'script');
+        setGenerating(true);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, taskId]);
 
   useEffect(() => {
     fetchStory();
   }, [fetchStory]);
+
+  // Poll story data while generating so chapter badges update live
+  useEffect(() => {
+    if (!generating) return;
+    const interval = setInterval(() => {
+      apiFetch(`/stories/${id}`).then(setStory).catch(() => {});
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [generating, id]);
 
   // Pick up task ID passed from EditStory via navigation state
   useEffect(() => {
@@ -85,6 +101,38 @@ export default function StoryDetail() {
   };
 
   const [downloading, setDownloading] = useState(false);
+  const [updatingVisibility, setUpdatingVisibility] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
+
+  const handleVisibilityChange = async (e) => {
+    const newVisibility = e.target.value;
+    setUpdatingVisibility(true);
+    setError(null);
+    try {
+      const data = await apiFetch(`/stories/${id}`, {
+        method: 'PATCH',
+        json: { visibility: newVisibility },
+      });
+      setStory(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUpdatingVisibility(false);
+    }
+  };
+
+  const handleCopyShareLink = async () => {
+    try {
+      const data = await apiFetch(`/stories/${id}/generate-share-link`, {
+        method: 'POST',
+      });
+      await navigator.clipboard.writeText(data.share_url);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
   const handleDownloadFull = async () => {
     setDownloading(true);
@@ -117,7 +165,7 @@ export default function StoryDetail() {
   const handleDelete = async () => {
     try {
       await apiFetch(`/stories/${id}`, { method: 'DELETE' });
-      navigate('/');
+      navigate('/dashboard');
     } catch (err) {
       setError(err.message);
       setShowDelete(false);
@@ -145,6 +193,8 @@ export default function StoryDetail() {
           <h1>{story.title}</h1>
           <div className="story-meta">
             <span className={statusClass(story.status)}>{story.status}</span>
+            {story.visibility === 'public' && <span className="status-badge status-completed">Public</span>}
+            {story.visibility === 'link_only' && <span className="status-badge status-created">Link-only</span>}
             <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
               {chapters.length} chapter{chapters.length !== 1 ? 's' : ''}
             </span>
@@ -214,6 +264,23 @@ export default function StoryDetail() {
             Generate All Audio
           </button>
         )}
+        <div className="visibility-controls">
+          <select
+            value={story.visibility}
+            onChange={handleVisibilityChange}
+            disabled={updatingVisibility}
+            className="visibility-select"
+          >
+            <option value="private">Private</option>
+            <option value="link_only">Link-only</option>
+            <option value="public">Public</option>
+          </select>
+          {story.visibility !== 'private' && (
+            <button className="btn btn-ghost btn-sm" onClick={handleCopyShareLink}>
+              {copySuccess ? 'Copied!' : 'Copy Share Link'}
+            </button>
+          )}
+        </div>
         <button
           className="btn btn-danger"
           onClick={() => setShowDelete(true)}

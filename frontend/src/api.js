@@ -31,6 +31,26 @@ export async function apiFetch(path, options = {}) {
   return res.json();
 }
 
+export async function publicApiFetch(path, options = {}) {
+  const headers = { ...options.headers };
+
+  if (options.json !== undefined) {
+    headers['Content-Type'] = 'application/json';
+    options.body = JSON.stringify(options.json);
+    delete options.json;
+  }
+
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Request failed');
+  }
+
+  if (res.status === 204) return null;
+  return res.json();
+}
+
 export async function loginRequest(username, password) {
   const body = new URLSearchParams({ username, password });
   const res = await fetch(`${API_BASE}/auth/login`, {

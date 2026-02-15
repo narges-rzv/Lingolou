@@ -68,11 +68,16 @@ export default function TaskProgress({ taskId, onComplete, onError }) {
           style={{ width: `${status.progress || (isPending ? 100 : 0)}%` }}
         />
       </div>
+      {status.words_generated != null && status.estimated_total_words != null && (
+        <div className="task-word-count" style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
+          ~{status.words_generated.toLocaleString()} / {status.estimated_total_words.toLocaleString()} words
+        </div>
+      )}
       <div className="task-progress-footer">
         <span className="task-debug">
           Status: {status.status}
-          {isPending && pollCount > 2 && ' — waiting for Celery worker to pick up task'}
-          {isPending && pollCount > 5 && '. Check worker terminal for errors.'}
+          {isPending && pollCount > 2 && ' — waiting for background task to start'}
+          {isPending && pollCount > 5 && '. Check server logs for errors.'}
         </span>
         {!isDone && (
           <button

@@ -1,16 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { apiFetch } from '../api';
-
-const LANGUAGES = [
-  'Arabic', 'Bulgarian', 'Chinese (Mandarin)', 'Croatian', 'Czech',
-  'Danish', 'Dutch', 'English', 'Filipino', 'Finnish',
-  'French', 'German', 'Greek', 'Hebrew', 'Hindi',
-  'Hungarian', 'Indonesian', 'Italian', 'Japanese', 'Korean',
-  'Malay', 'Norwegian', 'Persian (Farsi)', 'Polish', 'Portuguese',
-  'Romanian', 'Russian', 'Slovak', 'Spanish', 'Swedish',
-  'Tamil', 'Thai', 'Turkish', 'Ukrainian', 'Vietnamese',
-];
+import { LANGUAGES } from '../languages';
 
 const THEMES = [
   { value: 'greetings', label: 'Greetings and introductions' },

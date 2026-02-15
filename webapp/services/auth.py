@@ -2,11 +2,12 @@
 Authentication service for user management and JWT tokens.
 """
 
+import os
 from datetime import datetime, timedelta
 from typing import Optional
 import bcrypt
 from jose import JWTError, jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
@@ -14,7 +15,7 @@ from pydantic import BaseModel, EmailStr
 from webapp.models.database import get_db, User
 
 # Configuration
-SECRET_KEY = "your-secret-key-change-in-production"  # TODO: Move to env var
+SECRET_KEY = os.getenv("SESSION_SECRET_KEY", "your-secret-key-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
@@ -149,3 +150,18 @@ async def get_current_active_user(
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
+
+
+async def get_current_user_optional(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    """Return the current user if a valid token is present, else None."""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    token = auth_header[7:]
+    token_data = decode_token(token)
+    if token_data is None:
+        return None
+    return get_user_by_id(db, token_data.user_id)

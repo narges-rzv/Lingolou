@@ -31,6 +31,19 @@ client_secret*.json
 .vscode/
 .idea/
 
+# Claude Code
+.claude/
+
 # Frontend
 frontend/node_modules/
 webapp/static/frontend/
+
+# Test artifacts
+.coverage
+htmlcov/
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+
+# Generated stories
+stories/

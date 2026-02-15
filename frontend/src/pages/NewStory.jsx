@@ -1,17 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { apiFetch } from '../api';
-
-// ElevenLabs v3 supported languages
-const LANGUAGES = [
-  'Arabic', 'Bulgarian', 'Chinese (Mandarin)', 'Croatian', 'Czech',
-  'Danish', 'Dutch', 'English', 'Filipino', 'Finnish',
-  'French', 'German', 'Greek', 'Hebrew', 'Hindi',
-  'Hungarian', 'Indonesian', 'Italian', 'Japanese', 'Korean',
-  'Malay', 'Norwegian', 'Persian (Farsi)', 'Polish', 'Portuguese',
-  'Romanian', 'Russian', 'Slovak', 'Spanish', 'Swedish',
-  'Tamil', 'Thai', 'Turkish', 'Ukrainian', 'Vietnamese',
-];
+import { useLanguage } from '../context/LanguageContext';
+import { LANGUAGES } from '../languages';
+import BudgetBanner from '../components/BudgetBanner';
 
 const THEMES = [
   { value: 'greetings', label: 'Greetings and introductions' },
@@ -32,9 +24,10 @@ function buildPrompt(language, themeText, plot, numChapters) {
 
 export default function NewStory() {
   const navigate = useNavigate();
+  const { language: globalLanguage } = useLanguage();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [language, setLanguage] = useState('Persian (Farsi)');
+  const [language, setLanguage] = useState(globalLanguage);
   const [themeKey, setThemeKey] = useState('greetings');
   const [customTheme, setCustomTheme] = useState('');
   const [plot, setPlot] = useState('saving a lost baby penguin, and reuniting her with her parents');
@@ -47,10 +40,15 @@ export default function NewStory() {
   const [voicePreview, setVoicePreview] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [keyStatus, setKeyStatus] = useState(null);
 
   const themeText = themeKey === 'custom'
     ? customTheme
     : THEMES.find((t) => t.value === themeKey)?.label || themeKey;
+
+  useEffect(() => {
+    apiFetch('/auth/api-keys').then(setKeyStatus).catch(() => {});
+  }, []);
 
   // Auto-generate prompt when inputs change (unless user manually edited it)
   const generatedPrompt = useMemo(
@@ -103,6 +101,7 @@ export default function NewStory() {
           description: description || `A PAW Patrol ${language} learning story about ${themeText.toLowerCase()}`,
           prompt,
           num_chapters: numChapters,
+          language,
           config_override: {
             target_language: { name: language, code: language.slice(0, 2).toLowerCase() },
           },
@@ -118,7 +117,24 @@ export default function NewStory() {
 
   return (
     <div className="page-card">
+      <BudgetBanner />
       <h1>Create New Story</h1>
+
+      {keyStatus && (
+        <div className="key-status-banner">
+          {keyStatus.has_openai_key ? (
+            <span className="key-info key-info-own">Using your OpenAI key</span>
+          ) : keyStatus.free_stories_used < keyStatus.free_stories_limit ? (
+            <span className="key-info key-info-free">
+              Using free tier ({keyStatus.free_stories_limit - keyStatus.free_stories_used} of {keyStatus.free_stories_limit} stories remaining)
+            </span>
+          ) : (
+            <span className="key-info key-info-none">
+              Free tier used up — <Link to="/settings">add your API key</Link> to continue
+            </span>
+          )}
+        </div>
+      )}
 
       {error && <div className="error-message">{error}</div>}
 
@@ -295,7 +311,7 @@ export default function NewStory() {
           <button className="btn btn-primary" type="submit" disabled={loading}>
             {loading ? 'Creating...' : 'Create Story'}
           </button>
-          <Link to="/" className="btn btn-ghost">Cancel</Link>
+          <Link to="/dashboard" className="btn btn-ghost">Cancel</Link>
         </div>
       </form>
     </div>
