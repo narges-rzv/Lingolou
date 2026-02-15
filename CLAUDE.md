@@ -2,12 +2,6 @@
 
 > This file provides guidance to Claude Code (or any AI assistant) when working on this codebase.
 
-## Current Priority: Remove Celery/Redis
-
-**Goal**: Simplify the architecture by removing Celery and Redis dependency. This makes cloud deployment cheaper and simpler (no Memorystore/Redis Cloud needed).
-
-**See**: `REFACTOR_PLAN.md` for the detailed migration plan.
-
 ## Project Summary
 
 Lingolou is a language learning audiobook generator. It creates children's stories with multilingual dialogue (English + Farsi), generates emotion-tagged scripts using OpenAI, and converts them to audio using ElevenLabs.
@@ -17,7 +11,7 @@ Lingolou is a language learning audiobook generator. It creates children's stori
 - **Backend**: FastAPI (Python 3.9+)
 - **Frontend**: React 18 + Vite
 - **Database**: SQLite (dev), PostgreSQL (production)
-- **Task Queue**: Celery + Redis
+- **Background Tasks**: FastAPI BackgroundTasks (in-process)
 - **Auth**: JWT + Google OAuth (authlib)
 - **APIs**: OpenAI (GPT-4), ElevenLabs (eleven_v3)
 
@@ -26,9 +20,6 @@ Lingolou is a language learning audiobook generator. It creates children's stori
 ```bash
 # Backend
 uvicorn webapp.main:app --reload --port 8000
-
-# Celery worker (required for background tasks)
-celery -A webapp.celery_app worker --loglevel=info
 
 # Frontend
 cd frontend && npm run dev
@@ -43,8 +34,6 @@ python generate_audiobook.py stories/s1 --voices voices_config.json
 ```
 webapp/
 ├── main.py              # FastAPI app, middleware, routers
-├── celery_app.py        # Celery configuration
-├── tasks.py             # Background tasks (story/audio generation)
 ├── api/
 │   ├── auth.py          # /api/auth/* endpoints
 │   ├── oauth.py         # /api/auth/oauth/google/* endpoints
@@ -54,6 +43,7 @@ webapp/
 │   └── schemas.py       # Pydantic request/response schemas
 └── services/
     ├── auth.py          # JWT creation, password hashing
+    ├── generation.py    # Background task logic (story/audio generation)
     └── oauth.py         # Google OAuth provider config
 
 frontend/src/
@@ -70,7 +60,7 @@ frontend/src/
 - **Routers** are in `webapp/api/`, included in `main.py`
 - **Database models** use SQLAlchemy declarative base in `database.py`
 - **Pydantic schemas** for request validation in `schemas.py`
-- **Background tasks** are Celery tasks in `tasks.py`, triggered via API endpoints
+- **Background tasks** use FastAPI `BackgroundTasks` in `services/generation.py`, with in-memory progress tracking
 - **Auth** uses `get_current_user` dependency for protected routes
 
 ### Frontend
@@ -103,31 +93,44 @@ SESSION_SECRET_KEY=  # min 32 chars for session middleware
 
 Optional:
 ```bash
-REDIS_URL=redis://localhost:6379/0
 FRONTEND_URL=http://localhost:5173
 ```
 
 ## Testing
 
-No test suite currently. Manual testing:
+For every new feature, add meaningful tests covering logical flows and edge cases, aiming to increase coverage. Tests should verify both the happy path and failure modes (invalid input, auth boundaries, ownership checks, etc.).
 
-1. Start Redis: `redis-server`
-2. Start Celery worker
-3. Start backend
-4. Start frontend
-5. Register/login, create story, generate
+```bash
+# Run all tests
+make test
+
+# Backend only (pytest + coverage report)
+make test-backend
+
+# Frontend only (Vitest + coverage report)
+make test-frontend
+
+# E2E (requires backend + frontend running)
+make test-e2e
+```
+
+- **Backend tests**: `webapp/tests/` — pytest with in-memory SQLite, FastAPI TestClient, fixtures in `conftest.py`
+- **Frontend tests**: `frontend/src/test/` — Vitest + React Testing Library + MSW v2 for network mocking
+- **E2E tests**: `frontend/src/e2e/` — Playwright (chromium)
+- **Shared test utils**: `frontend/src/test/test-utils.jsx` wraps components in all providers (Router, Auth, Language)
 
 ## Gotchas
 
 - **OAuth-only users** have `hashed_password=None` — `authenticate_user()` guards against this
 - **SQLite schema changes** require deleting the `.db` file
-- **Celery tasks** need Redis running; without it, generation endpoints fail
+- **Background tasks** run in-process; task progress is lost on server restart
 - **CORS** is set to `allow_origins=["*"]` — restrict in production
 - **Session middleware** is required for OAuth state/CSRF (authlib requirement)
 
 ## When Making Changes
 
-1. **Adding API endpoints**: Create in `webapp/api/`, include router in `main.py`
+1. **Adding API endpoints**: Create in `webapp/api/`, include router in `main.py`, add tests in `webapp/tests/`
 2. **Adding database columns**: Update model in `database.py`, delete `lingolou.db`
-3. **Frontend changes**: Files in `frontend/src/`, hot-reloads with Vite
+3. **Frontend changes**: Files in `frontend/src/`, hot-reloads with Vite, add tests in `frontend/src/test/`
 4. **New dependencies**: Add to both `requirements.txt` and `webapp/requirements.txt`
+5. **Always add tests**: Cover logical flows, edge cases, and auth/ownership boundaries. Run `make test` before committing
