@@ -31,9 +31,6 @@ client_secret*.json
 .vscode/
 .idea/
 
-# Claude Code
-.claude/
-
 # Frontend
 frontend/node_modules/
 webapp/static/frontend/
