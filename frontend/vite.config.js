@@ -10,8 +10,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:8000',
-      '/static': 'http://localhost:8000',
+      '/api': 'http://127.0.0.1:8000',
+      '/static': 'http://127.0.0.1:8000',
     },
   },
 })
