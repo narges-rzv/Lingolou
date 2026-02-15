@@ -2,12 +2,15 @@
 OAuth2 authorization code flow endpoints for Google.
 """
 
+import logging
 import os
 from datetime import datetime
 from typing import Optional
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Request
+
+logger = logging.getLogger(__name__)
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -94,7 +97,8 @@ async def google_login(request: Request):
 async def google_callback(request: Request, db: Session = Depends(get_db)):
     try:
         token = await oauth.google.authorize_access_token(request)
-    except Exception:
+    except Exception as e:
+        logger.error("OAuth token exchange failed: %s", e)
         return _redirect_with_error("oauth_failed")
 
     userinfo = token.get("userinfo", {})
