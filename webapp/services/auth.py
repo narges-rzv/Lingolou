@@ -5,14 +5,14 @@ Authentication service for user management and JWT tokens.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 import bcrypt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -46,8 +46,7 @@ class UserResponse(BaseModel):
     is_active: bool
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class Token(BaseModel):
@@ -78,7 +77,7 @@ def get_password_hash(password: str) -> str:
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     """Create a JWT access token with expiration."""
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    expire = datetime.now(UTC) + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -133,7 +132,7 @@ def authenticate_user(db: Session, login: str, password: str) -> User | None:
 
 def update_last_login(db: Session, user: User) -> None:
     """Update the user's last_login timestamp."""
-    user.last_login = datetime.now(timezone.utc)
+    user.last_login = datetime.now(UTC)
     db.commit()
 
 

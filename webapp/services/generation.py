@@ -10,7 +10,7 @@ import json
 import os
 import subprocess
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -42,7 +42,7 @@ def update_task_status(
         "result": result,
         "words_generated": words_generated,
         "estimated_total_words": estimated_total_words,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
     }
 
 

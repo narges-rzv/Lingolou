@@ -17,6 +17,7 @@ import os
 import sys
 
 import requests
+from dotenv import load_dotenv
 
 API_BASE = "https://api.elevenlabs.io/v1"
 
@@ -144,7 +145,8 @@ def test_from_story(
     )
 
 
-def main():
+def main() -> int:
+    load_dotenv()
     parser = argparse.ArgumentParser(description="Test ElevenLabs voices")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 

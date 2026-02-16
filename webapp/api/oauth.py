@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, Request
@@ -76,7 +76,7 @@ def _get_or_create_oauth_user(
 
 def _redirect_with_token(user: User, db: Session) -> RedirectResponse:
     """Generate JWT and redirect to frontend with token."""
-    user.last_login = datetime.now(timezone.utc)
+    user.last_login = datetime.now(UTC)
     db.commit()
     token = create_access_token(data={"sub": str(user.id)})
     return RedirectResponse(url=f"{FRONTEND_URL}/login?token={token}")

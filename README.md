@@ -20,7 +20,7 @@ Designed for kids' language learning with support for multiple characters, 35+ l
 
 ## Prerequisites
 
-- **Python 3.9+**
+- **Python 3.12+**
 - **Node.js 18+** (required by Vite 6 — check with `node -v`)
 - **ffmpeg** (for audio processing)
 

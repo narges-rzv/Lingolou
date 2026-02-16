@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 # Story schemas
@@ -42,8 +42,7 @@ class ChapterResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class StoryResponse(BaseModel):
@@ -64,8 +63,7 @@ class StoryResponse(BaseModel):
     chapters: list[ChapterResponse] = []
     active_task: TaskStatusResponse | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class StoryListResponse(BaseModel):
@@ -80,8 +78,7 @@ class StoryListResponse(BaseModel):
     chapter_count: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PublicStoryListItem(BaseModel):
@@ -98,8 +95,7 @@ class PublicStoryListItem(BaseModel):
     created_at: datetime
     owner_name: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PublicStoryResponse(BaseModel):
@@ -119,8 +115,7 @@ class PublicStoryResponse(BaseModel):
     chapters: list[ChapterResponse] = []
     owner_name: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Generation schemas

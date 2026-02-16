@@ -8,7 +8,7 @@ Lingolou is a language learning audiobook generator. It creates children's stori
 
 ## Tech Stack
 
-- **Backend**: FastAPI (Python 3.9+)
+- **Backend**: FastAPI (Python 3.12+)
 - **Frontend**: React 18 + Vite
 - **Database**: SQLite (dev), PostgreSQL (production)
 - **Background Tasks**: FastAPI BackgroundTasks (in-process)

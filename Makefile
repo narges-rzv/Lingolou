@@ -20,11 +20,11 @@ lint:
 
 # Auto-fix lint issues and format
 format:
-	ruff check --fix .
 	ruff format .
+	ruff check --fix .
 
 # Lint then test
-all: lint test
+all: format lint test
 
 # Backend tests with coverage
 test-backend:

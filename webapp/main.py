@@ -4,6 +4,9 @@ Main FastAPI application for Lingolou.
 
 from __future__ import annotations
 
+import contextlib
+from collections.abc import AsyncGenerator
+
 from dotenv import load_dotenv
 
 load_dotenv()  # Load .env before any module reads os.getenv
@@ -20,8 +23,28 @@ from starlette.middleware.sessions import SessionMiddleware
 from webapp.api import auth, oauth, public, reports, stories, votes
 from webapp.models.database import init_db
 
+
+@contextlib.asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Handle the life-cycle of the server.
+
+    Args:
+        app (FastAPI): The server.
+
+    Returns:
+        AsyncGenerator[None, None]: Yields control to the server.
+    """
+    # Start Up
+    init_db()
+    # Server
+    yield
+    # Shut Down
+
+
 # Initialize FastAPI app
-app = FastAPI(title="Lingolou API", description="Language Learning Audiobook Generator API", version="1.0.0")
+app = FastAPI(
+    title="Lingolou API", description="Language Learning Audiobook Generator API", version="1.0.0", lifespan=lifespan
+)
 
 # Session middleware (required by authlib for OAuth state/CSRF)
 app.add_middleware(
@@ -64,13 +87,6 @@ app.include_router(reports.router)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Return JSON 500 response for unhandled exceptions."""
     return JSONResponse(status_code=500, content={"detail": str(exc)})
-
-
-# Startup event
-@app.on_event("startup")
-async def startup() -> None:
-    """Initialize database on startup."""
-    init_db()
 
 
 # Health check
