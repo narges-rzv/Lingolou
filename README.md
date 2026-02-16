@@ -36,21 +36,15 @@ brew install ffmpeg
 sudo apt install ffmpeg
 ```
 
-### 2. Backend setup
+### 2. Install dependencies
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+make install    # pip install + npm install
 ```
 
-### 3. Frontend setup
-
-```bash
-cd frontend && npm install
-```
-
-### 4. Environment variables
+### 3. Environment variables
 
 Create a `.env` file in the project root:
 
@@ -70,43 +64,39 @@ FRONTEND_URL="http://localhost:5173"
 
 > `.env` is in `.gitignore` — never commit API keys.
 
-### 5. Configure voices
+### 4. Configure voices
 
 ```bash
 cp voices_config.example.json voices_config.json
 # Edit voices_config.json with your ElevenLabs voice IDs
 ```
 
-### 6. Run the app
+### 5. Run the app
 
 ```bash
-# Terminal 1: Backend
-uvicorn webapp.main:app --reload --port 8000
-
-# Terminal 2: Frontend
-cd frontend && npm run dev
+make dev    # Starts backend + frontend (Ctrl-C to stop both)
 ```
 
 - Frontend: http://localhost:5173
 - API docs: http://localhost:8000/docs
 
+## Code Quality
+
+```bash
+make lint      # Ruff lint + format check + mypy type-check
+make format    # Auto-fix lint + format issues
+make all       # Lint then test (pre-commit check)
+```
+
 ## Testing
 
 ```bash
-# Run all tests (backend + frontend)
-make test
-
-# Backend only (pytest + coverage)
-make test-backend
-
-# Frontend only (Vitest)
-make test-frontend
-
-# E2E tests (requires backend + frontend running)
-make test-e2e
-
-# Install all test dependencies
-make test-install
+make test            # Backend + frontend tests
+make test-backend    # pytest + coverage
+make test-frontend   # Vitest + coverage
+make test-e2e        # Playwright (requires backend + frontend running)
+make test-install    # Install all test dependencies
+make all             # Lint + test (recommended before committing)
 ```
 
 ## Project Structure

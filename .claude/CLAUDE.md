@@ -19,17 +19,22 @@ Lingolou is a language learning audiobook generator. It creates children's stori
 ## Common Commands
 
 ```bash
-# Backend
-uvicorn webapp.main:app --reload --port 8000
+# Install all dependencies
+make install
 
-# Frontend
-cd frontend && npm run dev
+# Start backend + frontend dev servers
+make dev
 
 # Tests
 make test            # backend + frontend unit tests
 make test-backend    # pytest + coverage
 make test-frontend   # vitest + coverage
 make test-e2e        # playwright (requires servers running)
+
+# Code quality
+make lint            # ruff check + ruff format --check + mypy
+make format          # ruff check --fix + ruff format
+make all             # lint then test (pre-commit check)
 
 # CLI tools
 python generate_story.py -o stories/s1
@@ -71,6 +76,45 @@ frontend/src/
 ├── pages/               # Login, Dashboard, StoryDetail, NewStory, Settings, PublicStories, etc.
 ├── test/                # Frontend tests (Vitest + RTL + MSW)
 └── e2e/                 # E2E tests (Playwright)
+```
+
+## Code Quality
+
+All Python code is checked by **ruff** (linter + formatter) and **mypy** (type checker). Configuration lives in `pyproject.toml`.
+
+```bash
+make lint    # Check — must pass before committing
+make format  # Auto-fix — run this to fix formatting issues
+make all     # Lint + test — the full pre-commit check
+```
+
+### Rules
+
+Ruff enforces: `ALL` (all available rules). See `pyproject.toml` for the ignore list.
+
+- Tests (`webapp/tests/*`, `test_voice.py`) are exempt from docstring (`D`) and annotation (`ANN`) rules.
+- All other Python files must have docstrings on public functions/classes and type annotations on function signatures.
+
+### Suppressing rules
+
+When suppressing a lint rule, always use the **specific rule code** and add an explanation:
+
+```python
+# Correct:
+value: Any = Body(...)  # noqa: ANN401 — FastAPI Body() requires Any
+
+# Wrong:
+value = Body(...)  # noqa
+value = Body(...)  # type: ignore
+```
+
+For mypy:
+```python
+# Correct:
+result = some_untyped_lib.call()  # type: ignore[no-untyped-call] — authlib lacks stubs
+
+# Wrong:
+result = some_untyped_lib.call()  # type: ignore
 ```
 
 ## Code Patterns
@@ -131,6 +175,7 @@ make test            # Run backend + frontend tests
 make test-backend    # pytest + coverage report
 make test-frontend   # vitest + coverage report
 make test-e2e        # playwright (requires backend + frontend running)
+make all             # lint + test (pre-commit check)
 ```
 
 - **Backend tests**: `webapp/tests/` — pytest with in-memory SQLite (StaticPool), FastAPI TestClient, fixtures in `conftest.py`
@@ -153,4 +198,4 @@ make test-e2e        # playwright (requires backend + frontend running)
 2. **Adding database columns**: Update model in `database.py`, delete `lingolou.db`
 3. **Frontend changes**: Files in `frontend/src/`, hot-reloads with Vite, add tests in `frontend/src/test/`
 4. **New dependencies**: Add to `requirements.txt`
-5. **Always add tests**: Cover logical flows, edge cases, and auth/ownership boundaries. Run `make test` before committing
+5. **Always run `make all`** before committing (lint + test)

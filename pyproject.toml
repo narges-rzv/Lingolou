@@ -1,0 +1,123 @@
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    # Docstring style conflicts
+    "D100",   # Missing docstring in public module
+    "D104",   # Missing docstring in public package
+    "D203",   # 1 blank line before class docstring (conflicts with D211)
+    "D213",   # Multi-line docstring summary on second line (conflicts with D212)
+    # Annotations
+    "ANN401", # Dynamically typed expressions (typing.Any) are disallowed
+    # Formatter conflicts
+    "COM812", # Missing trailing comma (conflicts with ruff formatter)
+    "ISC001", # Implicit string concatenation (conflicts with ruff formatter)
+    # Too noisy / not applicable
+    "S101",   # Use of assert — needed in tests
+    "PLR2004", # Magic value used in comparison
+    "T201",   # print() — CLI tools use print extensively
+    "B008",   # Do not perform function calls in argument defaults — FastAPI Depends pattern
+    "FAST002", # FastAPI route without response_model — many routes return dicts intentionally
+    "ARG001", # Unused function argument — FastAPI dependencies use this pattern
+    "S607",   # Starting a process with a partial executable path — ffmpeg is expected in PATH
+    "FBT001", # Boolean positional arg in function definition
+    "FBT002", # Boolean default value in function definition
+    "PLR0913", # Too many arguments to function call
+    "RUF013", # PEP 484 prohibits implicit Optional — we use explicit | None
+    "D106",   # Missing docstring in public nested class (Pydantic Config)
+    "EM101",  # Exception must not use a string literal
+    "EM102",  # Exception must not use an f-string literal
+    "TRY003", # Avoid specifying long messages outside the exception class
+    "TRY400", # Use logging.exception instead of logging.error
+    "ERA001", # Found commented-out code
+    "TD002",  # Missing author in TODO
+    "TD003",  # Missing issue link in TODO
+    "FIX002", # Line contains TODO
+    "S106",   # Possible hardcoded password
+    "FA100",  # Add `from __future__ import annotations` — we add it manually
+    "Q000",   # Double quotes — handled by ruff formatter
+    "PT001",  # Use @pytest.fixture over @pytest.fixture()
+    "E402",   # Module-level import not at top of file — needed for dotenv loading
+    "PLC0415", # Import outside top level — needed for conditional imports
+    "D200",   # One-line docstring should fit on one line — too nitpicky
+    "D204",   # 1 blank line required after class docstring — conflicts with dataclasses
+    "D400",   # First line should end with a period
+    "D415",   # First line should end with a period, question mark, or exclamation point
+    "EXE001", # Shebang present but file is not executable
+    "D212",   # Multi-line docstring summary should start at first line
+    "D413",   # Missing blank line after last section
+    "C901",   # Function too complex
+    "PLR0912", # Too many branches
+    "PLR0915", # Too many statements
+    "TRY002", # Create your own exception
+    "PERF203", # try-except in loop
+    "S113",   # Probable use of requests call without timeout
+    "ARG002", # Unused method argument — needed for interface consistency
+    "BLE001", # Do not catch blind exception
+    "RUF012", # Mutable class variable without ClassVar
+    "SIM105", # Use contextlib.suppress
+    "PTH108", # os.unlink should be Path.unlink
+    "PTH118", # os.path.join should be Path /
+    "PTH123", # open() should be Path.open()
+    "PTH110", # os.path.exists should be Path.exists
+    "UP015",  # Unnecessary mode argument
+    "N806",   # Variable in function should be lowercase
+    "ASYNC221", # Async function with sync call
+    "PLW1510", # subprocess.run without explicit check
+    "RET504", # Unnecessary assignment before return
+    "SIM114", # Combine if branches using logical or
+    "S104",   # Possible binding to all interfaces
+    "RUF015", # Prefer next(iter(...))
+    "PT028",  # pytest.fixture implied yield
+    "ANN204", # Missing return type annotation for __init__
+    "F541",   # f-string without any placeholders
+    "INP001", # File is part of an implicit namespace package (missing __init__.py)
+    "ANN002", # Missing type annotation for *args
+    "ANN003", # Missing type annotation for **kwargs
+    "D205",   # 1 blank line required between summary line and description
+    "B017",   # Do not assert blind exception — test files catch generic Exception
+    "ASYNC210", # Async function with blocking HTTP call
+    "ASYNC230", # Async function with blocking file operation
+    "TC001",  # Move application imports into type-checking block — FastAPI needs runtime imports for validation
+    "TC002",  # Move third-party imports into type-checking block — FastAPI needs runtime imports for Depends()
+    "TC003",  # Move stdlib imports into type-checking block — Pydantic/SQLAlchemy need runtime types
+]
+
+[tool.ruff.lint.per-file-ignores]
+"webapp/tests/*" = ["D", "ANN", "S", "SLF001", "PT"]
+"test_voice.py" = ["D", "ANN"]
+
+[tool.mypy]
+python_version = "3.9"
+check_untyped_defs = true
+ignore_missing_imports = false
+exclude = ["frontend/"]
+
+[[tool.mypy.overrides]]
+module = [
+    "_pytest.*",
+    "pytest.*",
+    "authlib.*",
+    "jose.*",
+]
+ignore_missing_imports = true
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = [
+    "webapp.models.database",
+    "webapp.api.*",
+    "webapp.services.generation",
+    "webapp.services.auth",
+    "webapp.tests.*",
+]
+# SQLAlchemy legacy Column() pattern produces false positives
+# until migration to Mapped[] annotations (SQLAlchemy 2.0 style)
+disable_error_code = ["arg-type", "operator", "assignment", "attr-defined", "call-overload", "misc", "valid-type", "index", "dict-item"]
+
+[tool.pytest.ini_options]
+testpaths = ["webapp/tests"]
+asyncio_mode = "auto"
