@@ -1,47 +1,114 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { apiFetch } from '../api';
+import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
+import { apiFetch, publicApiFetch } from '../api';
+import { LANGUAGES } from '../languages';
+import BudgetBanner from '../components/BudgetBanner';
 import StoryCard from '../components/StoryCard';
+import PublicStoryCard from '../components/PublicStoryCard';
+import InfoFooter from '../components/InfoFooter';
 
 export default function Dashboard() {
-  const [stories, setStories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const { language, setLanguage } = useLanguage();
+  const [userStories, setUserStories] = useState([]);
+  const [publicStories, setPublicStories] = useState([]);
+  const [loadingUser, setLoadingUser] = useState(true);
+  const [loadingPublic, setLoadingPublic] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    setLoadingUser(true);
     apiFetch('/stories/')
-      .then(setStories)
+      .then(setUserStories)
       .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+      .finally(() => setLoadingUser(false));
   }, []);
 
-  if (loading) return <div className="loading">Loading stories...</div>;
+  useEffect(() => {
+    setLoadingPublic(true);
+    const url = `/public/stories?language=${encodeURIComponent(language)}`;
+    publicApiFetch(url)
+      .then(setPublicStories)
+      .catch(() => setPublicStories([]))
+      .finally(() => setLoadingPublic(false));
+  }, [language]);
 
   return (
-    <div>
-      <div className="dashboard-header">
-        <h1>My Stories</h1>
-        <Link to="/stories/new" className="btn btn-primary">
-          New Story
-        </Link>
+    <div className="home-page">
+      {/* Welcome header with language picker */}
+      <div className="hero-section">
+        <h1 className="hero-title">Welcome back, {user?.username}</h1>
+        <p className="hero-description">
+          Pick a language and create a new story, or browse public stories from the community.
+          Your stories and the public library are both shown below.
+        </p>
+        <div className="hero-language-picker">
+          <select
+            className="hero-language-select"
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+          >
+            {LANGUAGES.map((lang) => (
+              <option key={lang} value={lang}>{lang}</option>
+            ))}
+          </select>
+        </div>
       </div>
+
+      <BudgetBanner />
 
       {error && <div className="error-message">{error}</div>}
 
-      {stories.length === 0 ? (
-        <div className="empty-state">
-          <p>You haven't created any stories yet.</p>
-          <Link to="/stories/new" className="btn btn-primary">
-            Create your first story
-          </Link>
+      {/* Two-column layout: public on left, user on right */}
+      <div className="home-columns">
+        {/* Left: Public Stories */}
+        <div className="home-column">
+          <div className="column-header">
+            <h2>Public Stories — {language}</h2>
+          </div>
+          {loadingPublic ? (
+            <p className="column-loading">Loading stories...</p>
+          ) : publicStories.length === 0 ? (
+            <div className="empty-state">
+              <p>No public stories yet for {language}.</p>
+            </div>
+          ) : (
+            <div className="column-story-list">
+              {publicStories.map((story) => (
+                <PublicStoryCard key={story.id} story={story} />
+              ))}
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="story-grid">
-          {stories.map((story) => (
-            <StoryCard key={story.id} story={story} />
-          ))}
+
+        {/* Right: User Stories */}
+        <div className="home-column">
+          <div className="column-header">
+            <h2>My Stories</h2>
+            <Link to="/stories/new" className="btn btn-primary btn-sm">New Story</Link>
+          </div>
+          {loadingUser ? (
+            <p className="column-loading">Loading your stories...</p>
+          ) : userStories.length === 0 ? (
+            <div className="empty-state">
+              <p>You haven&apos;t created any stories yet.</p>
+              <Link to="/stories/new" className="btn btn-primary">
+                Create your first story
+              </Link>
+            </div>
+          ) : (
+            <div className="column-story-list">
+              {userStories.map((story) => (
+                <StoryCard key={story.id} story={story} />
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
+
+      <InfoFooter />
     </div>
   );
 }

@@ -27,6 +27,16 @@ describe('PublicStories', () => {
     })
   })
 
+  it('shows hero description and language selector', async () => {
+    render(<PublicStories />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/helps you create an audio file/)).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole('combobox')).toBeInTheDocument()
+  })
+
   it('shows "Log in" when not authenticated', async () => {
     render(<PublicStories />)
 
@@ -35,7 +45,7 @@ describe('PublicStories', () => {
     })
   })
 
-  it('shows "My Stories" when authenticated', async () => {
+  it('shows "My Stories" column header when authenticated', async () => {
     localStorage.setItem('token', 'valid-token')
     render(<PublicStories />)
 
@@ -58,18 +68,14 @@ describe('PublicStories', () => {
     })
   })
 
-  it('language filter toggle works', async () => {
-    const user = userEvent.setup()
+  it('language selector is present with default language', async () => {
     render(<PublicStories />)
 
     await waitFor(() => {
-      expect(screen.getByText(/Show all languages/)).toBeInTheDocument()
+      expect(screen.getByText('Test Story')).toBeInTheDocument()
     })
 
-    await user.click(screen.getByText('Show all languages'))
-
-    await waitFor(() => {
-      expect(screen.getByText(/All Languages/)).toBeInTheDocument()
-    })
+    const select = screen.getByRole('combobox')
+    expect(select.value).toBe('Persian (Farsi)')
   })
 })
