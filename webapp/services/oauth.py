@@ -2,7 +2,10 @@
 OAuth provider configuration using Authlib.
 """
 
+from __future__ import annotations
+
 import os
+
 from authlib.integrations.starlette_client import OAuth
 
 oauth = OAuth()

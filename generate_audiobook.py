@@ -6,23 +6,31 @@ Converts JSON story scripts into audio using ElevenLabs API.
 Supports multiple characters, languages, emotions, and pauses.
 """
 
+from __future__ import annotations
+
+import argparse
 import json
 import os
-import argparse
-import time
-import subprocess
-import tempfile
-import shutil
 import re
-from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from pathlib import Path
+from typing import TYPE_CHECKING
+
 import requests
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 @dataclass
 class VoiceConfig:
     """Configuration for a character's voice."""
+
     voice_id: str
     stability: float = 1.0
     similarity_boost: float = 0.95
@@ -46,7 +54,7 @@ class AudiobookGenerator:
         api_key: str,
         voice_map: dict[str, VoiceConfig],
         model_id: str = "eleven_v3",
-        output_format: str = "mp3_44100_128"
+        output_format: str = "mp3_44100_128",
     ):
         """
         Initialize the audiobook generator.
@@ -61,11 +69,7 @@ class AudiobookGenerator:
         self.voice_map = voice_map
         self.model_id = model_id
         self.output_format = output_format
-        self.headers = {
-            "Accept": "audio/mpeg",
-            "Content-Type": "application/json",
-            "xi-api-key": api_key
-        }
+        self.headers = {"Accept": "audio/mpeg", "Content-Type": "application/json", "xi-api-key": api_key}
 
     def _get_voice_for_speaker(self, speaker: str) -> VoiceConfig:
         """Get voice configuration for a speaker, with fallback to NARRATOR."""
@@ -76,21 +80,21 @@ class AudiobookGenerator:
             return self.voice_map.get("NARRATOR", list(self.voice_map.values())[0])
         return self.voice_map.get("NARRATOR", list(self.voice_map.values())[0])
 
-    def _parse_emotion_tag(self, text: str) -> Tuple[Optional[str], str]:
+    def _parse_emotion_tag(self, text: str) -> tuple[str | None, str]:
         """
         Parse [emotion] tag from beginning of text.
 
         Returns:
             Tuple of (emotion, clean_text) where emotion may be None
         """
-        match = re.match(r'^\[([^\]]+)\]\s*', text)
+        match = re.match(r"^\[([^\]]+)\]\s*", text)
         if match:
             emotion = match.group(1).lower()
-            clean_text = text[match.end():]
+            clean_text = text[match.end() :]
             return emotion, clean_text
         return None, text
 
-    def _add_ssml_emotions(self, text: str, speaker: str, context: Optional[dict] = None) -> str:
+    def _add_ssml_emotions(self, text: str, speaker: str, context: dict | None = None) -> str:
         """
         Enhance text for emotional delivery.
 
@@ -161,12 +165,7 @@ class AudiobookGenerator:
         "bright": {"stability": 1.0, "style": 0.4},
     }
 
-    def _adjust_voice_for_emotion(
-        self,
-        voice_config: VoiceConfig,
-        text: str,
-        speaker: str
-    ) -> VoiceConfig:
+    def _adjust_voice_for_emotion(self, voice_config: VoiceConfig, text: str, speaker: str) -> VoiceConfig:
         """
         Adjust voice settings based on [emotion] tag and text patterns.
 
@@ -209,14 +208,10 @@ class AudiobookGenerator:
             stability=stability,
             similarity_boost=similarity,
             style=style,
-            use_speaker_boost=voice_config.use_speaker_boost
+            use_speaker_boost=voice_config.use_speaker_boost,
         )
 
-    def _generate_speech(
-        self,
-        text: str,
-        voice_config: VoiceConfig
-    ) -> bytes:
+    def _generate_speech(self, text: str, voice_config: VoiceConfig) -> bytes:
         """
         Generate speech audio for given text using ElevenLabs API.
 
@@ -245,16 +240,11 @@ class AudiobookGenerator:
                 "stability": stability,
                 "similarity_boost": voice_config.similarity_boost,
                 "style": voice_config.style,
-                "use_speaker_boost": voice_config.use_speaker_boost
-            }
+                "use_speaker_boost": voice_config.use_speaker_boost,
+            },
         }
 
-        response = requests.post(
-            url,
-            json=payload,
-            headers=self.headers,
-            params={"output_format": self.output_format}
-        )
+        response = requests.post(url, json=payload, headers=self.headers, params={"output_format": self.output_format})
 
         if response.status_code != 200:
             raise Exception(f"ElevenLabs API error: {response.status_code} - {response.text}")
@@ -264,22 +254,30 @@ class AudiobookGenerator:
     def _generate_silence_mp3(self, duration_seconds: float, output_path: str) -> str:
         """Generate silence MP3 of specified duration using ffmpeg."""
         cmd = [
-            "ffmpeg", "-y", "-f", "lavfi",
-            "-i", f"anullsrc=r=44100:cl=mono",
-            "-t", str(duration_seconds),
-            "-c:a", "libmp3lame", "-b:a", "128k",
-            output_path
+            "ffmpeg",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            f"anullsrc=r=44100:cl=mono",
+            "-t",
+            str(duration_seconds),
+            "-c:a",
+            "libmp3lame",
+            "-b:a",
+            "128k",
+            output_path,
         ]
-        subprocess.run(cmd, capture_output=True, check=True)
+        subprocess.run(cmd, capture_output=True, check=True)  # noqa: S603
         return output_path
 
-    def _concatenate_audio_files(self, file_list: list[str], output_path: str):
+    def _concatenate_audio_files(self, file_list: list[str], output_path: str) -> None:
         """Concatenate multiple MP3 files using ffmpeg."""
         if not file_list:
             return
 
         # Create a temporary file list for ffmpeg
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             list_file = f.name
             for audio_file in file_list:
                 # Escape single quotes in path
@@ -288,19 +286,28 @@ class AudiobookGenerator:
 
         try:
             cmd = [
-                "ffmpeg", "-y", "-f", "concat", "-safe", "0",
-                "-i", list_file,
-                "-c:a", "libmp3lame", "-b:a", "192k",
-                output_path
+                "ffmpeg",
+                "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                list_file,
+                "-c:a",
+                "libmp3lame",
+                "-b:a",
+                "192k",
+                output_path,
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            result = subprocess.run(cmd, capture_output=True, text=True)  # noqa: S603
             if result.returncode != 0:
                 print(f"FFmpeg error: {result.stderr}")
                 raise Exception(f"FFmpeg concatenation failed: {result.stderr}")
         finally:
             os.unlink(list_file)
 
-    def _mix_audio_files(self, file_list: list[str], output_path: str):
+    def _mix_audio_files(self, file_list: list[str], output_path: str) -> None:
         """Mix multiple MP3 files together (overlay/concurrent playback) using ffmpeg."""
         if not file_list:
             return
@@ -322,13 +329,9 @@ class AudiobookGenerator:
         # amix with normalize=0 to prevent volume reduction, dropout_transition for smooth end
         filter_str = f"amix=inputs={n_inputs}:duration=longest:dropout_transition=0.5,volume={min(2.0, n_inputs * 0.7)}"
 
-        cmd.extend([
-            "-filter_complex", filter_str,
-            "-c:a", "libmp3lame", "-b:a", "192k",
-            output_path
-        ])
+        cmd.extend(["-filter_complex", filter_str, "-c:a", "libmp3lame", "-b:a", "192k", output_path])
 
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True)  # noqa: S603
         if result.returncode != 0:
             print(f"FFmpeg mix error: {result.stderr}")
             raise Exception(f"FFmpeg mixing failed: {result.stderr}")
@@ -344,11 +347,11 @@ class AudiobookGenerator:
     def _process_line(
         self,
         line: dict,
-        prev_line: Optional[dict] = None,
-        next_line: Optional[dict] = None,
-        output_path: str = None,
-        temp_dir: str = None
-    ) -> Optional[str]:
+        prev_line: dict | None = None,
+        next_line: dict | None = None,
+        output_path: str | None = None,
+        temp_dir: str | None = None,
+    ) -> str | None:
         """
         Process a single line entry and generate audio.
 
@@ -362,11 +365,12 @@ class AudiobookGenerator:
 
         display_text = text[:50] + "..." if len(text) > 50 else text
 
+        if output_path is None or temp_dir is None:
+            return None
+
         # Check if this is a group speaker (concurrent chatter)
         if self._is_group_speaker(speaker):
-            return self._process_group_line(
-                speaker, text, output_path, temp_dir, display_text
-            )
+            return self._process_group_line(speaker, text, output_path, temp_dir, display_text)
 
         # Single speaker
         print(f"  Generating: [{speaker}] {display_text}")
@@ -377,19 +381,14 @@ class AudiobookGenerator:
 
         audio_bytes = self._generate_speech(enhanced_text, adjusted_voice)
 
-        with open(output_path, 'wb') as f:
+        with open(output_path, "wb") as f:
             f.write(audio_bytes)
 
         return output_path
 
     def _process_group_line(
-        self,
-        group_speaker: str,
-        text: str,
-        output_path: str,
-        temp_dir: str,
-        display_text: str
-    ) -> Optional[str]:
+        self, group_speaker: str, text: str, output_path: str, temp_dir: str, display_text: str
+    ) -> str | None:
         """
         Process a group line by generating audio for each member and mixing them.
 
@@ -407,7 +406,7 @@ class AudiobookGenerator:
             adjusted_voice = self._adjust_voice_for_emotion(voice_config, text, "NARRATOR")
             enhanced_text = self._add_ssml_emotions(text, "NARRATOR")
             audio_bytes = self._generate_speech(enhanced_text, adjusted_voice)
-            with open(output_path, 'wb') as f:
+            with open(output_path, "wb") as f:
                 f.write(audio_bytes)
             return output_path
 
@@ -425,7 +424,7 @@ class AudiobookGenerator:
 
             # Save to temp file
             member_path = os.path.join(temp_dir, f"group_{group_speaker}_{member}_{i}.mp3")
-            with open(member_path, 'wb') as f:
+            with open(member_path, "wb") as f:
                 f.write(audio_bytes)
             member_audio_files.append(member_path)
 
@@ -436,9 +435,9 @@ class AudiobookGenerator:
         self._mix_audio_files(member_audio_files, output_path)
 
         # Clean up individual member files
-        for f in member_audio_files:
+        for member_file in member_audio_files:
             try:
-                os.unlink(f)
+                os.unlink(member_file)
             except OSError:
                 pass
 
@@ -449,7 +448,7 @@ class AudiobookGenerator:
         story_path: str,
         output_path: str,
         include_scene_markers: bool = True,
-        progress_callback=None
+        progress_callback: Callable[[int, int], None] | None = None,
     ) -> str:
         """
         Generate audio for an entire chapter.
@@ -463,7 +462,7 @@ class AudiobookGenerator:
         Returns:
             Path to generated audio file
         """
-        with open(story_path, 'r', encoding='utf-8') as f:
+        with open(story_path, "r", encoding="utf-8") as f:
             story = json.load(f)
 
         print(f"Processing {story_path}...")
@@ -550,7 +549,7 @@ class AudiobookGenerator:
         return output_path
 
 
-def create_voice_map(voice_config_path: Optional[str] = None) -> dict[str, VoiceConfig]:
+def create_voice_map(voice_config_path: str | None = None) -> dict[str, VoiceConfig]:
     """
     Create voice mapping from config file.
 
@@ -561,7 +560,7 @@ def create_voice_map(voice_config_path: Optional[str] = None) -> dict[str, Voice
     }
     """
     if voice_config_path and os.path.exists(voice_config_path):
-        with open(voice_config_path, 'r') as f:
+        with open(voice_config_path, "r") as f:
             config = json.load(f)
 
         return {
@@ -570,7 +569,7 @@ def create_voice_map(voice_config_path: Optional[str] = None) -> dict[str, Voice
                 stability=vc.get("stability", 1.0),
                 similarity_boost=vc.get("similarity_boost", 0.95),
                 style=vc.get("style", 0.0),
-                use_speaker_boost=vc.get("use_speaker_boost", True)
+                use_speaker_boost=vc.get("use_speaker_boost", True),
             )
             for speaker, vc in config.items()
         }
@@ -578,38 +577,17 @@ def create_voice_map(voice_config_path: Optional[str] = None) -> dict[str, Voice
     return {}
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Generate audiobook from JSON story script using ElevenLabs"
-    )
+def main() -> int | None:
+    """CLI entry point for audiobook generation."""
+    parser = argparse.ArgumentParser(description="Generate audiobook from JSON story script using ElevenLabs")
+    parser.add_argument("story_folder", help="Path to story folder containing chapter JSON files")
+    parser.add_argument("--voices", required=True, help="Path to voice configuration JSON file")
+    parser.add_argument("--api-key", help="ElevenLabs API key (or set ELEVENLABS_API_KEY env var)")
+    parser.add_argument("--output", "-o", help="Output directory (default: same as story folder)")
     parser.add_argument(
-        "story_folder",
-        help="Path to story folder containing chapter JSON files"
+        "--chapter", "-c", help="Specific chapter to generate (e.g., 'ch1'). If not specified, generates all."
     )
-    parser.add_argument(
-        "--voices",
-        required=True,
-        help="Path to voice configuration JSON file"
-    )
-    parser.add_argument(
-        "--api-key",
-        help="ElevenLabs API key (or set ELEVENLABS_API_KEY env var)"
-    )
-    parser.add_argument(
-        "--output",
-        "-o",
-        help="Output directory (default: same as story folder)"
-    )
-    parser.add_argument(
-        "--chapter",
-        "-c",
-        help="Specific chapter to generate (e.g., 'ch1'). If not specified, generates all."
-    )
-    parser.add_argument(
-        "--model",
-        default="eleven_v3",
-        help="ElevenLabs model ID (default: eleven_v3)"
-    )
+    parser.add_argument("--model", default="eleven_v3", help="ElevenLabs model ID (default: eleven_v3)")
 
     args = parser.parse_args()
 
@@ -626,21 +604,14 @@ def main():
         return 1
 
     # Setup generator
-    generator = AudiobookGenerator(
-        api_key=api_key,
-        voice_map=voice_map,
-        model_id=args.model
-    )
+    generator = AudiobookGenerator(api_key=api_key, voice_map=voice_map, model_id=args.model)
 
     # Find story files
     story_folder = Path(args.story_folder)
     output_folder = Path(args.output) if args.output else story_folder
     output_folder.mkdir(parents=True, exist_ok=True)
 
-    if args.chapter:
-        chapters = [story_folder / f"{args.chapter}.json"]
-    else:
-        chapters = sorted(story_folder.glob("ch*.json"))
+    chapters = [story_folder / f"{args.chapter}.json"] if args.chapter else sorted(story_folder.glob("ch*.json"))
 
     if not chapters:
         print(f"No chapter files found in {story_folder}")
@@ -655,10 +626,7 @@ def main():
         output_path = output_folder / f"{chapter_path.stem}.mp3"
 
         try:
-            generator.generate_chapter(
-                str(chapter_path),
-                str(output_path)
-            )
+            generator.generate_chapter(str(chapter_path), str(output_path))
         except Exception as e:
             print(f"Error generating {chapter_path}: {e}")
             raise
@@ -668,4 +636,4 @@ def main():
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())

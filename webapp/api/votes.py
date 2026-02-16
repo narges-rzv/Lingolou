@@ -2,10 +2,12 @@
 Vote API endpoints.
 """
 
+from __future__ import annotations
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from webapp.models.database import get_db, Story, Vote, User
+from webapp.models.database import Story, User, Vote, get_db
 from webapp.models.schemas import VoteRequest
 from webapp.services.auth import get_current_active_user
 
@@ -18,12 +20,16 @@ async def vote_on_story(
     request: VoteRequest,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
-):
+) -> dict[str, str | int | None]:
     """Vote on a story. Send vote_type=null to remove vote."""
-    story = db.query(Story).filter(
-        Story.id == story_id,
-        Story.visibility.in_(["public", "link_only"]),
-    ).first()
+    story = (
+        db.query(Story)
+        .filter(
+            Story.id == story_id,
+            Story.visibility.in_(["public", "link_only"]),
+        )
+        .first()
+    )
 
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
@@ -34,9 +40,7 @@ async def vote_on_story(
     if request.vote_type is not None and request.vote_type not in ("up", "down"):
         raise HTTPException(status_code=400, detail="vote_type must be 'up', 'down', or null")
 
-    existing = db.query(Vote).filter(
-        Vote.story_id == story_id, Vote.user_id == current_user.id
-    ).first()
+    existing = db.query(Vote).filter(Vote.story_id == story_id, Vote.user_id == current_user.id).first()
 
     if request.vote_type is None:
         # Remove vote
@@ -58,11 +62,13 @@ async def vote_on_story(
             existing.vote_type = request.vote_type
     else:
         # New vote
-        db.add(Vote(
-            user_id=current_user.id,
-            story_id=story_id,
-            vote_type=request.vote_type,
-        ))
+        db.add(
+            Vote(
+                user_id=current_user.id,
+                story_id=story_id,
+                vote_type=request.vote_type,
+            )
+        )
         if request.vote_type == "up":
             story.upvotes += 1
         else:

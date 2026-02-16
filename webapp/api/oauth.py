@@ -2,19 +2,24 @@
 OAuth2 authorization code flow endpoints for Google.
 """
 
+from __future__ import annotations
+
 import logging
 import os
-from datetime import datetime
-from typing import Optional
-from urllib.parse import urlencode
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import RedirectResponse
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
+    from webapp.models.database import User
 
 logger = logging.getLogger(__name__)
-from fastapi.responses import RedirectResponse
-from sqlalchemy.orm import Session
 
-from webapp.models.database import get_db, User
+from webapp.models.database import User, get_db
 from webapp.services.auth import create_access_token
 from webapp.services.oauth import oauth
 
@@ -27,16 +32,12 @@ def _get_or_create_oauth_user(
     db: Session,
     provider: str,
     oauth_id: str,
-    email: Optional[str],
-    name: Optional[str],
-) -> Optional[User]:
+    email: str | None,
+    name: str | None,
+) -> User | None:
     """Find existing OAuth user, link to email match, or create new user."""
     # 1. Match by (provider, oauth_id)
-    user = (
-        db.query(User)
-        .filter(User.oauth_provider == provider, User.oauth_id == oauth_id)
-        .first()
-    )
+    user = db.query(User).filter(User.oauth_provider == provider, User.oauth_id == oauth_id).first()
     if user:
         return user
 
@@ -75,7 +76,7 @@ def _get_or_create_oauth_user(
 
 def _redirect_with_token(user: User, db: Session) -> RedirectResponse:
     """Generate JWT and redirect to frontend with token."""
-    user.last_login = datetime.utcnow()
+    user.last_login = datetime.now(timezone.utc)
     db.commit()
     token = create_access_token(data={"sub": str(user.id)})
     return RedirectResponse(url=f"{FRONTEND_URL}/login?token={token}")
@@ -87,14 +88,17 @@ def _redirect_with_error(error: str) -> RedirectResponse:
 
 # ── Google ───────────────────────────────────────────────────────────
 
+
 @router.get("/google/login")
-async def google_login(request: Request):
+async def google_login(request: Request) -> RedirectResponse:
+    """Initiate Google OAuth login flow."""
     redirect_uri = request.url_for("google_callback")
     return await oauth.google.authorize_redirect(request, str(redirect_uri))
 
 
 @router.get("/google/callback", name="google_callback")
-async def google_callback(request: Request, db: Session = Depends(get_db)):
+async def google_callback(request: Request, db: Session = Depends(get_db)) -> RedirectResponse:
+    """Handle Google OAuth callback."""
     try:
         token = await oauth.google.authorize_access_token(request)
     except Exception as e:

@@ -1,15 +1,15 @@
 """Tests for webapp/api/auth.py"""
 
-import pytest
-from webapp.services.crypto import encrypt_key
-
 
 def test_register_success(client):
-    resp = client.post("/api/auth/register", json={
-        "email": "new@test.com",
-        "username": "newuser",
-        "password": "pass123",
-    })
+    resp = client.post(
+        "/api/auth/register",
+        json={
+            "email": "new@test.com",
+            "username": "newuser",
+            "password": "pass123",
+        },
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert data["email"] == "new@test.com"
@@ -17,30 +17,39 @@ def test_register_success(client):
 
 
 def test_register_duplicate_email(client, test_user):
-    resp = client.post("/api/auth/register", json={
-        "email": "test@example.com",
-        "username": "different",
-        "password": "pass123",
-    })
+    resp = client.post(
+        "/api/auth/register",
+        json={
+            "email": "test@example.com",
+            "username": "different",
+            "password": "pass123",
+        },
+    )
     assert resp.status_code == 400
     assert "Email already registered" in resp.json()["detail"]
 
 
 def test_register_duplicate_username(client, test_user):
-    resp = client.post("/api/auth/register", json={
-        "email": "different@test.com",
-        "username": "testuser",
-        "password": "pass123",
-    })
+    resp = client.post(
+        "/api/auth/register",
+        json={
+            "email": "different@test.com",
+            "username": "testuser",
+            "password": "pass123",
+        },
+    )
     assert resp.status_code == 400
     assert "Username already taken" in resp.json()["detail"]
 
 
 def test_login_success(client, test_user):
-    resp = client.post("/api/auth/login", data={
-        "username": "test@example.com",
-        "password": "testpass123",
-    })
+    resp = client.post(
+        "/api/auth/login",
+        data={
+            "username": "test@example.com",
+            "password": "testpass123",
+        },
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert "access_token" in data
@@ -48,10 +57,13 @@ def test_login_success(client, test_user):
 
 
 def test_login_invalid_credentials(client, test_user):
-    resp = client.post("/api/auth/login", data={
-        "username": "test@example.com",
-        "password": "wrong",
-    })
+    resp = client.post(
+        "/api/auth/login",
+        data={
+            "username": "test@example.com",
+            "password": "wrong",
+        },
+    )
     assert resp.status_code == 401
 
 
@@ -67,9 +79,13 @@ def test_me_unauthenticated(client):
 
 
 def test_update_api_keys_openai(client, auth_headers):
-    resp = client.put("/api/auth/api-keys", json={
-        "openai_api_key": "sk-test123",
-    }, headers=auth_headers)
+    resp = client.put(
+        "/api/auth/api-keys",
+        json={
+            "openai_api_key": "sk-test123",
+        },
+        headers=auth_headers,
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert data["has_openai_key"] is True
@@ -77,9 +93,13 @@ def test_update_api_keys_openai(client, auth_headers):
 
 
 def test_update_api_keys_elevenlabs(client, auth_headers):
-    resp = client.put("/api/auth/api-keys", json={
-        "elevenlabs_api_key": "el-test123",
-    }, headers=auth_headers)
+    resp = client.put(
+        "/api/auth/api-keys",
+        json={
+            "elevenlabs_api_key": "el-test123",
+        },
+        headers=auth_headers,
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert data["has_elevenlabs_key"] is True
@@ -87,14 +107,22 @@ def test_update_api_keys_elevenlabs(client, auth_headers):
 
 def test_update_api_keys_none_doesnt_overwrite(client, auth_headers):
     # Set OpenAI key first
-    client.put("/api/auth/api-keys", json={
-        "openai_api_key": "sk-test123",
-    }, headers=auth_headers)
+    client.put(
+        "/api/auth/api-keys",
+        json={
+            "openai_api_key": "sk-test123",
+        },
+        headers=auth_headers,
+    )
 
     # Update only ElevenLabs, OpenAI should remain
-    resp = client.put("/api/auth/api-keys", json={
-        "elevenlabs_api_key": "el-test123",
-    }, headers=auth_headers)
+    resp = client.put(
+        "/api/auth/api-keys",
+        json={
+            "elevenlabs_api_key": "el-test123",
+        },
+        headers=auth_headers,
+    )
     data = resp.json()
     assert data["has_openai_key"] is True
     assert data["has_elevenlabs_key"] is True
@@ -102,14 +130,22 @@ def test_update_api_keys_none_doesnt_overwrite(client, auth_headers):
 
 def test_update_api_keys_empty_string_clears(client, auth_headers):
     # Set key first
-    client.put("/api/auth/api-keys", json={
-        "openai_api_key": "sk-test123",
-    }, headers=auth_headers)
+    client.put(
+        "/api/auth/api-keys",
+        json={
+            "openai_api_key": "sk-test123",
+        },
+        headers=auth_headers,
+    )
 
     # Clear with empty string
-    resp = client.put("/api/auth/api-keys", json={
-        "openai_api_key": "",
-    }, headers=auth_headers)
+    resp = client.put(
+        "/api/auth/api-keys",
+        json={
+            "openai_api_key": "",
+        },
+        headers=auth_headers,
+    )
     data = resp.json()
     assert data["has_openai_key"] is False
 

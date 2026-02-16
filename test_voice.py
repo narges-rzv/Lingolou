@@ -9,12 +9,14 @@ Useful for:
 - Testing multilingual pronunciation
 """
 
-import argparse
-import os
-import json
-import requests
-from pathlib import Path
+from __future__ import annotations
 
+import argparse
+import json
+import os
+import sys
+
+import requests
 
 API_BASE = "https://api.elevenlabs.io/v1"
 
@@ -52,14 +54,10 @@ def test_voice(
     stability: float = 0.5,
     similarity_boost: float = 0.75,
     style: float = 0.0,
-    model_id: str = "eleven_v3"
+    model_id: str = "eleven_v3",
 ) -> bool:
     """Generate test audio with specified voice and settings."""
-    headers = {
-        "Accept": "audio/mpeg",
-        "Content-Type": "application/json",
-        "xi-api-key": api_key
-    }
+    headers = {"Accept": "audio/mpeg", "Content-Type": "application/json", "xi-api-key": api_key}
 
     payload = {
         "text": text,
@@ -68,8 +66,8 @@ def test_voice(
             "stability": stability,
             "similarity_boost": similarity_boost,
             "style": style,
-            "use_speaker_boost": True
-        }
+            "use_speaker_boost": True,
+        },
     }
 
     print(f"\nGenerating test audio...")
@@ -82,14 +80,14 @@ def test_voice(
         f"{API_BASE}/text-to-speech/{voice_id}",
         json=payload,
         headers=headers,
-        params={"output_format": "mp3_44100_128"}
+        params={"output_format": "mp3_44100_128"},
     )
 
     if response.status_code != 200:
         print(f"\nError: {response.status_code} - {response.text}")
         return False
 
-    with open(output_path, 'wb') as f:
+    with open(output_path, "wb") as f:
         f.write(response.content)
 
     print(f"\nSaved to: {output_path}")
@@ -97,27 +95,22 @@ def test_voice(
 
 
 def test_from_story(
-    api_key: str,
-    voices_config: str,
-    story_path: str,
-    line_index: int,
-    output_path: str,
-    model_id: str = "eleven_v3"
+    api_key: str, voices_config: str, story_path: str, line_index: int, output_path: str, model_id: str = "eleven_v3"
 ) -> bool:
     """Test a specific line from a story file."""
     # Load voices config
-    with open(voices_config, 'r') as f:
+    with open(voices_config, "r") as f:
         voices = json.load(f)
 
     # Load story
-    with open(story_path, 'r', encoding='utf-8') as f:
+    with open(story_path, "r", encoding="utf-8") as f:
         story = json.load(f)
 
     # Find the line
     lines = [e for e in story if e.get("type") == "line"]
 
     if line_index >= len(lines):
-        print(f"Error: Line index {line_index} out of range (0-{len(lines)-1})")
+        print(f"Error: Line index {line_index} out of range (0-{len(lines) - 1})")
         return False
 
     line = lines[line_index]
@@ -147,7 +140,7 @@ def test_from_story(
         stability=voice_config.get("stability", 1.0),
         similarity_boost=voice_config.get("similarity_boost", 0.95),
         style=voice_config.get("style", 0.0),
-        model_id=model_id
+        model_id=model_id,
     )
 
 
@@ -185,7 +178,7 @@ def main():
         parser.print_help()
         return 1
 
-    api_key = getattr(args, 'api_key', None) or os.environ.get("ELEVENLABS_API_KEY")
+    api_key = getattr(args, "api_key", None) or os.environ.get("ELEVENLABS_API_KEY")
     if not api_key:
         print("Error: API key required. Use --api-key or set ELEVENLABS_API_KEY")
         return 1
@@ -202,7 +195,7 @@ def main():
             stability=args.stability,
             similarity_boost=args.similarity,
             style=args.style,
-            model_id=args.model
+            model_id=args.model,
         )
 
     elif args.command == "story-line":
@@ -212,11 +205,11 @@ def main():
             story_path=args.story,
             line_index=args.line,
             output_path=args.output,
-            model_id=args.model
+            model_id=args.model,
         )
 
     return 0
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())

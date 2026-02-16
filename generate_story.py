@@ -8,24 +8,27 @@ emotion tags for ElevenLabs voice synthesis.
 Configuration is loaded from story_config.json
 """
 
+from __future__ import annotations
+
+import argparse
 import json
 import os
-import argparse
+import sys
 from pathlib import Path
-from openai import OpenAI
 
+from openai import OpenAI
 
 DEFAULT_CONFIG_PATH = Path(__file__).parent / "story_config.json"
 
 
-def load_config(config_path: str = None) -> dict:
+def load_config(config_path: str | None = None) -> dict:
     """Load configuration from JSON file."""
     path = Path(config_path) if config_path else DEFAULT_CONFIG_PATH
 
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {path}")
 
-    with open(path, 'r', encoding='utf-8') as f:
+    with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -48,11 +51,7 @@ def build_story_system_prompt(config: dict) -> str:
 
 
 def build_chapter_prompt(
-    config: dict,
-    user_prompt: str,
-    chapter_num: int,
-    total_chapters: int,
-    previous_summary: str = ""
+    config: dict, user_prompt: str, chapter_num: int, total_chapters: int, previous_summary: str = ""
 ) -> str:
     """Build the prompt for generating a specific chapter."""
     prompt = user_prompt
@@ -88,28 +87,23 @@ def generate_chapter(
     chapter_num: int,
     total_chapters: int,
     previous_summary: str = "",
-    model: str = None
+    model: str | None = None,
 ) -> list:
     """Generate a single chapter using OpenAI."""
     settings = config.get("generation_settings", {})
     model = model or settings.get("default_model", "gpt-4o")
 
     system_prompt = build_story_system_prompt(config)
-    chapter_prompt = build_chapter_prompt(
-        config, user_prompt, chapter_num, total_chapters, previous_summary
-    )
+    chapter_prompt = build_chapter_prompt(config, user_prompt, chapter_num, total_chapters, previous_summary)
 
     response = client.chat.completions.create(
         model=model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": chapter_prompt}
-        ],
+        messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": chapter_prompt}],
         temperature=settings.get("story_temperature", 0.8),
-        max_tokens=settings.get("story_max_tokens", 4000)
+        max_tokens=settings.get("story_max_tokens", 4000),
     )
 
-    content = response.choices[0].message.content.strip()
+    content = (response.choices[0].message.content or "").strip()
 
     # Remove markdown code blocks if present
     if content.startswith("```"):
@@ -119,12 +113,7 @@ def generate_chapter(
     return json.loads(content)
 
 
-def summarize_chapter(
-    client: OpenAI,
-    config: dict,
-    chapter: list,
-    model: str = None
-) -> str:
+def summarize_chapter(client: OpenAI, config: dict, chapter: list, model: str | None = None) -> str:
     """Generate a brief summary of a chapter for continuity."""
     settings = config.get("generation_settings", {})
     model = model or settings.get("default_model", "gpt-4o")
@@ -133,42 +122,34 @@ def summarize_chapter(
     lines = [e.get("text", "") for e in chapter if e.get("type") == "line"]
     text_sample = " ".join(lines[:20])
 
+    summary_system_msg = "Summarize this story chapter in 2-3 sentences for continuity with the next chapter."
     response = client.chat.completions.create(
         model=model,
-        messages=[
-            {"role": "system", "content": "Summarize this story chapter in 2-3 sentences for continuity with the next chapter."},
-            {"role": "user", "content": text_sample}
-        ],
+        messages=[{"role": "system", "content": summary_system_msg}, {"role": "user", "content": text_sample}],
         temperature=settings.get("summary_temperature", 0.3),
-        max_tokens=settings.get("summary_max_tokens", 200)
+        max_tokens=settings.get("summary_max_tokens", 200),
     )
 
-    return response.choices[0].message.content.strip()
+    return (response.choices[0].message.content or "").strip()
 
 
-def enhance_chapter(
-    client: OpenAI,
-    config: dict,
-    chapter: list,
-    model: str = None
-) -> list:
+def enhance_chapter(client: OpenAI, config: dict, chapter: list, model: str | None = None) -> list:
     """Add emotion tags to a chapter using OpenAI."""
     settings = config.get("generation_settings", {})
     model = model or settings.get("default_model", "gpt-4o")
 
     enhance_prompt = config.get("enhance_system_prompt", "Add emotion tags to dialogue.")
 
+    chapter_json = json.dumps(chapter, ensure_ascii=False, indent=2)
+    user_content = f"Add emotion tags to this story script:\n\n{chapter_json}"
     response = client.chat.completions.create(
         model=model,
-        messages=[
-            {"role": "system", "content": enhance_prompt},
-            {"role": "user", "content": f"Add emotion tags to this story script:\n\n{json.dumps(chapter, ensure_ascii=False, indent=2)}"}
-        ],
+        messages=[{"role": "system", "content": enhance_prompt}, {"role": "user", "content": user_content}],
         temperature=settings.get("enhance_temperature", 0.4),
-        max_tokens=settings.get("enhance_max_tokens", 8000)
+        max_tokens=settings.get("enhance_max_tokens", 8000),
     )
 
-    content = response.choices[0].message.content.strip()
+    content = (response.choices[0].message.content or "").strip()
 
     # Remove markdown code blocks if present
     if content.startswith("```"):
@@ -182,9 +163,9 @@ def generate_story(
     config: dict,
     prompt: str,
     output_dir: str,
-    num_chapters: int = None,
-    model: str = None,
-    enhance: bool = True
+    num_chapters: int | None = None,
+    model: str | None = None,
+    enhance: bool = True,
 ) -> str:
     """
     Generate a complete story with multiple chapters.
@@ -211,15 +192,15 @@ def generate_story(
 
     # Save config used for this generation
     config_copy_path = output_path / "story_config_used.json"
-    with open(config_copy_path, 'w', encoding='utf-8') as f:
+    with open(config_copy_path, "w", encoding="utf-8") as f:
         json.dump(config, f, ensure_ascii=False, indent=2)
 
     previous_summary = ""
 
     for ch_num in range(1, num_chapters + 1):
-        print(f"\n{'='*50}")
+        print(f"\n{'=' * 50}")
         print(f"Generating Chapter {ch_num}/{num_chapters}...")
-        print('='*50)
+        print("=" * 50)
 
         # Generate chapter
         chapter = generate_chapter(
@@ -229,12 +210,12 @@ def generate_story(
             chapter_num=ch_num,
             total_chapters=num_chapters,
             previous_summary=previous_summary,
-            model=model
+            model=model,
         )
 
         # Save base chapter
         base_path = output_path / f"ch{ch_num}.json"
-        with open(base_path, 'w', encoding='utf-8') as f:
+        with open(base_path, "w", encoding="utf-8") as f:
             json.dump(chapter, f, ensure_ascii=False, indent=2)
         print(f"Saved: {base_path}")
 
@@ -244,7 +225,7 @@ def generate_story(
             enhanced = enhance_chapter(client, config, chapter, model)
 
             enhanced_path = output_path / f"ch{ch_num}_enhanced.json"
-            with open(enhanced_path, 'w', encoding='utf-8') as f:
+            with open(enhanced_path, "w", encoding="utf-8") as f:
                 json.dump(enhanced, f, ensure_ascii=False, indent=2)
             print(f"Saved: {enhanced_path}")
 
@@ -253,54 +234,27 @@ def generate_story(
             print("Generating summary for continuity...")
             previous_summary = summarize_chapter(client, config, chapter, model)
 
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f"Story generation complete!")
     print(f"Output directory: {output_path}")
-    print('='*50)
+    print("=" * 50)
 
     return str(output_path)
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Generate story scripts using OpenAI"
-    )
+def main() -> int | None:
+    """CLI entry point for story generation."""
+    parser = argparse.ArgumentParser(description="Generate story scripts using OpenAI")
     parser.add_argument(
-        "--config",
-        default=str(DEFAULT_CONFIG_PATH),
-        help=f"Path to config JSON file (default: {DEFAULT_CONFIG_PATH})"
+        "--config", default=str(DEFAULT_CONFIG_PATH), help=f"Path to config JSON file (default: {DEFAULT_CONFIG_PATH})"
     )
-    parser.add_argument(
-        "--prompt", "-p",
-        help="Story prompt/description (overrides config default_prompt)"
-    )
-    parser.add_argument(
-        "--prompt-file",
-        help="Read prompt from a text file"
-    )
-    parser.add_argument(
-        "--output", "-o",
-        required=True,
-        help="Output directory for story files (e.g., stories/s2)"
-    )
-    parser.add_argument(
-        "--chapters", "-n",
-        type=int,
-        help="Number of chapters to generate (default from config)"
-    )
-    parser.add_argument(
-        "--model", "-m",
-        help="OpenAI model to use (default from config)"
-    )
-    parser.add_argument(
-        "--no-enhance",
-        action="store_true",
-        help="Skip emotion tag enhancement"
-    )
-    parser.add_argument(
-        "--api-key",
-        help="OpenAI API key (or set OPENAI_API_KEY env var)"
-    )
+    parser.add_argument("--prompt", "-p", help="Story prompt/description (overrides config default_prompt)")
+    parser.add_argument("--prompt-file", help="Read prompt from a text file")
+    parser.add_argument("--output", "-o", required=True, help="Output directory for story files (e.g., stories/s2)")
+    parser.add_argument("--chapters", "-n", type=int, help="Number of chapters to generate (default from config)")
+    parser.add_argument("--model", "-m", help="OpenAI model to use (default from config)")
+    parser.add_argument("--no-enhance", action="store_true", help="Skip emotion tag enhancement")
+    parser.add_argument("--api-key", help="OpenAI API key (or set OPENAI_API_KEY env var)")
 
     args = parser.parse_args()
 
@@ -321,7 +275,7 @@ def main():
 
     # Get prompt (priority: prompt-file > prompt arg > config default)
     if args.prompt_file:
-        with open(args.prompt_file, 'r') as f:
+        with open(args.prompt_file, "r") as f:
             prompt = f.read()
     elif args.prompt:
         prompt = args.prompt
@@ -335,7 +289,7 @@ def main():
             output_dir=args.output,
             num_chapters=args.chapters,
             model=args.model,
-            enhance=not args.no_enhance
+            enhance=not args.no_enhance,
         )
     except Exception as e:
         print(f"Error: {e}")
@@ -345,4 +299,4 @@ def main():
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())

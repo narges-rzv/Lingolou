@@ -1,6 +1,7 @@
 """Tests for webapp/services/generation.py (task store functions only)."""
 
 import pytest
+
 from webapp.services import generation
 
 

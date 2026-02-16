@@ -2,10 +2,24 @@
 Database models and setup for Lingolou webapp.
 """
 
+from __future__ import annotations
+
+from collections.abc import Generator
 from datetime import datetime
-from typing import Optional
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey, Text, Boolean, Float, UniqueConstraint
-from sqlalchemy.orm import declarative_base, sessionmaker, relationship
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    create_engine,
+)
+from sqlalchemy.orm import Session, declarative_base, relationship, sessionmaker
 
 DATABASE_URL = "sqlite:///./lingolou.db"
 
@@ -16,6 +30,7 @@ Base = declarative_base()
 
 class User(Base):
     """User account model."""
+
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -43,6 +58,7 @@ class User(Base):
 
 class Story(Base):
     """Story project model."""
+
     __tablename__ = "stories"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -69,6 +85,7 @@ class Story(Base):
 
 class Chapter(Base):
     """Chapter model for a story."""
+
     __tablename__ = "chapters"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -90,6 +107,7 @@ class Chapter(Base):
 
 class Vote(Base):
     """User vote on a story."""
+
     __tablename__ = "votes"
     __table_args__ = (UniqueConstraint("user_id", "story_id", name="uq_user_story_vote"),)
 
@@ -105,6 +123,7 @@ class Vote(Base):
 
 class Report(Base):
     """User report on a story."""
+
     __tablename__ = "reports"
     __table_args__ = (UniqueConstraint("user_id", "story_id", name="uq_user_story_report"),)
 
@@ -121,6 +140,7 @@ class Report(Base):
 
 class UsageLog(Base):
     """Track API usage for billing/limits."""
+
     __tablename__ = "usage_logs"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -138,6 +158,7 @@ class UsageLog(Base):
 
 class PlatformBudget(Base):
     """Single-row table tracking the free-tier budget pool."""
+
     __tablename__ = "platform_budget"
 
     id = Column(Integer, primary_key=True)
@@ -150,7 +171,7 @@ FREE_STORIES_PER_USER = 3
 COST_PER_STORY = 0.05
 
 
-def init_db():
+def init_db() -> None:
     """Initialize the database tables and seed platform budget."""
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
@@ -162,7 +183,7 @@ def init_db():
         db.close()
 
 
-def get_db():
+def get_db() -> Generator[Session, None, None]:
     """Dependency to get database session."""
     db = SessionLocal()
     try:

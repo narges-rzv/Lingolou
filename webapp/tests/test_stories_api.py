@@ -1,7 +1,8 @@
 """Tests for webapp/api/stories.py"""
 
-from unittest.mock import patch, MagicMock
-from webapp.models.database import Story, Chapter, PlatformBudget
+from unittest.mock import patch
+
+from webapp.models.database import PlatformBudget, Story
 from webapp.services.crypto import encrypt_key
 
 
@@ -96,9 +97,13 @@ def test_update_story_title(client, auth_headers):
     create_resp = _create_story(client, auth_headers)
     story_id = create_resp.json()["id"]
 
-    resp = client.patch(f"/api/stories/{story_id}", json={
-        "title": "Updated Title",
-    }, headers=auth_headers)
+    resp = client.patch(
+        f"/api/stories/{story_id}",
+        json={
+            "title": "Updated Title",
+        },
+        headers=auth_headers,
+    )
     assert resp.status_code == 200
     assert resp.json()["title"] == "Updated Title"
 
@@ -107,9 +112,13 @@ def test_update_story_visibility(client, auth_headers):
     create_resp = _create_story(client, auth_headers)
     story_id = create_resp.json()["id"]
 
-    resp = client.patch(f"/api/stories/{story_id}", json={
-        "visibility": "public",
-    }, headers=auth_headers)
+    resp = client.patch(
+        f"/api/stories/{story_id}",
+        json={
+            "visibility": "public",
+        },
+        headers=auth_headers,
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert data["visibility"] == "public"
@@ -120,9 +129,13 @@ def test_update_story_invalid_visibility(client, auth_headers):
     create_resp = _create_story(client, auth_headers)
     story_id = create_resp.json()["id"]
 
-    resp = client.patch(f"/api/stories/{story_id}", json={
-        "visibility": "invalid",
-    }, headers=auth_headers)
+    resp = client.patch(
+        f"/api/stories/{story_id}",
+        json={
+            "visibility": "invalid",
+        },
+        headers=auth_headers,
+    )
     assert resp.status_code == 400
 
 
@@ -154,11 +167,15 @@ def test_generate_story_with_own_key(mock_gen, client, auth_headers, db, test_us
     create_resp = _create_story(client, auth_headers)
     story_id = create_resp.json()["id"]
 
-    resp = client.post(f"/api/stories/{story_id}/generate", json={
-        "title": "Test",
-        "prompt": "Tell a story",
-        "num_chapters": 2,
-    }, headers=auth_headers)
+    resp = client.post(
+        f"/api/stories/{story_id}/generate",
+        json={
+            "title": "Test",
+            "prompt": "Tell a story",
+            "num_chapters": 2,
+        },
+        headers=auth_headers,
+    )
     assert resp.status_code == 200
     assert resp.json()["status"] == "pending"
 
@@ -172,11 +189,15 @@ def test_generate_story_free_tier(mock_gen, client, auth_headers, db, test_user)
     create_resp = _create_story(client, auth_headers)
     story_id = create_resp.json()["id"]
 
-    resp = client.post(f"/api/stories/{story_id}/generate", json={
-        "title": "Test",
-        "prompt": "Tell a story",
-        "num_chapters": 2,
-    }, headers=auth_headers)
+    resp = client.post(
+        f"/api/stories/{story_id}/generate",
+        json={
+            "title": "Test",
+            "prompt": "Tell a story",
+            "num_chapters": 2,
+        },
+        headers=auth_headers,
+    )
     assert resp.status_code == 200
 
     # Free stories used should have incremented
@@ -192,11 +213,15 @@ def test_generate_story_free_tier_exhausted(mock_gen, client, auth_headers, db, 
     create_resp = _create_story(client, auth_headers)
     story_id = create_resp.json()["id"]
 
-    resp = client.post(f"/api/stories/{story_id}/generate", json={
-        "title": "Test",
-        "prompt": "Tell a story",
-        "num_chapters": 2,
-    }, headers=auth_headers)
+    resp = client.post(
+        f"/api/stories/{story_id}/generate",
+        json={
+            "title": "Test",
+            "prompt": "Tell a story",
+            "num_chapters": 2,
+        },
+        headers=auth_headers,
+    )
     assert resp.status_code == 403
     assert "Free tier limit" in resp.json()["detail"]
 
@@ -210,11 +235,15 @@ def test_generate_story_platform_budget_exhausted(mock_gen, client, auth_headers
     create_resp = _create_story(client, auth_headers)
     story_id = create_resp.json()["id"]
 
-    resp = client.post(f"/api/stories/{story_id}/generate", json={
-        "title": "Test",
-        "prompt": "Tell a story",
-        "num_chapters": 2,
-    }, headers=auth_headers)
+    resp = client.post(
+        f"/api/stories/{story_id}/generate",
+        json={
+            "title": "Test",
+            "prompt": "Tell a story",
+            "num_chapters": 2,
+        },
+        headers=auth_headers,
+    )
     assert resp.status_code == 403
     assert "budget exhausted" in resp.json()["detail"]
 
@@ -227,11 +256,15 @@ def test_generate_story_already_generating(client, auth_headers, db):
     story.status = "generating"
     db.commit()
 
-    resp = client.post(f"/api/stories/{story_id}/generate", json={
-        "title": "Test",
-        "prompt": "Tell a story",
-        "num_chapters": 2,
-    }, headers=auth_headers)
+    resp = client.post(
+        f"/api/stories/{story_id}/generate",
+        json={
+            "title": "Test",
+            "prompt": "Tell a story",
+            "num_chapters": 2,
+        },
+        headers=auth_headers,
+    )
     assert resp.status_code == 400
     assert "already being generated" in resp.json()["detail"]
 
@@ -251,9 +284,13 @@ def test_generate_audio_with_own_key(mock_gen, client, auth_headers, db, test_us
         ch.enhanced_json = '[{"type": "line", "text": "hello", "emotion": "happy"}]'
     db.commit()
 
-    resp = client.post(f"/api/stories/{story_id}/generate-audio", json={
-        "story_id": story_id,
-    }, headers=auth_headers)
+    resp = client.post(
+        f"/api/stories/{story_id}/generate-audio",
+        json={
+            "story_id": story_id,
+        },
+        headers=auth_headers,
+    )
     assert resp.status_code == 200
     assert resp.json()["status"] == "pending"
 
@@ -270,9 +307,13 @@ def test_generate_audio_with_platform_key(mock_gen, client, auth_headers, db, mo
         ch.script_json = '[{"type": "line", "text": "hello"}]'
     db.commit()
 
-    resp = client.post(f"/api/stories/{story_id}/generate-audio", json={
-        "story_id": story_id,
-    }, headers=auth_headers)
+    resp = client.post(
+        f"/api/stories/{story_id}/generate-audio",
+        json={
+            "story_id": story_id,
+        },
+        headers=auth_headers,
+    )
     assert resp.status_code == 200
 
 
@@ -287,9 +328,13 @@ def test_generate_audio_no_key(client, auth_headers, db, monkeypatch):
         ch.script_json = '[{"type": "line", "text": "hello"}]'
     db.commit()
 
-    resp = client.post(f"/api/stories/{story_id}/generate-audio", json={
-        "story_id": story_id,
-    }, headers=auth_headers)
+    resp = client.post(
+        f"/api/stories/{story_id}/generate-audio",
+        json={
+            "story_id": story_id,
+        },
+        headers=auth_headers,
+    )
     assert resp.status_code == 403
 
 
@@ -297,15 +342,20 @@ def test_generate_audio_no_script(client, auth_headers):
     create_resp = _create_story(client, auth_headers)
     story_id = create_resp.json()["id"]
 
-    resp = client.post(f"/api/stories/{story_id}/generate-audio", json={
-        "story_id": story_id,
-    }, headers=auth_headers)
+    resp = client.post(
+        f"/api/stories/{story_id}/generate-audio",
+        json={
+            "story_id": story_id,
+        },
+        headers=auth_headers,
+    )
     assert resp.status_code == 400
     assert "no script" in resp.json()["detail"].lower()
 
 
 def test_get_task_status(client, auth_headers):
     from webapp.services.generation import update_task_status
+
     update_task_status("test_task_1", "running", 50, "Halfway there")
 
     resp = client.get("/api/stories/tasks/test_task_1", headers=auth_headers)
@@ -322,6 +372,7 @@ def test_get_task_status_not_found(client, auth_headers):
 
 def test_cancel_task(client, auth_headers):
     from webapp.services.generation import update_task_status
+
     update_task_status("cancel_me", "running", 30, "Running...")
 
     resp = client.delete("/api/stories/tasks/cancel_me", headers=auth_headers)

@@ -4,19 +4,24 @@ Background task services for story and audio generation.
 Uses in-memory task store with FastAPI BackgroundTasks (no Celery/Redis needed).
 """
 
+from __future__ import annotations
+
 import json
 import os
 import subprocess
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
-from webapp.models.database import SessionLocal, Story, Chapter, UsageLog
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+from webapp.models.database import Chapter, SessionLocal, Story, UsageLog
 
 # In-memory task status store
 # Keys are task_id strings, values are status dicts
-task_store: Dict[str, Dict[str, Any]] = {}
+task_store: dict[str, dict[str, Any]] = {}
 
 
 def update_task_status(
@@ -24,10 +29,10 @@ def update_task_status(
     status: str,
     progress: float = 0,
     message: str = "",
-    result: dict = None,
-    words_generated: int = None,
-    estimated_total_words: int = None
-):
+    result: dict | None = None,
+    words_generated: int | None = None,
+    estimated_total_words: int | None = None,
+) -> None:
     """Update task status in in-memory store."""
     task_store[task_id] = {
         "task_id": task_id,
@@ -37,16 +42,16 @@ def update_task_status(
         "result": result,
         "words_generated": words_generated,
         "estimated_total_words": estimated_total_words,
-        "updated_at": datetime.utcnow().isoformat()
+        "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
-def get_task_status(task_id: str) -> Optional[Dict[str, Any]]:
+def get_task_status(task_id: str) -> dict[str, Any] | None:
     """Get task status from in-memory store."""
     return task_store.get(task_id)
 
 
-def find_active_task_for_story(story_id: int) -> Optional[Dict[str, Any]]:
+def find_active_task_for_story(story_id: int) -> dict[str, Any] | None:
     """Find a running or pending task for the given story_id.
 
     Task keys follow the pattern: story_{id}_{ts} or audio_{id}_{ts}.
@@ -55,9 +60,8 @@ def find_active_task_for_story(story_id: int) -> Optional[Dict[str, Any]]:
     prefixes = (f"story_{story_id}_", f"audio_{story_id}_")
     active = []
     for key, val in task_store.items():
-        if any(key.startswith(p) for p in prefixes):
-            if val.get("status") in ("pending", "running"):
-                active.append(val)
+        if any(key.startswith(p) for p in prefixes) and val.get("status") in ("pending", "running"):
+            active.append(val)
     if not active:
         return None
     # Return the most recently updated one
@@ -82,17 +86,18 @@ def generate_story(
     prompt: str,
     num_chapters: int,
     enhance: bool,
-    openai_api_key: str = None,
+    openai_api_key: str | None = None,
     use_platform_key: bool = False,
-):
+) -> None:
     """
     Generate story scripts (runs as BackgroundTask).
 
     This is a synchronous function because the OpenAI SDK calls are blocking.
     FastAPI's BackgroundTasks runs it in a thread pool automatically.
     """
-    from generate_story import load_config, generate_chapter, enhance_chapter, summarize_chapter
     from openai import OpenAI
+
+    from generate_story import enhance_chapter, generate_chapter, load_config, summarize_chapter
 
     db = SessionLocal()
 
@@ -112,10 +117,7 @@ def generate_story(
             override = json.loads(story.config_json)
             config.update(override)
 
-        if openai_api_key:
-            client = OpenAI(api_key=openai_api_key)
-        else:
-            client = OpenAI()
+        client = OpenAI(api_key=openai_api_key) if openai_api_key else OpenAI()
         settings = config.get("generation_settings", {})
         model = settings.get("default_model", "gpt-4o")
 
@@ -133,17 +135,10 @@ def generate_story(
                 return
 
             # Find or create chapter
-            chapter = db.query(Chapter).filter(
-                Chapter.story_id == story_id,
-                Chapter.chapter_number == ch_num
-            ).first()
+            chapter = db.query(Chapter).filter(Chapter.story_id == story_id, Chapter.chapter_number == ch_num).first()
 
             if not chapter:
-                chapter = Chapter(
-                    story_id=story_id,
-                    chapter_number=ch_num,
-                    status="generating_script"
-                )
+                chapter = Chapter(story_id=story_id, chapter_number=ch_num, status="generating_script")
                 db.add(chapter)
                 db.commit()
 
@@ -152,9 +147,12 @@ def generate_story(
 
             progress = (current_step / total_steps) * 100
             update_task_status(
-                task_id, "running", progress, f"Generating chapter {ch_num}...",
+                task_id,
+                "running",
+                progress,
+                f"Generating chapter {ch_num}...",
                 words_generated=words_generated,
-                estimated_total_words=estimated_total_words
+                estimated_total_words=estimated_total_words,
             )
 
             # Generate chapter
@@ -165,13 +163,12 @@ def generate_story(
                 chapter_num=ch_num,
                 total_chapters=num_chapters,
                 previous_summary=previous_summary,
-                model=model
+                model=model,
             )
 
             chapter.script_json = json.dumps(chapter_data, ensure_ascii=False)
             chapter.title = next(
-                (e.get("title") for e in chapter_data if e.get("type") == "scene"),
-                f"Chapter {ch_num}"
+                (e.get("title") for e in chapter_data if e.get("type") == "scene"), f"Chapter {ch_num}"
             )
             db.commit()
             current_step += 1
@@ -185,9 +182,12 @@ def generate_story(
             if enhance:
                 progress = (current_step / total_steps) * 100
                 update_task_status(
-                    task_id, "running", progress, f"Enhancing chapter {ch_num}...",
+                    task_id,
+                    "running",
+                    progress,
+                    f"Enhancing chapter {ch_num}...",
                     words_generated=words_generated,
-                    estimated_total_words=estimated_total_words
+                    estimated_total_words=estimated_total_words,
                 )
 
                 enhanced_data = enhance_chapter(client, config, chapter_data, model)
@@ -206,17 +206,14 @@ def generate_story(
         usage_log = UsageLog(
             user_id=user_id,
             action="story_generation",
-            details=json.dumps({
-                "story_id": story_id,
-                "num_chapters": num_chapters,
-                "enhanced": enhance
-            })
+            details=json.dumps({"story_id": story_id, "num_chapters": num_chapters, "enhanced": enhance}),
         )
         db.add(usage_log)
 
         # Track platform budget if using platform key
         if use_platform_key:
-            from webapp.models.database import PlatformBudget, COST_PER_STORY
+            from webapp.models.database import COST_PER_STORY, PlatformBudget
+
             budget = db.query(PlatformBudget).first()
             if budget:
                 budget.total_spent = round(budget.total_spent + COST_PER_STORY, 2)
@@ -225,10 +222,9 @@ def generate_story(
         story.status = "completed"
         db.commit()
 
-        update_task_status(task_id, "completed", 100, "Story generation completed", {
-            "story_id": story_id,
-            "chapters": num_chapters
-        })
+        update_task_status(
+            task_id, "completed", 100, "Story generation completed", {"story_id": story_id, "chapters": num_chapters}
+        )
 
     except Exception as e:
         story = db.query(Story).filter(Story.id == story_id).first()
@@ -245,9 +241,9 @@ def generate_audio(
     task_id: str,
     story_id: int,
     user_id: int,
-    chapter_ids: List[int],
-    elevenlabs_api_key: str = None,
-):
+    chapter_ids: list[int],
+    elevenlabs_api_key: str | None = None,
+) -> None:
     """
     Generate audio for chapters (runs as BackgroundTask).
 
@@ -276,17 +272,12 @@ def generate_audio(
             update_task_status(task_id, "failed", 0, "ElevenLabs API key not set")
             return
 
-        generator = AudiobookGenerator(
-            api_key=api_key,
-            voice_map=voice_map,
-            model_id="eleven_v3"
-        )
+        generator = AudiobookGenerator(api_key=api_key, voice_map=voice_map, model_id="eleven_v3")
 
         # Create output directory
         output_dir = Path(__file__).parent.parent / "static" / "audio" / str(story_id)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        total_chapters = len(chapter_ids)
         total_characters = 0
 
         # Pre-count total entries across all chapters for granular progress
@@ -303,7 +294,7 @@ def generate_audio(
                 total_entries += len(script)
         entries_done = 0
 
-        for i, chapter_id in enumerate(chapter_ids):
+        for chapter_id in chapter_ids:
             # Check for cancellation
             if task_store.get(task_id, {}).get("status") == "cancelled":
                 return
@@ -317,8 +308,7 @@ def generate_audio(
 
             progress = (entries_done / max(total_entries, 1)) * 100
             update_task_status(
-                task_id, "running", progress,
-                f"Generating audio for chapter {chapter.chapter_number}..."
+                task_id, "running", progress, f"Generating audio for chapter {chapter.chapter_number}..."
             )
 
             # Get script
@@ -335,36 +325,44 @@ def generate_audio(
                     total_characters += len(entry.get("text", ""))
 
             # Progress callback — fires after each entry within a chapter
-            def make_callback(ch_num, base_done):
-                def _cb(entry_index, entry_total):
+            def make_callback(ch_num: int, base_done: int) -> Callable[[int, int], None]:
+                def _cb(entry_index: int, entry_total: int) -> None:
                     nonlocal entries_done
                     entries_done = base_done + entry_index
                     pct = (entries_done / max(total_entries, 1)) * 100
                     update_task_status(
-                        task_id, "running", pct,
-                        f"Generating audio for chapter {ch_num} "
-                        f"({entry_index}/{entry_total} segments)..."
+                        task_id,
+                        "running",
+                        pct,
+                        f"Generating audio for chapter {ch_num} ({entry_index}/{entry_total} segments)...",
                     )
+
                 return _cb
 
             # Write temp script file
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
                 json.dump(script, f, ensure_ascii=False)
                 temp_script_path = f.name
 
             try:
                 output_path = output_dir / f"ch{chapter.chapter_number}.mp3"
                 cb = make_callback(chapter.chapter_number, entries_done)
-                generator.generate_chapter(
-                    temp_script_path, str(output_path),
-                    progress_callback=cb
-                )
+                generator.generate_chapter(temp_script_path, str(output_path), progress_callback=cb)
 
                 # Get audio duration
-                result = subprocess.run(
-                    ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-                     "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)],
-                    capture_output=True, text=True
+                result = subprocess.run(  # noqa: S603
+                    [
+                        "ffprobe",
+                        "-v",
+                        "error",
+                        "-show_entries",
+                        "format=duration",
+                        "-of",
+                        "default=noprint_wrappers=1:nokey=1",
+                        str(output_path),
+                    ],
+                    capture_output=True,
+                    text=True,
                 )
                 duration = float(result.stdout.strip()) if result.stdout.strip() else None
 
@@ -380,19 +378,19 @@ def generate_audio(
         usage_log = UsageLog(
             user_id=user_id,
             action="audio_generation",
-            details=json.dumps({
-                "story_id": story_id,
-                "chapters": len(chapter_ids)
-            }),
-            characters_used=total_characters
+            details=json.dumps({"story_id": story_id, "chapters": len(chapter_ids)}),
+            characters_used=total_characters,
         )
         db.add(usage_log)
         db.commit()
 
-        update_task_status(task_id, "completed", 100, "Audio generation completed", {
-            "story_id": story_id,
-            "chapters_generated": len(chapter_ids)
-        })
+        update_task_status(
+            task_id,
+            "completed",
+            100,
+            "Audio generation completed",
+            {"story_id": story_id, "chapters_generated": len(chapter_ids)},
+        )
 
     except Exception as e:
         for chapter_id in chapter_ids:

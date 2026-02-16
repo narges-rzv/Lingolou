@@ -3,20 +3,21 @@ Shared test fixtures for Lingolou backend tests.
 """
 
 import os
+
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from fastapi.testclient import TestClient
 
 # Set env vars before importing app modules
 os.environ.setdefault("SESSION_SECRET_KEY", "test-secret-key-at-least-32-characters-long")
 os.environ.pop("OPENAI_API_KEY", None)
 os.environ.pop("ELEVENLABS_API_KEY", None)
 
-from webapp.models.database import Base, get_db, User, PlatformBudget
-from webapp.services.auth import get_password_hash, create_access_token
 from webapp.main import app
+from webapp.models.database import Base, PlatformBudget, User, get_db
+from webapp.services.auth import create_access_token, get_password_hash
 
 
 @pytest.fixture()
@@ -45,6 +46,7 @@ def db():
 @pytest.fixture()
 def client(db):
     """TestClient with database dependency override."""
+
     def override_get_db():
         try:
             yield db

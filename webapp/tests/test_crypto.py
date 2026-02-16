@@ -1,13 +1,11 @@
 """Tests for webapp/services/crypto.py"""
 
-import os
 import pytest
-from cryptography.fernet import InvalidToken
 
 
 def test_encrypt_decrypt_roundtrip(monkeypatch):
     monkeypatch.setenv("SESSION_SECRET_KEY", "test-secret-key-at-least-32-characters-long")
-    from webapp.services.crypto import encrypt_key, decrypt_key
+    from webapp.services.crypto import decrypt_key, encrypt_key
 
     plaintext = "sk-abc123xyz"
     ciphertext = encrypt_key(plaintext)
@@ -26,7 +24,7 @@ def test_different_plaintexts_different_ciphertexts(monkeypatch):
 
 def test_tampered_ciphertext_raises(monkeypatch):
     monkeypatch.setenv("SESSION_SECRET_KEY", "test-secret-key-at-least-32-characters-long")
-    from webapp.services.crypto import encrypt_key, decrypt_key
+    from webapp.services.crypto import decrypt_key, encrypt_key
 
     ciphertext = encrypt_key("secret")
     tampered = ciphertext[:-5] + "XXXXX"
@@ -36,7 +34,7 @@ def test_tampered_ciphertext_raises(monkeypatch):
 
 def test_empty_string_roundtrip(monkeypatch):
     monkeypatch.setenv("SESSION_SECRET_KEY", "test-secret-key-at-least-32-characters-long")
-    from webapp.services.crypto import encrypt_key, decrypt_key
+    from webapp.services.crypto import decrypt_key, encrypt_key
 
     ciphertext = encrypt_key("")
     assert decrypt_key(ciphertext) == ""

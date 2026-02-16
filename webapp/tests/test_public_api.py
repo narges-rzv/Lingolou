@@ -1,6 +1,6 @@
 """Tests for webapp/api/public.py"""
 
-from webapp.models.database import Story, Chapter, User, Vote
+from webapp.models.database import Chapter, Story, Vote
 
 
 def _create_public_story(db, user, title="Public Story", status="completed", visibility="public"):
@@ -17,9 +17,13 @@ def _create_public_story(db, user, title="Public Story", status="completed", vis
     db.commit()
     db.refresh(story)
 
-    ch = Chapter(story_id=story.id, chapter_number=1, status="completed",
-                 script_json='[{"type": "line", "text": "hello"}]',
-                 enhanced_json='[{"type": "line", "text": "hello", "emotion": "happy"}]')
+    ch = Chapter(
+        story_id=story.id,
+        chapter_number=1,
+        status="completed",
+        script_json='[{"type": "line", "text": "hello"}]',
+        enhanced_json='[{"type": "line", "text": "hello", "emotion": "happy"}]',
+    )
     db.add(ch)
     db.commit()
     db.refresh(story)

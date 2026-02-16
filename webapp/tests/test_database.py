@@ -2,10 +2,10 @@
 
 import pytest
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import sessionmaker
 
-from webapp.models.database import Base, User, Story, Chapter, Vote, Report, PlatformBudget
+from webapp.models.database import Base, Chapter, PlatformBudget, Report, Story, User, Vote
 
 
 @pytest.fixture()

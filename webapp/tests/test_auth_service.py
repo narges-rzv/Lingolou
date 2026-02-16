@@ -2,16 +2,16 @@
 
 from datetime import timedelta
 
+from webapp.models.database import User
 from webapp.services.auth import (
+    UserCreate,
+    authenticate_user,
+    create_access_token,
+    create_user,
+    decode_token,
     get_password_hash,
     verify_password,
-    create_access_token,
-    decode_token,
-    create_user,
-    authenticate_user,
-    UserCreate,
 )
-from webapp.models.database import User
 
 
 def test_hash_and_verify_correct_password():
@@ -32,9 +32,7 @@ def test_create_access_token_and_decode():
 
 
 def test_decode_expired_token():
-    token = create_access_token(
-        data={"sub": "1"}, expires_delta=timedelta(seconds=-1)
-    )
+    token = create_access_token(data={"sub": "1"}, expires_delta=timedelta(seconds=-1))
     assert decode_token(token) is None
 
 

@@ -2,35 +2,43 @@
 Pydantic schemas for API request/response models.
 """
 
+from __future__ import annotations
+
 from datetime import datetime
-from typing import Optional, List
+
 from pydantic import BaseModel
 
 
 # Story schemas
 class StoryCreate(BaseModel):
+    """Request schema for creating a new story."""
+
     title: str
-    description: Optional[str] = None
-    prompt: Optional[str] = None
+    description: str | None = None
+    prompt: str | None = None
     num_chapters: int = 3
-    language: Optional[str] = None
-    config_override: Optional[dict] = None  # Override default config
+    language: str | None = None
+    config_override: dict | None = None  # Override default config
 
 
 class StoryUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    visibility: Optional[str] = None
+    """Request schema for updating story metadata."""
+
+    title: str | None = None
+    description: str | None = None
+    visibility: str | None = None
 
 
 class ChapterResponse(BaseModel):
+    """Response schema for a chapter."""
+
     id: int
     chapter_number: int
-    title: Optional[str]
+    title: str | None
     status: str
-    audio_path: Optional[str]
-    audio_duration: Optional[float]
-    error_message: Optional[str]
+    audio_path: str | None
+    audio_duration: float | None
+    error_message: str | None
     created_at: datetime
     updated_at: datetime
 
@@ -39,30 +47,34 @@ class ChapterResponse(BaseModel):
 
 
 class StoryResponse(BaseModel):
+    """Response schema for a story with chapters."""
+
     id: int
     title: str
-    description: Optional[str]
-    prompt: Optional[str] = None
-    language: Optional[str] = None
+    description: str | None
+    prompt: str | None = None
+    language: str | None = None
     status: str
     visibility: str = "private"
-    share_code: Optional[str] = None
+    share_code: str | None = None
     upvotes: int = 0
     downvotes: int = 0
     created_at: datetime
     updated_at: datetime
-    chapters: List[ChapterResponse] = []
-    active_task: Optional["TaskStatusResponse"] = None
+    chapters: list[ChapterResponse] = []
+    active_task: TaskStatusResponse | None = None
 
     class Config:
         from_attributes = True
 
 
 class StoryListResponse(BaseModel):
+    """Response schema for story list items."""
+
     id: int
     title: str
-    description: Optional[str]
-    language: Optional[str] = None
+    description: str | None
+    language: str | None = None
     status: str
     visibility: str = "private"
     chapter_count: int
@@ -73,10 +85,12 @@ class StoryListResponse(BaseModel):
 
 
 class PublicStoryListItem(BaseModel):
+    """Response schema for public story list items."""
+
     id: int
     title: str
-    description: Optional[str]
-    language: Optional[str] = None
+    description: str | None
+    language: str | None = None
     status: str
     chapter_count: int
     upvotes: int = 0
@@ -89,18 +103,20 @@ class PublicStoryListItem(BaseModel):
 
 
 class PublicStoryResponse(BaseModel):
+    """Response schema for a public story with chapters."""
+
     id: int
     title: str
-    description: Optional[str]
-    language: Optional[str] = None
+    description: str | None
+    language: str | None = None
     status: str
     visibility: str
-    share_code: Optional[str] = None
+    share_code: str | None = None
     upvotes: int = 0
     downvotes: int = 0
-    user_vote: Optional[str] = None
+    user_vote: str | None = None
     created_at: datetime
-    chapters: List[ChapterResponse] = []
+    chapters: list[ChapterResponse] = []
     owner_name: str
 
     class Config:
@@ -109,25 +125,31 @@ class PublicStoryResponse(BaseModel):
 
 # Generation schemas
 class GenerateStoryRequest(BaseModel):
+    """Request schema for story generation."""
+
     title: str
-    prompt: Optional[str] = None
+    prompt: str | None = None
     num_chapters: int = 3
     enhance: bool = True
 
 
 class GenerateAudioRequest(BaseModel):
+    """Request schema for audio generation."""
+
     story_id: int
-    chapter_numbers: Optional[List[int]] = None  # None = all chapters
+    chapter_numbers: list[int] | None = None  # None = all chapters
 
 
 class TaskStatusResponse(BaseModel):
+    """Response schema for background task status."""
+
     task_id: str
     status: str  # pending, running, completed, failed
-    progress: Optional[float] = None  # 0-100
-    message: Optional[str] = None
-    result: Optional[dict] = None
-    words_generated: Optional[int] = None
-    estimated_total_words: Optional[int] = None
+    progress: float | None = None  # 0-100
+    message: str | None = None
+    result: dict | None = None
+    words_generated: int | None = None
+    estimated_total_words: int | None = None
 
 
 # Resolve forward reference for StoryResponse -> TaskStatusResponse
@@ -136,25 +158,35 @@ StoryResponse.model_rebuild()
 
 # Vote / Report / Share schemas
 class VoteRequest(BaseModel):
-    vote_type: Optional[str] = None  # "up", "down", or None to remove
+    """Request schema for voting on a story."""
+
+    vote_type: str | None = None  # "up", "down", or None to remove
 
 
 class ReportRequest(BaseModel):
+    """Request schema for reporting a story."""
+
     reason: str
 
 
 class ShareLinkResponse(BaseModel):
+    """Response schema for share link."""
+
     share_code: str
     share_url: str
 
 
 # API key schemas
 class ApiKeysUpdate(BaseModel):
-    openai_api_key: Optional[str] = None
-    elevenlabs_api_key: Optional[str] = None
+    """Request schema for updating API keys."""
+
+    openai_api_key: str | None = None
+    elevenlabs_api_key: str | None = None
 
 
 class ApiKeysStatus(BaseModel):
+    """Response schema for API key status."""
+
     has_openai_key: bool
     has_elevenlabs_key: bool
     free_stories_used: int
@@ -162,6 +194,8 @@ class ApiKeysStatus(BaseModel):
 
 
 class BudgetStatus(BaseModel):
+    """Response schema for platform budget status."""
+
     total_budget: float
     total_spent: float
     free_stories_generated: int
