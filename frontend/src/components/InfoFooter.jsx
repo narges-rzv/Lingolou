@@ -64,12 +64,12 @@ const INFO_SECTIONS = {
         </p>
         <p>
           <a
-            href="https://github.com/nargesGh/Lingolou"
+            href="https://github.com/narges-rzv/Lingolou"
             target="_blank"
             rel="noopener noreferrer"
             className="info-github-link"
           >
-            github.com/nargesGh/Lingolou
+            github.com/narges-rzv/Lingolou
           </a>
         </p>
         <p>
@@ -89,7 +89,7 @@ const INFO_SECTIONS = {
         <p>
           Open an issue on{' '}
           <a
-            href="https://github.com/nargesGh/Lingolou/issues"
+            href="https://github.com/narges-rzv/Lingolou/issues"
             target="_blank"
             rel="noopener noreferrer"
           >
