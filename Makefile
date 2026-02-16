@@ -1,4 +1,30 @@
-.PHONY: test test-backend test-frontend test-e2e test-all test-install
+.PHONY: test test-backend test-frontend test-e2e test-all test-install install dev lint format all
+
+# Install all dependencies (backend + frontend)
+install:
+	pip install -r requirements.txt
+	cd frontend && npm install
+
+# Start backend + frontend dev servers (kill both on Ctrl-C)
+dev:
+	@trap 'kill 0' EXIT; \
+	uvicorn webapp.main:app --reload --port 8000 & \
+	cd frontend && npm run dev & \
+	wait
+
+# Lint and type-check
+lint:
+	ruff check .
+	ruff format --check .
+	mypy webapp/ generate_story.py generate_audiobook.py test_voice.py
+
+# Auto-fix lint issues and format
+format:
+	ruff check --fix .
+	ruff format .
+
+# Lint then test
+all: lint test
 
 # Backend tests with coverage
 test-backend:
