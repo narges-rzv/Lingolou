@@ -14,9 +14,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from webapp.models.database import FREE_STORIES_PER_USER, PlatformBudget, Story, User, Vote, World, get_db
-from webapp.models.schemas import BudgetStatus, PublicStoryListItem, PublicStoryResponse, WorldListItem, WorldResponse
-from webapp.services.auth import get_current_user_optional
+from webapp.models.database import FREE_STORIES_PER_USER, Chapter, PlatformBudget, Story, User, Vote, World, get_db
+from webapp.models.schemas import (
+    BudgetStatus,
+    PublicStoryListItem,
+    PublicStoryResponse,
+    StoryResponse,
+    WorldListItem,
+    WorldResponse,
+)
+from webapp.services.auth import get_current_user, get_current_user_optional
 
 router = APIRouter(prefix="/api/public", tags=["Public"])
 
@@ -106,6 +113,7 @@ async def get_public_story(
         id=story.id,
         title=story.title,
         description=story.description,
+        prompt=story.prompt,
         language=story.language,
         status=story.status,
         visibility=story.visibility,
@@ -148,6 +156,7 @@ async def get_shared_story(
         id=story.id,
         title=story.title,
         description=story.description,
+        prompt=story.prompt,
         language=story.language,
         status=story.status,
         visibility=story.visibility,
@@ -158,6 +167,76 @@ async def get_shared_story(
         created_at=story.created_at,
         chapters=story.chapters,
         owner_name=story.owner.username,
+    )
+
+
+@router.post("/stories/{story_id}/fork", response_model=StoryResponse, status_code=201)
+async def fork_story(
+    story_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StoryResponse:
+    """Fork a public/link-only story into the current user's collection."""
+    source = (
+        db.query(Story)
+        .filter(
+            Story.id == story_id,
+            Story.visibility.in_(["public", "link_only"]),
+        )
+        .first()
+    )
+
+    if not source:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    new_story = Story(
+        user_id=current_user.id,
+        title=f"Copy of {source.title}",
+        description=source.description,
+        prompt=source.prompt,
+        language=source.language,
+        world_id=source.world_id,
+        config_json=source.config_json,
+        status="completed",
+        visibility="private",
+        upvotes=0,
+        downvotes=0,
+    )
+    db.add(new_story)
+    db.flush()
+
+    for src_ch in sorted(source.chapters, key=lambda c: c.chapter_number):
+        new_ch = Chapter(
+            story_id=new_story.id,
+            chapter_number=src_ch.chapter_number,
+            title=src_ch.title,
+            script_json=src_ch.script_json,
+            enhanced_json=src_ch.enhanced_json,
+            status="completed",
+            audio_path=None,
+            audio_duration=None,
+        )
+        db.add(new_ch)
+
+    db.commit()
+    db.refresh(new_story)
+
+    return StoryResponse(
+        id=new_story.id,
+        title=new_story.title,
+        description=new_story.description,
+        prompt=new_story.prompt,
+        language=new_story.language,
+        world_id=new_story.world_id,
+        world_name=new_story.world.name if new_story.world else None,
+        status=new_story.status,
+        visibility=new_story.visibility,
+        share_code=new_story.share_code,
+        upvotes=new_story.upvotes,
+        downvotes=new_story.downvotes,
+        created_at=new_story.created_at,
+        updated_at=new_story.updated_at,
+        chapters=new_story.chapters,
     )
 
 

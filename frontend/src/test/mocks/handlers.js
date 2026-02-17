@@ -136,6 +136,25 @@ export const handlers = [
     }, { status: 201 })
   }),
 
+  // Fork
+  http.post(`${BASE}/public/stories/:id/fork`, ({ params }) => {
+    return HttpResponse.json({
+      id: 99,
+      title: `Copy of ${mockStory.title}`,
+      description: mockStory.description,
+      prompt: null,
+      language: mockStory.language,
+      status: 'completed',
+      visibility: 'private',
+      share_code: null,
+      upvotes: 0,
+      downvotes: 0,
+      created_at: '2024-01-01T00:00:00',
+      updated_at: '2024-01-01T00:00:00',
+      chapters: [],
+    }, { status: 201 })
+  }),
+
   // Voice config
   http.get(`${BASE}/stories/:storyId/voice-config`, () => {
     return HttpResponse.json({

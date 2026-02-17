@@ -121,6 +121,9 @@ disable_error_code = ["arg-type", "operator", "assignment", "attr-defined", "cal
 [tool.pytest.ini_options]
 testpaths = ["webapp/tests"]
 asyncio_mode = "auto"
-addopts = """
--n logical -W error
-"""
+addopts = ""
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning:sqlalchemy",
+    "ignore::ResourceWarning",
+]

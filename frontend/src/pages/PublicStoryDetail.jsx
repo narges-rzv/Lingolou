@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { publicApiFetch, apiFetch } from '../api';
 import AudioPlayer from '../components/AudioPlayer';
@@ -11,12 +11,14 @@ function statusClass(status) {
 
 export default function PublicStoryDetail({ preloadedStory }) {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const [story, setStory] = useState(preloadedStory || null);
   const [loading, setLoading] = useState(!preloadedStory);
   const [error, setError] = useState(null);
   const [downloading, setDownloading] = useState(false);
   const [voting, setVoting] = useState(false);
+  const [forking, setForking] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [reporting, setReporting] = useState(false);
@@ -102,6 +104,19 @@ export default function PublicStoryDetail({ preloadedStory }) {
     }
   };
 
+  const handleFork = async () => {
+    setForking(true);
+    setError(null);
+    try {
+      const data = await apiFetch(`/public/stories/${story.id}/fork`, { method: 'POST' });
+      navigate(`/stories/${data.id}`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setForking(false);
+    }
+  };
+
   if (loading) return <div className="loading">Loading story...</div>;
   if (!story) return <div className="error-message">{error || 'Story not found'}</div>;
 
@@ -156,10 +171,20 @@ export default function PublicStoryDetail({ preloadedStory }) {
             <Link to="/login">Log in</Link> to vote
           </span>
         )}
+        {isAuthenticated && (
+          <button
+            className="btn btn-primary btn-sm"
+            style={{ marginLeft: 'auto' }}
+            onClick={handleFork}
+            disabled={forking}
+          >
+            {forking ? 'Forking...' : 'Fork Story'}
+          </button>
+        )}
         {isAuthenticated && !reportDone && (
           <button
             className="btn btn-ghost btn-sm"
-            style={{ marginLeft: 'auto' }}
+            style={{ marginLeft: '0.5rem' }}
             onClick={() => setShowReport(true)}
           >
             Report

@@ -111,6 +111,7 @@ class PublicStoryResponse(BaseModel):
     id: int
     title: str
     description: str | None
+    prompt: str | None = None
     language: str | None = None
     status: str
     visibility: str

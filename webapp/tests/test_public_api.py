@@ -122,3 +122,56 @@ def test_get_shared_story_by_code(client, db, test_user):
 def test_get_shared_story_invalid_code(client):
     resp = client.get("/api/public/share/nonexistent-code")
     assert resp.status_code == 404
+
+
+def test_fork_public_story(client, db, test_user, other_user, other_auth_headers):
+    story = _create_public_story(db, test_user, title="Original Story")
+    story.prompt = "A story about cats"
+    db.commit()
+
+    resp = client.post(f"/api/public/stories/{story.id}/fork", headers=other_auth_headers)
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["title"] == "Copy of Original Story"
+    assert data["prompt"] == "A story about cats"
+    assert data["language"] == "Persian (Farsi)"
+    assert data["status"] == "completed"
+    assert data["visibility"] == "private"
+    assert data["upvotes"] == 0
+    assert data["downvotes"] == 0
+    assert len(data["chapters"]) == 1
+    assert data["chapters"][0]["audio_path"] is None
+
+
+def test_fork_story_not_public(client, db, test_user, other_auth_headers):
+    story = _create_public_story(db, test_user, visibility="private")
+
+    resp = client.post(f"/api/public/stories/{story.id}/fork", headers=other_auth_headers)
+    assert resp.status_code == 404
+
+
+def test_fork_story_unauthenticated(client, db, test_user):
+    story = _create_public_story(db, test_user)
+
+    resp = client.post(f"/api/public/stories/{story.id}/fork")
+    assert resp.status_code == 401
+
+
+def test_fork_story_no_chapters(client, db, test_user, other_auth_headers):
+    story = Story(
+        user_id=test_user.id,
+        title="Empty Story",
+        description="No chapters",
+        status="completed",
+        visibility="public",
+        language="Arabic",
+    )
+    db.add(story)
+    db.commit()
+    db.refresh(story)
+
+    resp = client.post(f"/api/public/stories/{story.id}/fork", headers=other_auth_headers)
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["title"] == "Copy of Empty Story"
+    assert len(data["chapters"]) == 0
