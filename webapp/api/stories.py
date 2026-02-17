@@ -19,7 +19,7 @@ from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Re
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from webapp.models.database import FREE_STORIES_PER_USER, Chapter, PlatformBudget, Story, User, get_db
+from webapp.models.database import FREE_STORIES_PER_USER, Chapter, PlatformBudget, Story, User, World, get_db
 from webapp.models.schemas import (
     ChapterResponse,
     GenerateAudioRequest,
@@ -109,6 +109,8 @@ async def list_stories(
             title=s.title,
             description=s.description,
             language=s.language,
+            world_id=s.world_id,
+            world_name=s.world.name if s.world else None,
             status=s.status,
             visibility=s.visibility,
             chapter_count=len(s.chapters),
@@ -121,10 +123,17 @@ async def list_stories(
 @router.post("/", response_model=StoryResponse)
 async def create_story(
     story: StoryCreate, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)
-) -> Story:
+) -> StoryResponse:
     """Create a new story (without generating content yet)."""
+    # Validate world_id if provided
+    if story.world_id:
+        world = db.query(World).filter(World.id == story.world_id).first()
+        if not world:
+            raise HTTPException(status_code=404, detail="World not found")
+
     db_story = Story(
         user_id=current_user.id,
+        world_id=story.world_id,
         title=story.title,
         description=story.description,
         prompt=story.prompt,
@@ -143,7 +152,9 @@ async def create_story(
     db.commit()
     db.refresh(db_story)
 
-    return db_story
+    response = StoryResponse.model_validate(db_story)
+    response.world_name = db_story.world.name if db_story.world else None
+    return response
 
 
 # Task routes must be defined before /{story_id} to avoid route conflicts
@@ -171,6 +182,49 @@ async def cancel_generation_task(task_id: str, current_user: User = Depends(get_
     return {"message": f"Task already {status_info['status']}", "task_id": task_id}
 
 
+@router.get("/{story_id}/voice-config")
+async def get_voice_config(
+    story_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Get effective voice config and speakers for a story."""
+    story = db.query(Story).filter(Story.id == story_id, Story.user_id == current_user.id).first()
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    # Get voice config from world or disk fallback
+    voice_config: dict = {}
+    if story.world_id:
+        world = db.query(World).filter(World.id == story.world_id).first()
+        if world and world.voice_config_json:
+            voice_config = json.loads(world.voice_config_json)
+
+    if not voice_config:
+        voices_path = Path(__file__).parent.parent.parent / "voices_config.json"
+        if voices_path.exists():
+            with open(voices_path) as f:
+                raw = json.load(f)
+            # voices_config.json has {"voices": {"SPEAKER": {...}}} or flat format
+            voice_config = raw.get("voices", raw) if isinstance(raw, dict) else {}
+
+    # Extract unique speakers from chapter scripts
+    speakers: list[str] = []
+    seen: set[str] = set()
+    for chapter in sorted(story.chapters, key=lambda c: c.chapter_number):
+        script_json = chapter.enhanced_json or chapter.script_json
+        if not script_json:
+            continue
+        script = json.loads(script_json)
+        for entry in script:
+            speaker = entry.get("speaker")
+            if speaker and speaker not in seen:
+                speakers.append(speaker)
+                seen.add(speaker)
+
+    return {"speakers": speakers, "voice_config": voice_config}
+
+
 @router.get("/{story_id}", response_model=StoryResponse)
 async def get_story(
     story_id: int, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)
@@ -182,6 +236,7 @@ async def get_story(
         raise HTTPException(status_code=404, detail="Story not found")
 
     response = StoryResponse.model_validate(story)
+    response.world_name = story.world.name if story.world else None
 
     # If the story is generating, look for an active in-memory task
     if story.status == "generating":
@@ -407,6 +462,7 @@ async def generate_story_audio(
         user_id=current_user.id,
         chapter_ids=chapter_ids,
         elevenlabs_api_key=elevenlabs_api_key,
+        voice_override=request.voice_override,
     )
 
     return TaskStatusResponse(

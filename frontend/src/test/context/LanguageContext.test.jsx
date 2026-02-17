@@ -13,7 +13,7 @@ describe('LanguageContext', () => {
 
   it('defaults to DEFAULT_LANGUAGE', () => {
     const { result } = renderHook(() => useLanguage(), { wrapper })
-    expect(result.current.language).toBe('Persian (Farsi)')
+    expect(result.current.language).toBe('Chinese (Mandarin)')
   })
 
   it('setLanguage updates state and localStorage', () => {

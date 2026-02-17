@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { apiFetch } from '../api';
 import ChapterList from '../components/ChapterList';
 import AudioPlayer from '../components/AudioPlayer';
 import TaskProgress from '../components/TaskProgress';
+import VoiceAssignmentModal from '../components/VoiceAssignmentModal';
 
 function statusClass(status) {
   return `status-badge status-${status || 'created'}`;
@@ -20,6 +21,7 @@ export default function StoryDetail() {
   const [taskType, setTaskType] = useState(null);
   const [showDelete, setShowDelete] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [autoExpand, setAutoExpand] = useState(0);
 
   const fetchStory = useCallback(async () => {
@@ -68,13 +70,21 @@ export default function StoryDetail() {
     navigate(`/stories/${id}/edit`);
   };
 
-  const handleGenerateAllAudio = async () => {
+  const handleGenerateAllAudio = () => {
+    setShowVoiceModal(true);
+  };
+
+  const handleVoiceConfirm = async (voiceOverride) => {
+    setShowVoiceModal(false);
     setError(null);
     setGenerating(true);
     try {
       const data = await apiFetch(`/stories/${id}/generate-audio`, {
         method: 'POST',
-        json: { story_id: Number(id) },
+        json: {
+          story_id: Number(id),
+          voice_override: Object.keys(voiceOverride).length > 0 ? voiceOverride : null,
+        },
       });
       setTaskId(data.task_id);
       setTaskType('audio');
@@ -195,6 +205,11 @@ export default function StoryDetail() {
             <span className={statusClass(story.status)}>{story.status}</span>
             {story.visibility === 'public' && <span className="status-badge status-completed">Public</span>}
             {story.visibility === 'link_only' && <span className="status-badge status-created">Link-only</span>}
+            {story.world_name && (
+              <Link to={`/worlds/${story.world_id}`} style={{ fontSize: '0.85rem' }}>
+                {story.world_name}
+              </Link>
+            )}
             <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
               {chapters.length} chapter{chapters.length !== 1 ? 's' : ''}
             </span>
@@ -296,6 +311,14 @@ export default function StoryDetail() {
         autoExpand={autoExpand}
         onRefresh={fetchStory}
       />
+
+      {showVoiceModal && (
+        <VoiceAssignmentModal
+          storyId={story.id}
+          onConfirm={handleVoiceConfirm}
+          onCancel={() => setShowVoiceModal(false)}
+        />
+      )}
 
       {showDelete && (
         <div className="confirm-overlay" onClick={() => setShowDelete(false)}>

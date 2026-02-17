@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { apiFetch } from '../api';
-import { LANGUAGES } from '../languages';
+import { DEFAULT_LANGUAGE, LANGUAGES } from '../languages';
 
 const THEMES = [
   { value: 'greetings', label: 'Greetings and introductions' },
@@ -32,7 +32,7 @@ export default function EditStory() {
   const [description, setDescription] = useState('');
   const [prompt, setPrompt] = useState('');
   const [numChapters, setNumChapters] = useState(3);
-  const [language, setLanguage] = useState('Persian (Farsi)');
+  const [language, setLanguage] = useState(DEFAULT_LANGUAGE);
   const [themeKey, setThemeKey] = useState('greetings');
   const [customTheme, setCustomTheme] = useState('');
   const [plot, setPlot] = useState('');

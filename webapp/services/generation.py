@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-from webapp.models.database import Chapter, SessionLocal, Story, UsageLog
+from webapp.models.database import Chapter, SessionLocal, Story, UsageLog, World
 
 # In-memory task status store
 # Keys are task_id strings, values are status dicts
@@ -112,6 +112,15 @@ def generate_story(
         # Load config
         config_path = Path(__file__).parent.parent.parent / "story_config.json"
         config = load_config(str(config_path))
+
+        # Override with world config if story belongs to a world
+        if story.world_id:
+            world = db.query(World).filter(World.id == story.world_id).first()
+            if world:
+                if world.characters_json:
+                    config["characters"] = json.loads(world.characters_json)
+                if world.valid_speakers_json:
+                    config["valid_speakers"] = json.loads(world.valid_speakers_json)
 
         if story.config_json:
             override = json.loads(story.config_json)
@@ -243,6 +252,7 @@ def generate_audio(
     user_id: int,
     chapter_ids: list[int],
     elevenlabs_api_key: str | None = None,
+    voice_override: dict | None = None,
 ) -> None:
     """
     Generate audio for chapters (runs as BackgroundTask).
@@ -256,13 +266,34 @@ def generate_audio(
     try:
         update_task_status(task_id, "running", 0, "Starting audio generation...")
 
-        # Load voice config
-        voices_path = Path(__file__).parent.parent.parent / "voices_config.json"
-        if not voices_path.exists():
-            update_task_status(task_id, "failed", 0, "Voice config not found")
-            return
+        # Check if story has a world with voice config
+        story = db.query(Story).filter(Story.id == story_id).first()
+        world_voice_config = None
+        if story and story.world_id:
+            world = db.query(World).filter(World.id == story.world_id).first()
+            if world and world.voice_config_json:
+                world_voice_config = json.loads(world.voice_config_json)
 
-        voice_map = create_voice_map(str(voices_path))
+        if world_voice_config:
+            # Build voice map from world config directly
+            voice_map = {
+                speaker: settings
+                for speaker, settings in world_voice_config.items()
+                if isinstance(settings, dict) and "voice_id" in settings
+            }
+        else:
+            # Fall back to voices_config.json from disk
+            voices_path = Path(__file__).parent.parent.parent / "voices_config.json"
+            if not voices_path.exists():
+                update_task_status(task_id, "failed", 0, "Voice config not found")
+                return
+
+            voice_map = create_voice_map(str(voices_path))
+
+        # Apply user overrides on top of defaults
+        if voice_override:
+            voice_map.update(voice_override)
+
         if not voice_map:
             update_task_status(task_id, "failed", 0, "No voices configured")
             return

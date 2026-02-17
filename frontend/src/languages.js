@@ -9,4 +9,4 @@ export const LANGUAGES = [
   'Tamil', 'Thai', 'Turkish', 'Ukrainian', 'Vietnamese',
 ];
 
-export const DEFAULT_LANGUAGE = 'Persian (Farsi)';
+export const DEFAULT_LANGUAGE = 'Chinese (Mandarin)';
