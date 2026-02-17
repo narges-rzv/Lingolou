@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { apiFetch } from '../api';
 import { useLanguage } from '../context/LanguageContext';
 import { LANGUAGES } from '../languages';
@@ -18,12 +18,23 @@ const THEMES = [
   { value: 'custom', label: 'Custom...' },
 ];
 
-function buildPrompt(language, themeText, plot, numChapters) {
-  return `Write a story aimed for 4-8 year old kids, which involves the PAW Patrol in a new adventure. They meet a new pup, who speaks a different language (${language} here), and the PAW Patrol learn a bit of basic ${language} by communicating with the new pup, and repeating. Include short repetition of the language lessons, by various characters, to reinforce learning. Start simple. The current theme of the learning is ${themeText} and a few basic nouns, a few basic sentence structures, and basic pronouns. The plot of the story is around ${plot}. Inject some subplots to make it exciting. Keep the story in ${numChapters} chapters. Start with chapter 1. Each chapter should be around 1000 words and all PAW Patrol characters should participate at some stage of the story and bring in their specific expertise. Every time a new word (start with 1-2 word phrases) is introduced in the language, have the other pups or Ryder repeat it a few times, (to reinforce learning). Then repeat with the term in the target language and English (when Ryder explains what they just learned), and then continue. Start with nouns and short phrases within the theme of ${themeText}. Basic short sentences. Add basic adjectives. And then the sentences (2-5 words usually, maybe up to 6-7. Not long).`;
+const DEFAULT_TEMPLATE =
+  'Write a story aimed for 4-8 year old kids. ' +
+  'The characters learn basic {language} words and phrases about {theme}. ' +
+  'The plot is: {plot}. Keep the story in {num_chapters} chapters. ' +
+  'Each chapter should be around 1000 words.';
+
+function interpolateTemplate(template, language, themeText, plot, numChapters) {
+  return template
+    .replace(/\{language\}/g, language)
+    .replace(/\{theme\}/g, themeText)
+    .replace(/\{plot\}/g, plot)
+    .replace(/\{num_chapters\}/g, String(numChapters));
 }
 
 export default function NewStory() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { language: globalLanguage } = useLanguage();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -42,18 +53,42 @@ export default function NewStory() {
   const [loading, setLoading] = useState(false);
   const [keyStatus, setKeyStatus] = useState(null);
 
+  // World state
+  const [worlds, setWorlds] = useState([]);
+  const [worldsLoading, setWorldsLoading] = useState(true);
+  const [selectedWorldId, setSelectedWorldId] = useState(searchParams.get('world') || '');
+  const [selectedWorld, setSelectedWorld] = useState(null);
+
   const themeText = themeKey === 'custom'
     ? customTheme
     : THEMES.find((t) => t.value === themeKey)?.label || themeKey;
 
   useEffect(() => {
     apiFetch('/auth/api-keys').then(setKeyStatus).catch(() => {});
+    apiFetch('/worlds/').then((data) => {
+      setWorlds(data);
+      setWorldsLoading(false);
+    }).catch(() => setWorldsLoading(false));
   }, []);
+
+  // Load full world data when selection changes
+  useEffect(() => {
+    if (selectedWorldId) {
+      apiFetch(`/worlds/${selectedWorldId}`)
+        .then(setSelectedWorld)
+        .catch(() => setSelectedWorld(null));
+    } else {
+      setSelectedWorld(null);
+    }
+  }, [selectedWorldId]);
+
+  // Determine prompt template based on world selection
+  const promptTemplate = selectedWorld?.prompt_template || DEFAULT_TEMPLATE;
 
   // Auto-generate prompt when inputs change (unless user manually edited it)
   const generatedPrompt = useMemo(
-    () => buildPrompt(language, themeText, plot, numChapters),
-    [language, themeText, plot, numChapters]
+    () => interpolateTemplate(promptTemplate, language, themeText, plot, numChapters),
+    [promptTemplate, language, themeText, plot, numChapters]
   );
 
   useEffect(() => {
@@ -69,6 +104,11 @@ export default function NewStory() {
 
   const handleResetPrompt = () => {
     setPrompt(generatedPrompt);
+    setPromptEdited(false);
+  };
+
+  const handleWorldChange = (e) => {
+    setSelectedWorldId(e.target.value);
     setPromptEdited(false);
   };
 
@@ -94,14 +134,16 @@ export default function NewStory() {
     setError(null);
     setLoading(true);
     try {
+      const worldName = selectedWorld?.name || '';
       const story = await apiFetch('/stories/', {
         method: 'POST',
         json: {
-          title: title || `${language} Adventure`,
-          description: description || `A PAW Patrol ${language} learning story about ${themeText.toLowerCase()}`,
+          title: title || `${language} Adventure${worldName ? ` (${worldName})` : ''}`,
+          description: description || `A ${language} learning story about ${themeText.toLowerCase()}${worldName ? ` in ${worldName}` : ''}`,
           prompt,
           num_chapters: numChapters,
           language,
+          world_id: selectedWorldId ? Number(selectedWorldId) : null,
           config_override: {
             target_language: { name: language, code: language.slice(0, 2).toLowerCase() },
           },
@@ -140,13 +182,37 @@ export default function NewStory() {
 
       <form onSubmit={handleSubmit}>
         <div className="form-group">
+          <label htmlFor="world">Story World</label>
+          <select
+            id="world"
+            value={selectedWorldId}
+            onChange={handleWorldChange}
+            disabled={worldsLoading}
+          >
+            <option value="">Custom (no world)</option>
+            {worlds.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name}{w.is_builtin ? ' (Built-in)' : ''}
+              </option>
+            ))}
+          </select>
+          {selectedWorld && (
+            <span className="field-hint">
+              {selectedWorld.description}
+              {' '}
+              <Link to={`/worlds/${selectedWorld.id}`}>View world details</Link>
+            </span>
+          )}
+        </div>
+
+        <div className="form-group">
           <label htmlFor="title">Title</label>
           <input
             id="title"
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder={`PAW Patrol Learns ${language}`}
+            placeholder={selectedWorld ? `${selectedWorld.name} — ${language} Adventure` : `${language} Adventure`}
           />
         </div>
 
@@ -221,7 +287,7 @@ export default function NewStory() {
             rows={3}
           />
           <span className="field-hint">
-            What adventure should the PAW Patrol go on?
+            What adventure should the characters go on?
           </span>
         </div>
 
@@ -252,6 +318,23 @@ export default function NewStory() {
               : 'Auto-generated from your selections above. You can edit it directly if needed.'}
           </span>
         </div>
+
+        {/* World voice config display */}
+        {selectedWorld?.voice_config && Object.keys(selectedWorld.voice_config).length > 0 && (
+          <div className="world-voice-summary">
+            <h3>Voice Assignments ({selectedWorld.name})</h3>
+            <div className="characters-list">
+              {Object.entries(selectedWorld.voice_config).map(([speaker, config]) => (
+                <div key={speaker} className="character-item">
+                  <strong>{speaker}</strong>
+                  <span style={{ color: 'var(--color-text-secondary)', fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                    {config.voice_id}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="voices-section">
           <button

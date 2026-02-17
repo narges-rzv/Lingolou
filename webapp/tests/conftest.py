@@ -16,7 +16,7 @@ os.environ.pop("OPENAI_API_KEY", None)
 os.environ.pop("ELEVENLABS_API_KEY", None)
 
 from webapp.main import app
-from webapp.models.database import Base, PlatformBudget, User, get_db
+from webapp.models.database import Base, PlatformBudget, User, World, get_db
 from webapp.services.auth import create_access_token, get_password_hash
 
 
@@ -101,3 +101,45 @@ def other_auth_headers(other_user):
     """Return authorization headers for the other user."""
     token = create_access_token(data={"sub": str(other_user.id)})
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture()
+def test_world(db, test_user):
+    """Create a test world owned by test_user."""
+    import json
+
+    world = World(
+        user_id=test_user.id,
+        name="Test World",
+        description="A test world for unit tests",
+        prompt_template="Write a {language} story about {theme} with {plot} in {num_chapters} chapters.",
+        characters_json=json.dumps({"NARRATOR": "Tells the story", "HERO": "The main character"}),
+        valid_speakers_json=json.dumps(["NARRATOR", "HERO"]),
+        voice_config_json=json.dumps({"NARRATOR": {"voice_id": "abc123", "stability": 0.6}}),
+        visibility="private",
+    )
+    db.add(world)
+    db.commit()
+    db.refresh(world)
+    return world
+
+
+@pytest.fixture()
+def builtin_world(db):
+    """Create a built-in world (no owner)."""
+    import json
+
+    world = World(
+        user_id=None,
+        name="Built-in World",
+        description="A built-in world",
+        is_builtin=True,
+        prompt_template="Default template for {language}.",
+        characters_json=json.dumps({"NARRATOR": "Narrator"}),
+        valid_speakers_json=json.dumps(["NARRATOR"]),
+        visibility="public",
+    )
+    db.add(world)
+    db.commit()
+    db.refresh(world)
+    return world

@@ -27,7 +27,7 @@ export default function PublicStoryCard({ story }) {
         </span>
       </div>
       <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem', display: 'flex', justifyContent: 'space-between' }}>
-        <span>by {story.owner_name}</span>
+        <span>by {story.owner_name}{story.world_name ? ` \u00b7 ${story.world_name}` : ''}</span>
         <span className="vote-score-inline">
           &#9650; {(story.upvotes || 0) - (story.downvotes || 0)}
         </span>

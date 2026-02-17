@@ -22,6 +22,7 @@ export default function StoryCard({ story }) {
       <div className="story-card-footer">
         <span className={statusClass(story.status)}>{story.status}</span>
         <span>
+          {story.world_name && `${story.world_name} \u00b7 `}
           {story.chapter_count} chapter{story.chapter_count !== 1 ? 's' : ''}
           {' \u00b7 '}
           {formatDate(story.created_at)}

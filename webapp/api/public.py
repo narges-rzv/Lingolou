@@ -14,8 +14,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from webapp.models.database import FREE_STORIES_PER_USER, PlatformBudget, Story, User, Vote, get_db
-from webapp.models.schemas import BudgetStatus, PublicStoryListItem, PublicStoryResponse
+from webapp.models.database import FREE_STORIES_PER_USER, PlatformBudget, Story, User, Vote, World, get_db
+from webapp.models.schemas import BudgetStatus, PublicStoryListItem, PublicStoryResponse, WorldListItem, WorldResponse
 from webapp.services.auth import get_current_user_optional
 
 router = APIRouter(prefix="/api/public", tags=["Public"])
@@ -64,6 +64,8 @@ async def list_public_stories(
             title=s.title,
             description=s.description,
             language=s.language,
+            world_id=s.world_id,
+            world_name=s.world.name if s.world else None,
             status=s.status,
             chapter_count=len(s.chapters),
             upvotes=s.upvotes,
@@ -193,6 +195,105 @@ async def get_public_chapter_script(
         raise HTTPException(status_code=404, detail="Script not generated yet")
 
     return json.loads(script)
+
+
+@router.get("/worlds", response_model=list[WorldListItem])
+async def list_public_worlds(
+    db: Session = Depends(get_db),
+) -> list[WorldListItem]:
+    """List public and built-in worlds."""
+    from sqlalchemy import or_
+
+    worlds = (
+        db.query(World)
+        .filter(or_(World.visibility == "public", World.is_builtin.is_(True)))
+        .order_by(World.is_builtin.desc(), World.created_at.desc())
+        .all()
+    )
+    return [
+        WorldListItem(
+            id=w.id,
+            name=w.name,
+            description=w.description,
+            is_builtin=w.is_builtin,
+            visibility=w.visibility,
+            story_count=len(w.stories),
+            owner_name=w.owner.username if w.owner else None,
+            created_at=w.created_at,
+        )
+        for w in worlds
+    ]
+
+
+@router.get("/worlds/{world_id}", response_model=WorldResponse)
+async def get_public_world(
+    world_id: int,
+    db: Session = Depends(get_db),
+) -> WorldResponse:
+    """Get a public or built-in world."""
+    from sqlalchemy import or_
+
+    world = (
+        db.query(World)
+        .filter(World.id == world_id, or_(World.visibility == "public", World.is_builtin.is_(True)))
+        .first()
+    )
+    if not world:
+        raise HTTPException(status_code=404, detail="World not found")
+
+    return WorldResponse(
+        id=world.id,
+        name=world.name,
+        description=world.description,
+        is_builtin=world.is_builtin,
+        prompt_template=world.prompt_template,
+        characters=json.loads(world.characters_json) if world.characters_json else None,
+        valid_speakers=json.loads(world.valid_speakers_json) if world.valid_speakers_json else None,
+        voice_config=json.loads(world.voice_config_json) if world.voice_config_json else None,
+        visibility=world.visibility,
+        share_code=world.share_code,
+        story_count=len(world.stories),
+        owner_name=world.owner.username if world.owner else None,
+        created_at=world.created_at,
+        updated_at=world.updated_at,
+    )
+
+
+@router.get("/share/world/{share_code}", response_model=WorldResponse)
+async def get_shared_world(
+    share_code: str,
+    db: Session = Depends(get_db),
+) -> WorldResponse:
+    """Get a world by its share code."""
+    from sqlalchemy import or_
+
+    world = (
+        db.query(World)
+        .filter(
+            World.share_code == share_code,
+            or_(World.visibility.in_(["public", "link_only"]), World.is_builtin.is_(True)),
+        )
+        .first()
+    )
+    if not world:
+        raise HTTPException(status_code=404, detail="World not found")
+
+    return WorldResponse(
+        id=world.id,
+        name=world.name,
+        description=world.description,
+        is_builtin=world.is_builtin,
+        prompt_template=world.prompt_template,
+        characters=json.loads(world.characters_json) if world.characters_json else None,
+        valid_speakers=json.loads(world.valid_speakers_json) if world.valid_speakers_json else None,
+        voice_config=json.loads(world.voice_config_json) if world.voice_config_json else None,
+        visibility=world.visibility,
+        share_code=world.share_code,
+        story_count=len(world.stories),
+        owner_name=world.owner.username if world.owner else None,
+        created_at=world.created_at,
+        updated_at=world.updated_at,
+    )
 
 
 @router.get("/stories/{story_id}/audio/combined")

@@ -26,6 +26,7 @@ export default function Navbar() {
           {isAuthenticated ? (
             <>
               <Link to="/dashboard" className="btn btn-ghost btn-sm">My Stories</Link>
+              <Link to="/worlds" className="btn btn-ghost btn-sm">Worlds</Link>
               <Link to="/settings" className="btn btn-ghost btn-sm">Settings</Link>
               <span className="navbar-user">{user?.username}</span>
               <button className="btn btn-ghost btn-sm" onClick={logout}>

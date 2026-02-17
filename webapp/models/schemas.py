@@ -18,6 +18,7 @@ class StoryCreate(BaseModel):
     prompt: str | None = None
     num_chapters: int = 3
     language: str | None = None
+    world_id: int | None = None
     config_override: dict | None = None  # Override default config
 
 
@@ -53,6 +54,8 @@ class StoryResponse(BaseModel):
     description: str | None
     prompt: str | None = None
     language: str | None = None
+    world_id: int | None = None
+    world_name: str | None = None
     status: str
     visibility: str = "private"
     share_code: str | None = None
@@ -73,6 +76,8 @@ class StoryListResponse(BaseModel):
     title: str
     description: str | None
     language: str | None = None
+    world_id: int | None = None
+    world_name: str | None = None
     status: str
     visibility: str = "private"
     chapter_count: int
@@ -88,6 +93,8 @@ class PublicStoryListItem(BaseModel):
     title: str
     description: str | None
     language: str | None = None
+    world_id: int | None = None
+    world_name: str | None = None
     status: str
     chapter_count: int
     upvotes: int = 0
@@ -133,6 +140,7 @@ class GenerateAudioRequest(BaseModel):
 
     story_id: int
     chapter_numbers: list[int] | None = None  # None = all chapters
+    voice_override: dict[str, dict] | None = None  # speaker -> voice settings override
 
 
 class TaskStatusResponse(BaseModel):
@@ -195,3 +203,64 @@ class BudgetStatus(BaseModel):
     total_spent: float
     free_stories_generated: int
     free_stories_per_user: int
+
+
+# World schemas
+class WorldCreate(BaseModel):
+    """Request schema for creating a new world."""
+
+    name: str
+    description: str | None = None
+    prompt_template: str | None = None
+    characters: dict[str, str] | None = None
+    valid_speakers: list[str] | None = None
+    voice_config: dict[str, dict] | None = None
+    visibility: str = "private"
+
+
+class WorldUpdate(BaseModel):
+    """Request schema for updating a world."""
+
+    name: str | None = None
+    description: str | None = None
+    prompt_template: str | None = None
+    characters: dict[str, str] | None = None
+    valid_speakers: list[str] | None = None
+    voice_config: dict[str, dict] | None = None
+    visibility: str | None = None
+
+
+class WorldResponse(BaseModel):
+    """Response schema for a world with full data."""
+
+    id: int
+    name: str
+    description: str | None
+    is_builtin: bool
+    prompt_template: str | None
+    characters: dict[str, str] | None = None
+    valid_speakers: list[str] | None = None
+    voice_config: dict | None = None
+    visibility: str
+    share_code: str | None = None
+    story_count: int = 0
+    owner_name: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class WorldListItem(BaseModel):
+    """Response schema for world list items."""
+
+    id: int
+    name: str
+    description: str | None
+    is_builtin: bool
+    visibility: str
+    story_count: int = 0
+    owner_name: str | None = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

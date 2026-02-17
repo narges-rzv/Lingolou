@@ -30,8 +30,18 @@ describe('NewStory', () => {
 
     await waitFor(() => {
       const promptArea = screen.getByLabelText(/Generated Prompt/)
-      expect(promptArea.value).toContain('PAW Patrol')
+      expect(promptArea.value).toContain('story')
     })
+  })
+
+  it('shows world selector', async () => {
+    render(<NewStory />)
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Story World')).toBeInTheDocument()
+    })
+
+    expect(screen.getByText('Custom (no world)')).toBeInTheDocument()
   })
 
   it('manual prompt edit sets promptEdited flag (shows Reset)', async () => {

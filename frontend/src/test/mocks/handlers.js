@@ -38,6 +38,22 @@ const mockStory = {
   owner_name: 'testuser',
 }
 
+const mockWorld = {
+  id: 1,
+  name: 'PAW Patrol',
+  description: 'The classic PAW Patrol language learning world.',
+  is_builtin: true,
+  visibility: 'public',
+  prompt_template: 'Write a story about {language} and {theme} with {plot} in {num_chapters} chapters.',
+  characters: { NARRATOR: 'Tells the story', RYDER: 'The human leader' },
+  valid_speakers: ['NARRATOR', 'RYDER'],
+  voice_config: { NARRATOR: { voice_id: 'abc123', stability: 0.6 } },
+  story_count: 5,
+  owner_name: null,
+  created_at: '2024-01-01T00:00:00',
+  updated_at: '2024-01-01T00:00:00',
+}
+
 export const handlers = [
   // Auth
   http.get(`${BASE}/auth/me`, ({ request }) => {
@@ -97,6 +113,49 @@ export const handlers = [
     return HttpResponse.json([mockStory])
   }),
 
+  // Worlds
+  http.get(`${BASE}/worlds/`, () => {
+    return HttpResponse.json([mockWorld])
+  }),
+
+  http.get(`${BASE}/worlds/:id`, ({ params }) => {
+    return HttpResponse.json({ ...mockWorld, id: Number(params.id) })
+  }),
+
+  http.post(`${BASE}/worlds/`, async ({ request }) => {
+    const body = await request.json()
+    return HttpResponse.json({
+      ...mockWorld,
+      id: 2,
+      name: body.name,
+      description: body.description,
+      is_builtin: false,
+      visibility: body.visibility || 'private',
+      created_at: '2024-01-01T00:00:00',
+      updated_at: '2024-01-01T00:00:00',
+    }, { status: 201 })
+  }),
+
+  // Voice config
+  http.get(`${BASE}/stories/:storyId/voice-config`, () => {
+    return HttpResponse.json({
+      speakers: ['NARRATOR', 'RYDER'],
+      voice_config: {
+        NARRATOR: { voice_id: 'abc123', stability: 0.6 },
+        RYDER: { voice_id: 'def456', stability: 0.5 },
+      },
+    })
+  }),
+
+  // Voices list
+  http.get(`${BASE}/stories/voices`, () => {
+    return HttpResponse.json([
+      { voice_id: 'abc123', name: 'Alice', category: 'premade', labels: {}, preview_url: '' },
+      { voice_id: 'def456', name: 'Bob', category: 'premade', labels: {}, preview_url: '' },
+      { voice_id: 'ghi789', name: 'Charlie', category: 'premade', labels: {}, preview_url: '' },
+    ])
+  }),
+
   // Task
   http.get(`${BASE}/stories/tasks/:taskId`, ({ params }) => {
     return HttpResponse.json({
@@ -115,4 +174,4 @@ export const handlers = [
   }),
 ]
 
-export { mockUser, mockApiKeysStatus, mockBudget, mockStory }
+export { mockUser, mockApiKeysStatus, mockBudget, mockStory, mockWorld }
