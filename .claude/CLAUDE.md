@@ -9,7 +9,7 @@ Lingolou is a language learning audiobook generator. It creates children's stori
 ## Tech Stack
 
 - **Backend**: FastAPI (Python 3.12+)
-- **Frontend**: React 18 + Vite
+- **Frontend**: React 18 + Vite + TypeScript (strict mode)
 - **Database**: SQLite (dev), PostgreSQL (production)
 - **Background Tasks**: FastAPI BackgroundTasks (in-process)
 - **Auth**: JWT + Google OAuth (authlib)
@@ -43,40 +43,19 @@ python generate_audiobook.py stories/s1 --voices voices_config.json
 
 ## Project Structure
 
-```
-webapp/
-├── main.py              # FastAPI app, middleware, routers
-├── api/
-│   ├── auth.py          # /api/auth/* endpoints (login, register, API keys)
-│   ├── oauth.py         # /api/auth/oauth/google/* endpoints
-│   ├── stories.py       # /api/stories/* endpoints (CRUD, generation)
-│   ├── public.py        # /api/public/* endpoints (unauthenticated)
-│   ├── votes.py         # /api/votes/* endpoints
-│   └── reports.py       # /api/reports/* endpoints
-├── models/
-│   ├── database.py      # SQLAlchemy models (User, Story, Chapter, Vote, Report, PlatformBudget)
-│   └── schemas.py       # Pydantic request/response schemas
-├── services/
-│   ├── auth.py          # JWT creation, password hashing
-│   ├── crypto.py        # API key encryption (Fernet)
-│   ├── generation.py    # Background task logic (story/audio generation)
-│   └── oauth.py         # Google OAuth provider config
-└── tests/
-    ├── conftest.py      # Shared fixtures (db, client, auth_headers)
-    └── test_*.py        # Backend tests (pytest)
-
-frontend/src/
-├── App.jsx              # Router setup
-├── api.js               # API client (apiFetch, loginRequest, etc.)
-├── languages.js         # Supported languages list
-├── context/
-│   ├── AuthContext.jsx   # Auth state, OAuth token handling
-│   └── LanguageContext.jsx
-├── components/          # Navbar, BudgetBanner, TaskProgress, etc.
-├── pages/               # Login, Dashboard, StoryDetail, NewStory, Settings, PublicStories, etc.
-├── test/                # Frontend tests (Vitest + RTL + MSW)
-└── e2e/                 # E2E tests (Playwright)
-```
+- **`webapp/`** — FastAPI backend
+  - `api/` — Route handlers (auth, stories, public, votes, reports, oauth)
+  - `models/` — SQLAlchemy models in `database.py`, Pydantic schemas in `schemas.py`
+  - `services/` — Business logic (JWT auth, Fernet crypto, story/audio generation, OAuth)
+  - `tests/` — pytest tests with shared fixtures in `conftest.py`
+- **`frontend/src/`** — React + TypeScript
+  - `types.ts` — Shared interfaces mirroring backend Pydantic schemas
+  - `api.ts` — Generic typed HTTP client (`apiFetch<T>`, `publicApiFetch<T>`)
+  - `context/` — Auth state (JWT + OAuth) and language selection providers
+  - `components/` — Reusable UI (navbar, script viewer, audio player, task progress, etc.)
+  - `pages/` — Route-level views (login, dashboard, story CRUD, worlds, settings, etc.)
+  - `test/` — Vitest + React Testing Library + MSW mock handlers
+  - `e2e/` — Playwright specs
 
 ## Code Quality
 
@@ -131,10 +110,13 @@ result = some_untyped_lib.call()  # type: ignore
 
 ### Frontend
 
-- **API calls** go through `api.js` which adds the Bearer token from localStorage
-- **Auth state** is managed in `AuthContext.jsx`
+- **API calls** go through `api.ts` — generic `apiFetch<T>()` and `publicApiFetch<T>()` add Bearer token from localStorage
+- **Types** are defined in `types.ts`, mirroring backend Pydantic schemas 1:1
+- **Auth state** is managed in `AuthContext.tsx`
 - **OAuth redirect** is handled on mount in AuthContext (checks for `?token=` param)
 - **Language context** provides language selection across components
+- **All components** use prop interfaces and typed state (`useState<Type>`)
+- **Strict TypeScript** — no `any`, uses `unknown` with proper narrowing
 
 ## Database Schema
 
@@ -181,7 +163,7 @@ make all             # lint + test (pre-commit check)
 - **Backend tests**: `webapp/tests/` — pytest with in-memory SQLite (StaticPool), FastAPI TestClient, fixtures in `conftest.py`
 - **Frontend tests**: `frontend/src/test/` — Vitest + React Testing Library + MSW v2 for network mocking
 - **E2E tests**: `frontend/src/e2e/` — Playwright (chromium)
-- **Shared test utils**: `frontend/src/test/test-utils.jsx` wraps components in all providers (Router, Auth, Language)
+- **Shared test utils**: `frontend/src/test/test-utils.tsx` wraps components in all providers (Router, Auth, Language)
 
 ## Gotchas
 
