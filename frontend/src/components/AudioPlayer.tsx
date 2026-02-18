@@ -1,5 +1,5 @@
 interface AudioPlayerProps {
-  storyId: number;
+  src: string;
   chapterNumber: number;
   duration?: number | null;
   showDownload?: boolean;
@@ -12,19 +12,19 @@ function formatDuration(seconds: number | null | undefined): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function AudioPlayer({ storyId, chapterNumber, duration, showDownload = true }: AudioPlayerProps) {
+export default function AudioPlayer({ src, chapterNumber, duration, showDownload = true }: AudioPlayerProps) {
   const cacheBust = duration ? `?v=${Math.round(duration * 100)}` : `?v=${Date.now()}`;
-  const src = `/static/audio/${storyId}/ch${chapterNumber}.mp3${cacheBust}`;
+  const audioSrc = `${src}${cacheBust}`;
 
   return (
     <div className="audio-player">
-      <audio controls preload="metadata" src={src} />
+      <audio controls preload="metadata" src={audioSrc} />
       <div className="audio-player-footer">
         {(duration ?? 0) > 0 && (
           <span className="audio-duration">{formatDuration(duration)}</span>
         )}
         {showDownload && (
-          <a href={src} download={`chapter-${chapterNumber}.mp3`} className="btn btn-ghost btn-sm">
+          <a href={audioSrc} download={`chapter-${chapterNumber}.mp3`} className="btn btn-ghost btn-sm">
             Download
           </a>
         )}

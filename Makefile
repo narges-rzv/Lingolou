@@ -1,4 +1,4 @@
-.PHONY: test test-backend test-frontend test-e2e test-all test-install install dev lint format all
+.PHONY: test test-backend test-frontend test-e2e test-all test-install install dev lint format all docker-build docker-run docker-run-prod
 
 # Install all dependencies (backend + frontend)
 install:
@@ -49,3 +49,19 @@ test-all: test-backend test-frontend
 
 # Alias
 test: test-all
+
+# Build Docker image
+docker-build:
+	docker build -t lingolou .
+
+# Run with SQLite (local testing)
+docker-run:
+	docker run -p 8000:8000 -e SESSION_SECRET_KEY=$${SESSION_SECRET_KEY} lingolou
+
+# Run with PostgreSQL
+docker-run-prod:
+	docker run -p 8000:8000 \
+		-e DATABASE_URL=$${DATABASE_URL} \
+		-e SESSION_SECRET_KEY=$${SESSION_SECRET_KEY} \
+		-e FRONTEND_URL=$${FRONTEND_URL} \
+		lingolou

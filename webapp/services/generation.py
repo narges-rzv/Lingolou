@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 from webapp.models.database import Chapter, SessionLocal, Story, UsageLog, World
+from webapp.services.storage import get_storage
 
 # In-memory task status store
 # Keys are task_id strings, values are status dicts
@@ -243,7 +244,7 @@ def generate_story(
         update_task_status(task_id, "failed", 0, str(e))
 
     finally:
-        db.close()
+        db.close()  # generate_story cleanup
 
 
 def generate_audio(
@@ -317,9 +318,9 @@ def generate_audio(
 
         generator = AudiobookGenerator(api_key=api_key, voice_map=voice_map, model_id="eleven_v3")
 
-        # Create output directory
-        output_dir = Path(__file__).parent.parent / "static" / "audio" / str(story_id)
-        output_dir.mkdir(parents=True, exist_ok=True)
+        # Set up storage backend and local temp dir for audio generation
+        storage = get_storage()
+        output_dir = Path(tempfile.mkdtemp())  # temp dir for intermediate audio files
 
         total_characters = 0
 
@@ -393,9 +394,9 @@ def generate_audio(
                 temp_script_path = f.name
 
             try:
-                output_path = output_dir / f"ch{chapter.chapter_number}.mp3"
+                local_output = output_dir / f"ch{chapter.chapter_number}.mp3"
                 cb = make_callback(chapter.chapter_number, entries_done)
-                generator.generate_chapter(temp_script_path, str(output_path), progress_callback=cb)
+                generator.generate_chapter(temp_script_path, str(local_output), progress_callback=cb)
 
                 # Get audio duration
                 result = subprocess.run(  # noqa: S603
@@ -407,14 +408,19 @@ def generate_audio(
                         "format=duration",
                         "-of",
                         "default=noprint_wrappers=1:nokey=1",
-                        str(output_path),
+                        str(local_output),
                     ],
                     capture_output=True,
                     text=True,
                 )
                 duration = float(result.stdout.strip()) if result.stdout.strip() else None
 
-                chapter.audio_path = f"/static/audio/{story_id}/ch{chapter.chapter_number}.mp3"
+                # Save to storage backend
+                storage_key = f"{story_id}/ch{chapter.chapter_number}.mp3"
+                audio_url = storage.save(storage_key, local_output.read_bytes())
+                local_output.unlink(missing_ok=True)
+
+                chapter.audio_path = audio_url
                 chapter.audio_duration = duration
                 chapter.status = "completed"
                 db.commit()
@@ -450,4 +456,8 @@ def generate_audio(
         update_task_status(task_id, "failed", 0, str(e))
 
     finally:
+        # Clean up temp directory used for intermediate audio files
+        import shutil
+
+        shutil.rmtree(output_dir, ignore_errors=True)
         db.close()

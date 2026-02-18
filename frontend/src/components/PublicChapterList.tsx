@@ -57,7 +57,7 @@ export default function PublicChapterList({ chapters, storyId }: PublicChapterLi
               <div className="chapter-body">
                 {hasAudio && (
                   <AudioPlayer
-                    storyId={storyId}
+                    src={ch.audio_path as string}
                     chapterNumber={ch.chapter_number}
                     duration={ch.audio_duration}
                     showDownload={false}

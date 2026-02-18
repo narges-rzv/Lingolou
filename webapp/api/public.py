@@ -8,7 +8,6 @@ import json
 import os
 import subprocess
 import tempfile
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
@@ -34,6 +33,7 @@ from webapp.models.schemas import (
     WorldResponse,
 )
 from webapp.services.auth import get_current_user, get_current_user_optional
+from webapp.services.storage import get_storage
 
 router = APIRouter(prefix="/api/public", tags=["Public"])
 
@@ -415,7 +415,7 @@ async def download_public_combined_audio(
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
 
-    audio_dir = Path(__file__).parent.parent / "static" / "audio" / str(story_id)
+    storage = get_storage()
     chapters_with_audio = sorted(
         [c for c in story.chapters if c.audio_path],
         key=lambda c: c.chapter_number,
@@ -425,40 +425,33 @@ async def download_public_combined_audio(
         raise HTTPException(status_code=404, detail="No audio files available")
 
     if len(chapters_with_audio) == 1:
-        single = audio_dir / f"ch{chapters_with_audio[0].chapter_number}.mp3"
-        if not single.exists():
-            raise HTTPException(status_code=404, detail="Audio file not found")
-        return FileResponse(
-            str(single),
-            media_type="audio/mpeg",
-            filename=f"{story.title}.mp3",
-        )
+        key = f"{story_id}/ch{chapters_with_audio[0].chapter_number}.mp3"
+        with storage.get_path(key) as single:
+            if not single:
+                raise HTTPException(status_code=404, detail="Audio file not found")
+            return FileResponse(
+                str(single),
+                media_type="audio/mpeg",
+                filename=f"{story.title}.mp3",
+            )
 
-    # Build ffmpeg concat file
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-        for ch in chapters_with_audio:
-            ch_path = audio_dir / f"ch{ch.chapter_number}.mp3"
-            if ch_path.exists():
-                f.write(f"file '{ch_path}'\n")
-        concat_list = f.name
-
-    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-        output_path = tmp.name
+    # Build ffmpeg concat file — use get_path to get local files for each chapter
+    concat_list_path = None
+    output_path = None
     try:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            for ch in chapters_with_audio:
+                key = f"{story_id}/ch{ch.chapter_number}.mp3"
+                with storage.get_path(key) as ch_path:
+                    if ch_path:
+                        f.write(f"file '{ch_path}'\n")
+            concat_list_path = f.name
+
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+            output_path = tmp.name
+
         result = subprocess.run(  # noqa: S603
-            [
-                "ffmpeg",
-                "-y",
-                "-f",
-                "concat",
-                "-safe",
-                "0",
-                "-i",
-                concat_list,
-                "-c",
-                "copy",
-                output_path,
-            ],
+            ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list_path, "-c", "copy", output_path],
             capture_output=True,
             text=True,
             timeout=120,
@@ -472,4 +465,5 @@ async def download_public_combined_audio(
             filename=f"{story.title}.mp3",
         )
     finally:
-        os.unlink(concat_list)
+        if concat_list_path:
+            os.unlink(concat_list_path)

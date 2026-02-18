@@ -24,7 +24,7 @@ Designed for kids' language learning with support for multiple characters, 35+ l
 - **Node.js 18+** (required by Vite 6 — check with `node -v`)
 - **ffmpeg** (for audio processing)
 
-## Setup
+## Local Development
 
 ### 1. Install system dependencies
 
@@ -80,12 +80,78 @@ make dev    # Starts backend + frontend (Ctrl-C to stop both)
 - Frontend: http://localhost:5173
 - API docs: http://localhost:8000/docs
 
+## Docker Deployment
+
+### Build
+
+```bash
+make docker-build
+# or: docker build -t lingolou .
+```
+
+### Run with SQLite (simple)
+
+```bash
+docker run -p 8000:8000 \
+  -e SESSION_SECRET_KEY=your-secret-key-at-least-32-chars \
+  -e OPENAI_API_KEY=sk-... \
+  -e ELEVENLABS_API_KEY=... \
+  lingolou
+```
+
+### Run with PostgreSQL (production)
+
+```bash
+docker run -p 8000:8000 \
+  -e DATABASE_URL=postgresql://user:pass@host:5432/lingolou \
+  -e SESSION_SECRET_KEY=your-secret-key-at-least-32-chars \
+  -e OPENAI_API_KEY=sk-... \
+  -e ELEVENLABS_API_KEY=... \
+  -e FRONTEND_URL=https://your-domain.com \
+  -e CORS_ORIGINS=https://your-domain.com \
+  lingolou
+```
+
+### Run with S3 Storage (optional)
+
+Add these environment variables to use S3-compatible storage for audio files instead of local filesystem:
+
+```bash
+-e STORAGE_BACKEND=s3 \
+-e S3_BUCKET=lingolou-audio \
+-e S3_REGION=us-east-1 \
+-e AWS_ACCESS_KEY_ID=... \
+-e AWS_SECRET_ACCESS_KEY=...
+```
+
+For Cloudflare R2 or MinIO, also set `S3_ENDPOINT_URL`.
+
+## Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SESSION_SECRET_KEY` | Yes | - | Secret for JWT + session middleware (min 32 chars) |
+| `OPENAI_API_KEY` | No | - | Platform OpenAI key for free tier |
+| `ELEVENLABS_API_KEY` | No | - | Platform ElevenLabs key for free tier |
+| `DATABASE_URL` | No | `sqlite:///./lingolou.db` | Database connection string |
+| `FRONTEND_URL` | No | `http://localhost:5173` | Frontend URL for share links |
+| `CORS_ORIGINS` | No | `*` | Comma-separated allowed origins |
+| `PORT` | No | `8000` | Server port |
+| `STORAGE_BACKEND` | No | `local` | `local` or `s3` |
+| `S3_BUCKET` | If S3 | - | S3 bucket name |
+| `S3_REGION` | No | `us-east-1` | AWS region |
+| `S3_ENDPOINT_URL` | No | - | Custom S3 endpoint (R2, MinIO) |
+| `AWS_ACCESS_KEY_ID` | If S3 | - | AWS access key |
+| `AWS_SECRET_ACCESS_KEY` | If S3 | - | AWS secret key |
+| `GOOGLE_CLIENT_ID` | No | - | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | No | - | Google OAuth client secret |
+
 ## Code Quality
 
 ```bash
 make lint      # Ruff lint + format check + mypy type-check
 make format    # Auto-fix lint + format issues
-make all       # Lint then test (pre-commit check)
+make all       # Format, lint, then test (pre-commit check)
 ```
 
 ## Testing
@@ -96,8 +162,17 @@ make test-backend    # pytest + coverage
 make test-frontend   # Vitest + coverage
 make test-e2e        # Playwright (requires backend + frontend running)
 make test-install    # Install all test dependencies
-make all             # Lint + test (recommended before committing)
 ```
+
+## Architecture
+
+Single-container deployment serving both the API and built frontend:
+
+- **Backend**: FastAPI (Python) serving API at `/api/` and static files
+- **Frontend**: React SPA built by Vite, served as static files from the same container
+- **Database**: SQLite (dev) or PostgreSQL (production) via `DATABASE_URL`
+- **Audio Storage**: Local filesystem (default) or S3-compatible object storage
+- **Background Tasks**: In-process FastAPI BackgroundTasks (task state is in-memory)
 
 ## Project Structure
 
@@ -118,21 +193,22 @@ webapp/
 │   ├── auth.py          # JWT creation, password hashing
 │   ├── crypto.py        # API key encryption (Fernet)
 │   ├── generation.py    # Background task logic (story/audio)
+│   ├── storage.py       # File storage abstraction (local/S3)
 │   └── oauth.py         # Google OAuth provider config
 ├── tests/               # Backend tests (pytest)
 │   ├── conftest.py      # Shared fixtures
 │   └── test_*.py        # Test modules
 └── static/
-    └── audio/           # Generated audio files
+    └── audio/           # Generated audio files (local storage)
 
 frontend/src/
-├── App.jsx              # Router setup
-├── api.js               # API client (apiFetch, loginRequest, etc.)
-├── languages.js         # Supported languages list
+├── App.tsx              # Router setup
+├── api.ts               # API client (apiFetch, publicApiFetch)
+├── types.ts             # Shared TypeScript interfaces
 ├── context/
-│   ├── AuthContext.jsx   # Auth state, OAuth token handling
-│   └── LanguageContext.jsx
-├── components/          # Navbar, BudgetBanner, TaskProgress, etc.
+│   ├── AuthContext.tsx   # Auth state, OAuth token handling
+│   └── LanguageContext.tsx
+├── components/          # Navbar, AudioPlayer, TaskProgress, etc.
 ├── pages/               # Login, Dashboard, StoryDetail, NewStory, Settings, etc.
 ├── test/                # Frontend tests (Vitest + RTL + MSW)
 └── e2e/                 # E2E tests (Playwright)
@@ -156,60 +232,6 @@ python generate_audiobook.py stories/s2 --voices voices_config.json
 python test_voice.py list
 ```
 
-## API Endpoints
-
-### Authentication
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/auth/register` | Register new user |
-| POST | `/api/auth/login` | Login, get JWT token |
-| GET | `/api/auth/me` | Get current user info |
-| GET | `/api/auth/api-keys` | Get API key status (never returns actual keys) |
-| PUT | `/api/auth/api-keys` | Save encrypted API keys |
-
-### Stories (authenticated)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/stories/` | List user's stories |
-| POST | `/api/stories/` | Create new story |
-| GET | `/api/stories/{id}` | Get story with chapters |
-| PATCH | `/api/stories/{id}` | Update story metadata |
-| DELETE | `/api/stories/{id}` | Delete story |
-| POST | `/api/stories/{id}/generate` | Generate story scripts |
-| POST | `/api/stories/{id}/generate-audio` | Generate audio files |
-| GET | `/api/stories/tasks/{task_id}` | Check task status |
-| DELETE | `/api/stories/tasks/{task_id}` | Cancel a running task |
-
-### Public (unauthenticated)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/public/budget` | Community free-tier budget status |
-| GET | `/api/public/stories` | List public completed stories |
-| GET | `/api/public/stories/{id}` | Get a public story |
-| GET | `/api/public/share/{code}` | Get story by share code |
-
-### Votes & Reports (authenticated)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/votes/stories/{id}` | Vote on a story (up/down/null) |
-| POST | `/api/reports/stories/{id}` | Report a story |
-
-## Database
-
-SQLite (`lingolou.db`) in development. Key models:
-
-- **User** — account, OAuth, encrypted API keys, free tier usage
-- **Story** — title, prompt, status, visibility, votes
-- **Chapter** — script JSON, enhanced JSON, audio path
-- **Vote** / **Report** — user interactions on public stories
-- **PlatformBudget** — community free-tier spending pool
-
-> Schema changes require deleting `lingolou.db` (SQLAlchemy `create_all` won't alter existing tables).
-
 ## OAuth Setup (Google)
 
 1. Create a project in [Google Cloud Console](https://console.cloud.google.com/)
@@ -217,3 +239,7 @@ SQLite (`lingolou.db`) in development. Key models:
 3. Create OAuth client ID (Web application) with redirect URI: `http://localhost:8000/api/auth/oauth/google/callback`
 4. Add credentials to `.env` (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET_KEY`)
 5. Add your Google email as a test user while in "Testing" mode
+
+## License
+
+See [LICENSE](LICENSE) for details.

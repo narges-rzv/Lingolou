@@ -52,10 +52,11 @@ app.add_middleware(
     secret_key=os.getenv("SESSION_SECRET_KEY", "change-me-to-a-random-secret-at-least-32-chars"),
 )
 
-# CORS middleware (adjust origins for production)
+# CORS middleware — set CORS_ORIGINS env var for production (comma-separated)
+_cors_origins = os.getenv("CORS_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: Restrict in production
+    allow_origins=[o.strip() for o in _cors_origins],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -121,4 +122,5 @@ async def serve_spa(request: Request, full_path: str) -> FileResponse | JSONResp
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run(app, host="0.0.0.0", port=port)

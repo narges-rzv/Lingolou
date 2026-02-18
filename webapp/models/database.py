@@ -4,6 +4,7 @@ Database models and setup for Lingolou webapp.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Generator
 from datetime import datetime
 
@@ -21,9 +22,14 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Session, declarative_base, relationship, sessionmaker
 
-DATABASE_URL = "sqlite:///./lingolou.db"
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./lingolou.db")
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+# check_same_thread is only needed for SQLite
+_connect_args: dict[str, bool] = {}
+if DATABASE_URL.startswith("sqlite"):
+    _connect_args["check_same_thread"] = False
+
+engine = create_engine(DATABASE_URL, connect_args=_connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

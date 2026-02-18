@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 import tempfile
 import time
@@ -41,6 +40,7 @@ from webapp.services.generation import (
     get_task_status,
     update_task_status,
 )
+from webapp.services.storage import get_storage
 
 router = APIRouter(prefix="/api/stories", tags=["Stories"])
 
@@ -313,10 +313,8 @@ async def delete_story(
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
 
-    # Delete audio files from disk
-    audio_dir = Path(__file__).parent.parent / "static" / "audio" / str(story_id)
-    if audio_dir.exists():
-        shutil.rmtree(audio_dir, ignore_errors=True)
+    # Delete audio files from storage
+    get_storage().delete_dir(str(story_id))
 
     db.delete(story)
     db.commit()
@@ -346,7 +344,6 @@ async def generate_story_content(
 
     # Reset existing chapters for regeneration and adjust count
     existing_chapters = sorted(story.chapters, key=lambda c: c.chapter_number)
-    audio_dir = Path(__file__).parent.parent / "static" / "audio" / str(story_id)
 
     for ch in existing_chapters:
         if ch.chapter_number <= request.num_chapters:
@@ -358,9 +355,8 @@ async def generate_story_content(
         else:
             db.delete(ch)
 
-    # Delete old audio files from disk
-    if audio_dir.exists():
-        shutil.rmtree(audio_dir, ignore_errors=True)
+    # Delete old audio files from storage
+    get_storage().delete_dir(str(story_id))
 
     # Create any missing chapters if count was increased
     existing_nums = {ch.chapter_number for ch in existing_chapters}
@@ -480,31 +476,36 @@ async def download_combined_audio(
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
 
-    audio_dir = Path(__file__).parent.parent / "static" / "audio" / str(story_id)
+    storage = get_storage()
     chapters_with_audio = sorted([c for c in story.chapters if c.audio_path], key=lambda c: c.chapter_number)
 
     if not chapters_with_audio:
         raise HTTPException(status_code=404, detail="No audio files available")
 
     if len(chapters_with_audio) == 1:
-        single = audio_dir / f"ch{chapters_with_audio[0].chapter_number}.mp3"
-        if not single.exists():
-            raise HTTPException(status_code=404, detail="Audio file not found")
-        return FileResponse(str(single), media_type="audio/mpeg", filename=f"{story.title}.mp3")
+        key = f"{story_id}/ch{chapters_with_audio[0].chapter_number}.mp3"
+        with storage.get_path(key) as single:
+            if not single:
+                raise HTTPException(status_code=404, detail="Audio file not found")
+            return FileResponse(str(single), media_type="audio/mpeg", filename=f"{story.title}.mp3")
 
-    # Build ffmpeg concat file
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-        for ch in chapters_with_audio:
-            ch_path = audio_dir / f"ch{ch.chapter_number}.mp3"
-            if ch_path.exists():
-                f.write(f"file '{ch_path}'\n")
-        concat_list = f.name
-
-    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-        output_path = tmp.name
+    # Build ffmpeg concat file — use get_path to get local files for each chapter
+    concat_list_path = None
+    output_path = None
     try:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            for ch in chapters_with_audio:
+                key = f"{story_id}/ch{ch.chapter_number}.mp3"
+                with storage.get_path(key) as ch_path:
+                    if ch_path:
+                        f.write(f"file '{ch_path}'\n")
+            concat_list_path = f.name
+
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+            output_path = tmp.name
+
         result = subprocess.run(  # noqa: S603
-            ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list, "-c", "copy", output_path],
+            ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list_path, "-c", "copy", output_path],
             capture_output=True,
             text=True,
             timeout=120,
@@ -518,7 +519,8 @@ async def download_combined_audio(
             filename=f"{story.title}.mp3",
         )
     finally:
-        os.unlink(concat_list)
+        if concat_list_path:
+            os.unlink(concat_list_path)
 
 
 @router.get("/{story_id}/chapters/{chapter_number}", response_model=ChapterResponse)

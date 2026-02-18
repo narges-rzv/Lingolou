@@ -102,7 +102,7 @@ export default function ChapterList({ chapters, storyId, autoExpand, onRefresh }
                 )}
                 {hasAudio && (
                   <AudioPlayer
-                    storyId={storyId}
+                    src={ch.audio_path as string}
                     chapterNumber={ch.chapter_number}
                     duration={ch.audio_duration}
                   />

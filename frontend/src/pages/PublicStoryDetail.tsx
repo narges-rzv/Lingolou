@@ -260,7 +260,7 @@ export default function PublicStoryDetail({ preloadedStory }: PublicStoryDetailP
                 Ch {ch.chapter_number}: {ch.title || `Chapter ${ch.chapter_number}`}
               </span>
               <AudioPlayer
-                storyId={story.id}
+                src={ch.audio_path as string}
                 chapterNumber={ch.chapter_number}
                 duration={ch.audio_duration}
                 showDownload={false}
