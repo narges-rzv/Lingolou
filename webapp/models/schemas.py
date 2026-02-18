@@ -119,6 +119,7 @@ class PublicStoryResponse(BaseModel):
     upvotes: int = 0
     downvotes: int = 0
     user_vote: str | None = None
+    is_bookmarked: bool = False
     created_at: datetime
     chapters: list[ChapterResponse] = []
     owner_name: str
@@ -158,6 +159,31 @@ class TaskStatusResponse(BaseModel):
 
 # Resolve forward reference for StoryResponse -> TaskStatusResponse
 StoryResponse.model_rebuild()
+
+
+# Bookmark schemas
+class BookmarkResponse(BaseModel):
+    """Response schema for bookmark toggle."""
+
+    bookmarked: bool
+
+
+class BookmarkedStoryListItem(BaseModel):
+    """Response schema for a bookmarked story in the user's list."""
+
+    id: int
+    title: str
+    description: str | None
+    language: str | None = None
+    status: str
+    chapter_count: int
+    upvotes: int = 0
+    downvotes: int = 0
+    created_at: datetime
+    owner_name: str
+    bookmarked_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Vote / Report / Share schemas

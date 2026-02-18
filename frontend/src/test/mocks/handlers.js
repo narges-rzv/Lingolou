@@ -136,6 +136,29 @@ export const handlers = [
     }, { status: 201 })
   }),
 
+  // Bookmarks
+  http.post(`${BASE}/bookmarks/stories/:id`, () => {
+    return HttpResponse.json({ bookmarked: true })
+  }),
+
+  http.get(`${BASE}/bookmarks/stories`, () => {
+    return HttpResponse.json([
+      {
+        id: 1,
+        title: 'Bookmarked Story',
+        description: 'A bookmarked story',
+        language: 'Persian (Farsi)',
+        status: 'completed',
+        chapter_count: 2,
+        upvotes: 5,
+        downvotes: 1,
+        created_at: '2024-01-01T00:00:00',
+        owner_name: 'otheruser',
+        bookmarked_at: '2024-06-01T00:00:00',
+      },
+    ])
+  }),
+
   // Fork
   http.post(`${BASE}/public/stories/:id/fork`, ({ params }) => {
     return HttpResponse.json({

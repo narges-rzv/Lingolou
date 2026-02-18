@@ -55,6 +55,7 @@ class User(Base):
     usage_logs = relationship("UsageLog", back_populates="user")
     votes = relationship("Vote", back_populates="user")
     reports = relationship("Report", back_populates="user")
+    bookmarks = relationship("Bookmark", back_populates="user")
 
 
 class World(Base):
@@ -108,6 +109,7 @@ class Story(Base):
     chapters = relationship("Chapter", back_populates="story", cascade="all, delete-orphan")
     votes = relationship("Vote", back_populates="story", cascade="all, delete-orphan")
     reports = relationship("Report", back_populates="story", cascade="all, delete-orphan")
+    bookmarks = relationship("Bookmark", back_populates="story", cascade="all, delete-orphan")
 
 
 class Chapter(Base):
@@ -163,6 +165,21 @@ class Report(Base):
 
     user = relationship("User", back_populates="reports")
     story = relationship("Story", back_populates="reports")
+
+
+class Bookmark(Base):
+    """User bookmark on a story."""
+
+    __tablename__ = "bookmarks"
+    __table_args__ = (UniqueConstraint("user_id", "story_id", name="uq_user_story_bookmark"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    story_id = Column(Integer, ForeignKey("stories.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="bookmarks")
+    story = relationship("Story", back_populates="bookmarks")
 
 
 class UsageLog(Base):

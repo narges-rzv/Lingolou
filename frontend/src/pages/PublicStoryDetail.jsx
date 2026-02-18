@@ -23,10 +23,13 @@ export default function PublicStoryDetail({ preloadedStory }) {
   const [reportReason, setReportReason] = useState('');
   const [reporting, setReporting] = useState(false);
   const [reportDone, setReportDone] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
+  const [bookmarking, setBookmarking] = useState(false);
 
   useEffect(() => {
     if (preloadedStory) {
       setStory(preloadedStory);
+      setBookmarked(!!preloadedStory.is_bookmarked);
       setLoading(false);
       return;
     }
@@ -34,7 +37,10 @@ export default function PublicStoryDetail({ preloadedStory }) {
     const token = localStorage.getItem('token');
     const headers = token ? { Authorization: `Bearer ${token}` } : {};
     publicApiFetch(`/public/stories/${id}`, { headers })
-      .then(setStory)
+      .then((data) => {
+        setStory(data);
+        setBookmarked(!!data.is_bookmarked);
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [id, preloadedStory]);
@@ -117,6 +123,19 @@ export default function PublicStoryDetail({ preloadedStory }) {
     }
   };
 
+  const handleBookmark = async () => {
+    if (!isAuthenticated) return;
+    setBookmarking(true);
+    try {
+      const data = await apiFetch(`/bookmarks/stories/${story.id}`, { method: 'POST' });
+      setBookmarked(data.bookmarked);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBookmarking(false);
+    }
+  };
+
   if (loading) return <div className="loading">Loading story...</div>;
   if (!story) return <div className="error-message">{error || 'Story not found'}</div>;
 
@@ -173,8 +192,19 @@ export default function PublicStoryDetail({ preloadedStory }) {
         )}
         {isAuthenticated && (
           <button
-            className="btn btn-primary btn-sm"
+            className={`btn btn-sm${bookmarked ? ' btn-primary' : ' btn-ghost'}`}
             style={{ marginLeft: 'auto' }}
+            onClick={handleBookmark}
+            disabled={bookmarking}
+            title={bookmarked ? 'Remove bookmark' : 'Bookmark this story'}
+          >
+            {bookmarked ? '\u2605 Bookmarked' : '\u2606 Bookmark'}
+          </button>
+        )}
+        {isAuthenticated && (
+          <button
+            className="btn btn-primary btn-sm"
+            style={{ marginLeft: '0.5rem' }}
             onClick={handleFork}
             disabled={forking}
           >

@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lingolou — Connection Background Test</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f0f1a;
+    color: #e0e0e8;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  #bg-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+  }
+
+  .content {
+    position: relative;
+    z-index: 1;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 4rem 1.5rem;
+    text-align: center;
+  }
+
+  h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    background: linear-gradient(135deg, #7c6ef0, #4fc3f7, #7c6ef0);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shimmer 4s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    0%, 100% { background-position: 0% center; }
+    50% { background-position: 200% center; }
+  }
+
+  p {
+    font-size: 1.05rem;
+    line-height: 1.8;
+    color: rgba(200, 200, 220, 0.8);
+    max-width: 600px;
+    margin: 0 auto 2rem;
+  }
+
+  .card {
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 2rem;
+    margin: 1.5rem 0;
+    text-align: left;
+  }
+
+  .card h2 {
+    font-size: 1.1rem;
+    color: #a8a0f0;
+    margin-bottom: 0.75rem;
+  }
+
+  .card p {
+    font-size: 0.9rem;
+    color: rgba(200, 200, 220, 0.65);
+    margin-bottom: 0;
+  }
+
+  select {
+    padding: 0.6rem 1.25rem;
+    font-size: 1.1rem;
+    border: 2px solid rgba(124, 110, 240, 0.5);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #e0e0e8;
+    cursor: pointer;
+    min-width: 240px;
+    backdrop-filter: blur(8px);
+  }
+
+  select:focus {
+    outline: none;
+    border-color: #7c6ef0;
+    box-shadow: 0 0 0 3px rgba(124, 110, 240, 0.2);
+  }
+</style>
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+
+<div class="content">
+  <h1>Lingolou</h1>
+  <p>
+    Lingolou is a basic service that helps you create an audio file of a story for your kid,
+    to teach them the language of your choice. Select the language that you are interested in.
+  </p>
+  <select>
+    <option>Persian (Farsi)</option>
+    <option>Spanish</option>
+    <option>French</option>
+    <option>Mandarin Chinese</option>
+    <option>Arabic</option>
+    <option>Japanese</option>
+  </select>
+
+  <div class="card">
+    <h2>Public Stories — Persian (Farsi)</h2>
+    <p>Browse stories shared by the community in your chosen language.</p>
+  </div>
+  <div class="card">
+    <h2>My Stories</h2>
+    <p>Create and manage your personalized audiobook stories.</p>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('bg-canvas');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// --- Config ---
+const NODE_COUNT = 400;
+const CONNECT_DIST = 70;
+const CONNECT_DIST_SQ = CONNECT_DIST * CONNECT_DIST;
+const SPARK_INTERVAL = 3000;
+const SPARK_PROPAGATE_DELAY = 100; // time for edge to grow from src to dst
+const SPARK_DEGREES = 7;
+const SPARK_FADE = 2200;
+const EDGE_FADE = 600; // how long the lit edge lingers after fully grown
+
+// --- Easing: fast first half, slow second half ---
+function heartbeatEase(t) {
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+  // Quadratic ease-out: fast start, decelerates toward the end
+  return 1 - (1 - t) * (1 - t);
+}
+
+// --- Nodes ---
+const nodes = [];
+for (let i = 0; i < NODE_COUNT; i++) {
+  nodes.push({
+    x: Math.random() * (window.innerWidth || 1200),
+    y: Math.random() * (window.innerHeight || 800),
+    vx: (Math.random() - 0.5) * 0.5,
+    vy: (Math.random() - 0.5) * 0.5,
+    radius: 2 + Math.random() * 1.5,
+    sparkTime: -99999,
+    sparkHop: -1,
+    sparkId: -1,
+  });
+}
+
+let sparkIdCounter = 0;
+
+function updateNode(node) {
+  node.x += node.vx;
+  node.y += node.vy;
+  if (node.x < 0)  { node.x = 0;  node.vx *= -1; }
+  if (node.x > W)  { node.x = W;  node.vx *= -1; }
+  if (node.y < 0)  { node.y = 0;  node.vy *= -1; }
+  if (node.y > H)  { node.y = H;  node.vy *= -1; }
+}
+
+function sparkIntensity(node, now) {
+  if (node.sparkHop < 0) return 0;
+  const elapsed = now - node.sparkTime;
+  if (elapsed < 0) return 0;
+  const t = 1 - elapsed / SPARK_FADE;
+  if (t <= 0) { node.sparkHop = -1; return 0; }
+  return t;
+}
+
+// --- Spark edges: animated lines from source to target ---
+// Each entry: { from, to, startTime, hop, sid }
+// Alive while growing + fading
+const sparkEdges = [];
+
+// --- Node spark scheduling ---
+const sparkQueue = [];
+
+function triggerSpark(now) {
+  const origin = nodes[Math.floor(Math.random() * nodes.length)];
+  const sid = sparkIdCounter++;
+
+  origin.sparkTime = now;
+  origin.sparkHop = 0;
+  origin.sparkId = sid;
+
+  const visited = new Set();
+  visited.add(origin);
+  let frontier = [origin];
+
+  for (let hop = 1; hop <= SPARK_DEGREES; hop++) {
+    const nextFrontier = [];
+    for (const src of frontier) {
+      for (const dst of nodes) {
+        if (visited.has(dst)) continue;
+        const dx = dst.x - src.x;
+        const dy = dst.y - src.y;
+        if (dx * dx + dy * dy < CONNECT_DIST_SQ) {
+          visited.add(dst);
+          const edgeStart = now + (hop - 1) * SPARK_PROPAGATE_DELAY;
+          // Schedule the edge animation
+          sparkEdges.push({
+            from: src, to: dst,
+            startTime: edgeStart,
+            hop,
+            sid,
+          });
+          // Schedule the target node to light up when edge arrives
+          const arriveTime = edgeStart + SPARK_PROPAGATE_DELAY;
+          sparkQueue.push({ node: dst, time: arriveTime, hop, sid });
+          nextFrontier.push(dst);
+        }
+      }
+    }
+    frontier = nextFrontier;
+    if (frontier.length === 0) break;
+  }
+}
+
+function processSparkQueue(now) {
+  let i = 0;
+  while (i < sparkQueue.length) {
+    const entry = sparkQueue[i];
+    if (now >= entry.time) {
+      const node = entry.node;
+      if (entry.time > node.sparkTime) {
+        node.sparkTime = entry.time;
+        node.sparkHop = entry.hop;
+        node.sparkId = entry.sid;
+      }
+      sparkQueue[i] = sparkQueue[sparkQueue.length - 1];
+      sparkQueue.pop();
+    } else {
+      i++;
+    }
+  }
+}
+
+// Clean up dead spark edges
+function pruneSparkEdges(now) {
+  let i = 0;
+  while (i < sparkEdges.length) {
+    const e = sparkEdges[i];
+    const totalLife = SPARK_PROPAGATE_DELAY + EDGE_FADE;
+    if (now - e.startTime > totalLife) {
+      sparkEdges[i] = sparkEdges[sparkEdges.length - 1];
+      sparkEdges.pop();
+    } else {
+      i++;
+    }
+  }
+}
+
+// --- Color palette ---
+const BASE_COLOR_R = 100, BASE_COLOR_G = 90, BASE_COLOR_B = 180;
+const SPARK_PALETTE = [
+  [120, 200, 255],
+  [160, 140, 255],
+  [255, 200, 100],
+];
+
+let lastSpark = 0;
+
+// Pre-rendered glow texture
+const glowCanvas = document.createElement('canvas');
+const glowSize = 48;
+glowCanvas.width = glowSize * 2;
+glowCanvas.height = glowSize * 2;
+const glowCtx = glowCanvas.getContext('2d');
+const glowGrad = glowCtx.createRadialGradient(glowSize, glowSize, 0, glowSize, glowSize, glowSize);
+glowGrad.addColorStop(0, 'rgba(255,255,255,0.35)');
+glowGrad.addColorStop(0.5, 'rgba(255,255,255,0.08)');
+glowGrad.addColorStop(1, 'rgba(255,255,255,0)');
+glowCtx.fillStyle = glowGrad;
+glowCtx.fillRect(0, 0, glowSize * 2, glowSize * 2);
+
+// --- Draw ---
+function draw(now) {
+  processSparkQueue(now);
+  if (now % 5000 < 16) pruneSparkEdges(now); // prune occasionally
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0e0e1a';
+  ctx.fillRect(0, 0, W, H);
+
+  for (const node of nodes) updateNode(node);
+
+  // Pre-compute spark intensities
+  const intensities = new Float32Array(NODE_COUNT);
+  for (let i = 0; i < NODE_COUNT; i++) {
+    intensities[i] = sparkIntensity(nodes[i], now);
+  }
+
+  // --- Draw spark edges (growing lines) ---
+  for (const e of sparkEdges) {
+    const elapsed = now - e.startTime;
+    if (elapsed < 0) continue;
+
+    const sc = SPARK_PALETTE[e.hop % 3];
+    const fromX = e.from.x, fromY = e.from.y;
+    const toX = e.to.x, toY = e.to.y;
+
+    if (elapsed < SPARK_PROPAGATE_DELAY) {
+      // Growing phase: line extends from source toward target
+      const rawT = elapsed / SPARK_PROPAGATE_DELAY;
+      const t = heartbeatEase(rawT);
+
+      const midX = fromX + (toX - fromX) * t;
+      const midY = fromY + (toY - fromY) * t;
+
+      // Bright growing tip
+      const alpha = 0.6 + 0.4 * (1 - rawT); // brighter at start
+      ctx.beginPath();
+      ctx.moveTo(fromX, fromY);
+      ctx.lineTo(midX, midY);
+      ctx.strokeStyle = `rgba(${sc[0]},${sc[1]},${sc[2]},${alpha.toFixed(2)})`;
+      ctx.lineWidth = 2.2;
+      ctx.stroke();
+
+      // Bright dot at the tip
+      ctx.beginPath();
+      ctx.arc(midX, midY, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,255,255,${(0.7 * (1 - rawT * 0.5)).toFixed(2)})`;
+      ctx.fill();
+
+    } else {
+      // Fade phase: full edge visible, fading out
+      const fadeElapsed = elapsed - SPARK_PROPAGATE_DELAY;
+      const fadeT = 1 - fadeElapsed / EDGE_FADE;
+      if (fadeT <= 0) continue;
+
+      ctx.beginPath();
+      ctx.moveTo(fromX, fromY);
+      ctx.lineTo(toX, toY);
+      ctx.strokeStyle = `rgba(${sc[0]},${sc[1]},${sc[2]},${(fadeT * 0.15).toFixed(3)})`;
+      ctx.lineWidth = 0.6 + fadeT * 0.6;
+      ctx.stroke();
+    }
+  }
+
+  // --- Draw nodes ---
+  for (let i = 0; i < NODE_COUNT; i++) {
+    const node = nodes[i];
+    const spark = intensities[i];
+
+    let r = BASE_COLOR_R, g = BASE_COLOR_G, bl = BASE_COLOR_B;
+    let alpha = 0.5;
+    let rad = node.radius;
+
+    if (spark > 0) {
+      const sc = SPARK_PALETTE[node.sparkHop % 3];
+      r = r + (sc[0] - r) * spark;
+      g = g + (sc[1] - g) * spark;
+      bl = bl + (sc[2] - bl) * spark;
+      alpha = 0.5 + 0.5 * spark;
+      rad = node.radius + spark * 2.5;
+
+      const glowScale = (rad * 4) / glowSize;
+      ctx.globalAlpha = spark * 0.6;
+      ctx.drawImage(
+        glowCanvas,
+        node.x - glowSize * glowScale,
+        node.y - glowSize * glowScale,
+        glowSize * 2 * glowScale,
+        glowSize * 2 * glowScale
+      );
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, rad, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${r|0},${g|0},${bl|0},${alpha.toFixed(2)})`;
+    ctx.fill();
+  }
+
+  // Trigger sparks periodically
+  if (now - lastSpark > SPARK_INTERVAL) {
+    triggerSpark(now);
+    lastSpark = now;
+  }
+
+  requestAnimationFrame(draw);
+}
+
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>

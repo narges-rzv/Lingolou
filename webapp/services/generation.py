@@ -259,7 +259,17 @@ def generate_audio(
 
     Synchronous function — runs in thread pool via BackgroundTasks.
     """
-    from generate_audiobook import AudiobookGenerator, create_voice_map
+    from generate_audiobook import AudiobookGenerator, VoiceConfig, create_voice_map
+
+    def _dict_to_voice_config(d: dict) -> VoiceConfig:
+        """Convert a plain dict to a VoiceConfig dataclass."""
+        return VoiceConfig(
+            voice_id=d["voice_id"],
+            stability=d.get("stability", 1.0),
+            similarity_boost=d.get("similarity_boost", 0.95),
+            style=d.get("style", 0.0),
+            use_speaker_boost=d.get("use_speaker_boost", True),
+        )
 
     db = SessionLocal()
 
@@ -275,9 +285,9 @@ def generate_audio(
                 world_voice_config = json.loads(world.voice_config_json)
 
         if world_voice_config:
-            # Build voice map from world config directly
+            # Build voice map from world config, converting dicts to VoiceConfig
             voice_map = {
-                speaker: settings
+                speaker: _dict_to_voice_config(settings)
                 for speaker, settings in world_voice_config.items()
                 if isinstance(settings, dict) and "voice_id" in settings
             }
@@ -290,9 +300,11 @@ def generate_audio(
 
             voice_map = create_voice_map(str(voices_path))
 
-        # Apply user overrides on top of defaults
+        # Apply user overrides on top of defaults (convert dicts to VoiceConfig)
         if voice_override:
-            voice_map.update(voice_override)
+            for speaker, settings in voice_override.items():
+                if isinstance(settings, dict) and "voice_id" in settings:
+                    voice_map[speaker] = _dict_to_voice_config(settings)
 
         if not voice_map:
             update_task_status(task_id, "failed", 0, "No voices configured")
@@ -326,8 +338,13 @@ def generate_audio(
         entries_done = 0
 
         for chapter_id in chapter_ids:
-            # Check for cancellation
+            # Check for cancellation — reset any in-progress chapters back to completed
             if task_store.get(task_id, {}).get("status") == "cancelled":
+                for cid in chapter_ids:
+                    ch = db.query(Chapter).filter(Chapter.id == cid).first()
+                    if ch and ch.status == "generating_audio":
+                        ch.status = "completed"
+                db.commit()
                 return
 
             chapter = db.query(Chapter).filter(Chapter.id == chapter_id).first()
@@ -427,8 +444,8 @@ def generate_audio(
         for chapter_id in chapter_ids:
             chapter = db.query(Chapter).filter(Chapter.id == chapter_id).first()
             if chapter and chapter.status == "generating_audio":
-                chapter.status = "failed"
-                chapter.error_message = str(e)
+                # Reset to completed so the script text remains accessible
+                chapter.status = "completed"
                 db.commit()
         update_task_status(task_id, "failed", 0, str(e))
 

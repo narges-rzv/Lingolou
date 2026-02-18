@@ -14,7 +14,17 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from webapp.models.database import FREE_STORIES_PER_USER, Chapter, PlatformBudget, Story, User, Vote, World, get_db
+from webapp.models.database import (
+    FREE_STORIES_PER_USER,
+    Bookmark,
+    Chapter,
+    PlatformBudget,
+    Story,
+    User,
+    Vote,
+    World,
+    get_db,
+)
 from webapp.models.schemas import (
     BudgetStatus,
     PublicStoryListItem,
@@ -104,10 +114,15 @@ async def get_public_story(
         raise HTTPException(status_code=404, detail="Story not found")
 
     user_vote = None
+    is_bookmarked = False
     if current_user:
         vote = db.query(Vote).filter(Vote.story_id == story_id, Vote.user_id == current_user.id).first()
         if vote:
             user_vote = vote.vote_type
+        is_bookmarked = (
+            db.query(Bookmark).filter(Bookmark.story_id == story_id, Bookmark.user_id == current_user.id).first()
+            is not None
+        )
 
     return PublicStoryResponse(
         id=story.id,
@@ -121,6 +136,7 @@ async def get_public_story(
         upvotes=story.upvotes,
         downvotes=story.downvotes,
         user_vote=user_vote,
+        is_bookmarked=is_bookmarked,
         created_at=story.created_at,
         chapters=story.chapters,
         owner_name=story.owner.username,
@@ -147,10 +163,15 @@ async def get_shared_story(
         raise HTTPException(status_code=404, detail="Story not found")
 
     user_vote = None
+    is_bookmarked = False
     if current_user:
         vote = db.query(Vote).filter(Vote.story_id == story.id, Vote.user_id == current_user.id).first()
         if vote:
             user_vote = vote.vote_type
+        is_bookmarked = (
+            db.query(Bookmark).filter(Bookmark.story_id == story.id, Bookmark.user_id == current_user.id).first()
+            is not None
+        )
 
     return PublicStoryResponse(
         id=story.id,
@@ -164,6 +185,7 @@ async def get_shared_story(
         upvotes=story.upvotes,
         downvotes=story.downvotes,
         user_vote=user_vote,
+        is_bookmarked=is_bookmarked,
         created_at=story.created_at,
         chapters=story.chapters,
         owner_name=story.owner.username,

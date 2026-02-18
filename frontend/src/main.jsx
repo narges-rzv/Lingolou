@@ -14,6 +14,7 @@ import PublicStoryDetail from './pages/PublicStoryDetail';
 import SharedStoryView from './pages/SharedStoryView';
 import Worlds from './pages/Worlds';
 import WorldDetail from './pages/WorldDetail';
+import Bookmarks from './pages/Bookmarks';
 import Settings from './pages/Settings';
 import './app.css';
 
@@ -46,6 +47,7 @@ createRoot(document.getElementById('root')).render(
             <Route path="/stories/:id/edit" element={<PrivateRoute><EditStory /></PrivateRoute>} />
             <Route path="/worlds" element={<PrivateRoute><Worlds /></PrivateRoute>} />
             <Route path="/worlds/:id" element={<PrivateRoute><WorldDetail /></PrivateRoute>} />
+            <Route path="/bookmarks" element={<PrivateRoute><Bookmarks /></PrivateRoute>} />
             <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/" />} />
