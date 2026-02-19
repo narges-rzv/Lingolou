@@ -41,7 +41,7 @@ describe('BudgetBanner', () => {
           total_budget: 50.0,
           total_spent: 50.0,
           free_stories_generated: 100,
-          free_stories_per_user: 3,
+          free_stories_per_user: 20,
         })
       })
     )

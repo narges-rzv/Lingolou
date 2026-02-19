@@ -56,7 +56,9 @@ describe('Settings', () => {
           has_openai_key: true,
           has_elevenlabs_key: false,
           free_stories_used: 1,
-          free_stories_limit: 3,
+          free_stories_limit: 20,
+          free_audio_used: 0,
+          free_audio_limit: 5,
         })
       })
     )
@@ -75,6 +77,6 @@ describe('Settings', () => {
       expect(screen.getByText(/Free story generations used/)).toBeInTheDocument()
     })
 
-    expect(screen.getByText(/0 \/ 3/)).toBeInTheDocument()
+    expect(screen.getByText(/0 \/ 20/)).toBeInTheDocument()
   })
 })

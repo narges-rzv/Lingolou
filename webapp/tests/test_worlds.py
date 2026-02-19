@@ -219,7 +219,7 @@ class TestVoiceConfig:
         script = json.dumps(
             [
                 {"type": "line", "speaker": "NARRATOR", "text": "Hello"},
-                {"type": "line", "speaker": "RYDER", "text": "Let's go"},
+                {"type": "line", "speaker": "WINNIE", "text": "Let's go"},
                 {"type": "line", "speaker": "NARRATOR", "text": "The end"},
             ]
         )
@@ -234,7 +234,7 @@ class TestVoiceConfig:
         assert resp.status_code == 200
         data = resp.json()
         assert "NARRATOR" in data["speakers"]
-        assert "RYDER" in data["speakers"]
+        assert "WINNIE" in data["speakers"]
         # Voice config comes from world
         assert data["voice_config"]["NARRATOR"]["voice_id"] == "abc123"
 
@@ -245,7 +245,7 @@ class TestVoiceConfig:
         data = resp.json()
         # Speakers still extracted from scripts
         assert "NARRATOR" in data["speakers"]
-        assert "RYDER" in data["speakers"]
+        assert "WINNIE" in data["speakers"]
 
     def test_voice_config_not_found(self, client, auth_headers):
         resp = client.get("/api/stories/9999/voice-config", headers=auth_headers)

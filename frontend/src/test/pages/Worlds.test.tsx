@@ -25,7 +25,7 @@ describe('Worlds', () => {
       expect(screen.getByText('Built-in Worlds')).toBeInTheDocument()
     })
 
-    expect(screen.getByText('PAW Patrol')).toBeInTheDocument()
+    expect(screen.getByText('Winnie the Pooh')).toBeInTheDocument()
   })
 
   it('has create world button', async () => {
@@ -59,7 +59,7 @@ describe('Worlds', () => {
     render(<Worlds />)
 
     await waitFor(() => {
-      expect(screen.getByText(/classic PAW Patrol/)).toBeInTheDocument()
+      expect(screen.getByText(/Hundred Acre Wood/)).toBeInTheDocument()
     })
   })
 

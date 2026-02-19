@@ -1,4 +1,4 @@
-.PHONY: test test-backend test-frontend test-e2e test-all test-install install dev lint format all docker-build docker-run docker-run-prod
+.PHONY: test test-backend test-frontend test-e2e test-all test-install install dev lint format all docker-build docker-run docker-run-prod compose-up compose-down compose-test
 
 # Install all dependencies (backend + frontend)
 install:
@@ -65,3 +65,14 @@ docker-run-prod:
 		-e SESSION_SECRET_KEY=$${SESSION_SECRET_KEY} \
 		-e FRONTEND_URL=$${FRONTEND_URL} \
 		lingolou
+
+# Docker Compose targets
+compose-up:
+	docker compose up -d
+
+compose-down:
+	docker compose down
+
+compose-test:
+	docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
+	docker compose -f docker-compose.test.yml down

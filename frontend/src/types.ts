@@ -136,6 +136,8 @@ export interface ApiKeysStatus {
   has_elevenlabs_key: boolean;
   free_stories_used: number;
   free_stories_limit: number;
+  free_audio_used: number;
+  free_audio_limit: number;
 }
 
 export interface BudgetStatus {

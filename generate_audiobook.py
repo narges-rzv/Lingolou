@@ -45,8 +45,18 @@ class AudiobookGenerator:
 
     # Define group speakers and their members
     GROUP_SPEAKERS = {
-        "ALL_PUPS": ["CHASE", "MARSHALL", "SKYE", "ROCKY", "RUBBLE", "ZUMA", "EVEREST"],
-        "ALL_PUPS_AND_RYDER": ["RYDER", "CHASE", "MARSHALL", "SKYE", "ROCKY", "RUBBLE", "ZUMA", "EVEREST"],
+        "ALL_FRIENDS": ["WINNIE", "PIGLET", "TIGGER", "EEYORE", "RABBIT", "OWL", "KANGA", "ROO"],
+        "ALL_FRIENDS_AND_CHRISTOPHER": [
+            "CHRISTOPHER_ROBIN",
+            "WINNIE",
+            "PIGLET",
+            "TIGGER",
+            "EEYORE",
+            "RABBIT",
+            "OWL",
+            "KANGA",
+            "ROO",
+        ],
     }
 
     def __init__(
@@ -199,8 +209,6 @@ class AudiobookGenerator:
 
         # Character-specific adjustments
         if speaker == "NARRATOR":
-            stability = 1.0
-        elif speaker == "POUYA":
             stability = 1.0
 
         return VoiceConfig(
@@ -556,7 +564,7 @@ def create_voice_map(voice_config_path: str | None = None) -> dict[str, VoiceCon
     Config file format (JSON):
     {
         "NARRATOR": {"voice_id": "...", "stability": 1.0, ...},
-        "RYDER": {"voice_id": "...", ...}
+        "WINNIE": {"voice_id": "...", ...}
     }
     """
     if voice_config_path and os.path.exists(voice_config_path):

@@ -18,7 +18,16 @@ from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Re
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from webapp.models.database import FREE_STORIES_PER_USER, Chapter, PlatformBudget, Story, User, World, get_db
+from webapp.models.database import (
+    FREE_AUDIO_PER_USER,
+    FREE_STORIES_PER_USER,
+    Chapter,
+    PlatformBudget,
+    Story,
+    User,
+    World,
+    get_db,
+)
 from webapp.models.schemas import (
     ChapterResponse,
     GenerateAudioRequest,
@@ -32,15 +41,9 @@ from webapp.models.schemas import (
 )
 from webapp.services.auth import get_current_active_user
 from webapp.services.crypto import decrypt_key
-from webapp.services.generation import (
-    cancel_task,
-    find_active_task_for_story,
-    generate_audio,
-    generate_story,
-    get_task_status,
-    update_task_status,
-)
+from webapp.services.generation import generate_audio, generate_story
 from webapp.services.storage import get_storage
+from webapp.services.task_store import get_task_backend
 
 router = APIRouter(prefix="/api/stories", tags=["Stories"])
 
@@ -163,7 +166,7 @@ async def get_generation_status(
     task_id: str, current_user: User = Depends(get_current_active_user)
 ) -> TaskStatusResponse:
     """Get status of a generation task."""
-    status_info = get_task_status(task_id)
+    status_info = get_task_backend().get(task_id)
     if not status_info:
         raise HTTPException(status_code=404, detail="Task not found")
     return TaskStatusResponse(**status_info)
@@ -172,11 +175,11 @@ async def get_generation_status(
 @router.delete("/tasks/{task_id}")
 async def cancel_generation_task(task_id: str, current_user: User = Depends(get_current_active_user)) -> dict[str, str]:
     """Cancel a running task."""
-    was_running = cancel_task(task_id)
+    was_running = get_task_backend().cancel(task_id)
     if was_running:
         return {"message": "Task cancelled", "task_id": task_id}
 
-    status_info = get_task_status(task_id)
+    status_info = get_task_backend().get(task_id)
     if not status_info:
         raise HTTPException(status_code=404, detail="Task not found")
     return {"message": f"Task already {status_info['status']}", "task_id": task_id}
@@ -240,7 +243,7 @@ async def get_story(
 
     # If the story is generating, look for an active in-memory task
     if story.status == "generating":
-        active = find_active_task_for_story(story_id)
+        active = get_task_backend().find_active_for_story(story_id)
         if active:
             response.active_task = TaskStatusResponse(**active)
         else:
@@ -379,7 +382,8 @@ async def generate_story_content(
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(
-                    "Free tier limit reached (3/3 stories used). Add your own OpenAI API key in Settings to continue."
+                    f"Free tier limit reached ({used}/{FREE_STORIES_PER_USER} stories used). "
+                    "Add your own OpenAI API key in Settings to continue."
                 ),
             )
         if budget and budget.total_spent >= budget.total_budget:
@@ -393,7 +397,7 @@ async def generate_story_content(
 
     # Start background task
     task_id = f"story_{story_id}_{int(time.time())}"
-    update_task_status(task_id, "pending", 0, "Task queued, waiting to start...")
+    get_task_backend().update(task_id, "pending", 0, "Task queued, waiting to start...")
     background_tasks.add_task(
         generate_story,
         task_id=task_id,
@@ -439,18 +443,36 @@ async def generate_story_audio(
 
     # Resolve ElevenLabs API key
     elevenlabs_api_key = None
+    use_platform_audio_key = False
     if current_user.elevenlabs_api_key:
         elevenlabs_api_key = decrypt_key(current_user.elevenlabs_api_key)
-    elif not os.environ.get("ELEVENLABS_API_KEY"):
+    elif os.environ.get("ELEVENLABS_API_KEY"):
+        # Free tier check for audio
+        audio_used = current_user.free_audio_used or 0
+        if audio_used >= FREE_AUDIO_PER_USER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Free audio limit reached ({audio_used}/{FREE_AUDIO_PER_USER} used). "
+                    "Add your own ElevenLabs API key in Settings to continue."
+                ),
+            )
+        use_platform_audio_key = True
+    else:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Add your own ElevenLabs API key in Settings to generate audio.",
         )
 
+    # Increment free audio counter if using platform key
+    if use_platform_audio_key:
+        current_user.free_audio_used = (current_user.free_audio_used or 0) + 1
+        db.commit()
+
     # Start background task
     chapter_ids = [c.id for c in chapters]
     task_id = f"audio_{story_id}_{int(time.time())}"
-    update_task_status(task_id, "pending", 0, "Task queued, waiting to start...")
+    get_task_backend().update(task_id, "pending", 0, "Task queued, waiting to start...")
     background_tasks.add_task(
         generate_audio,
         task_id=task_id,

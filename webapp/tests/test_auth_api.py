@@ -158,6 +158,8 @@ def test_get_api_keys_status(client, auth_headers):
     assert "has_elevenlabs_key" in data
     assert "free_stories_used" in data
     assert "free_stories_limit" in data
+    assert "free_audio_used" in data
+    assert "free_audio_limit" in data
     # Keys should never be returned
     assert "openai_api_key" not in data
     assert "elevenlabs_api_key" not in data

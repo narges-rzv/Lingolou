@@ -82,14 +82,41 @@ make dev    # Starts backend + frontend (Ctrl-C to stop both)
 
 ## Docker Deployment
 
-### Build
+### Docker Compose (recommended)
+
+The easiest way to run Lingolou in production — includes the app and a Redis instance for persistent task tracking:
+
+```bash
+# Start app + Redis
+make compose-up
+# or: docker compose up -d
+
+# Stop
+make compose-down
+# or: docker compose down
+```
+
+Configure via `.env` file or environment variables (see table below). The compose setup uses Redis for task state so background job progress survives container restarts.
+
+### Run integration tests in Docker
+
+```bash
+make compose-test
+# or: docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
+```
+
+This spins up a Redis container and runs the full backend test suite inside Docker.
+
+### Standalone Docker
+
+#### Build
 
 ```bash
 make docker-build
 # or: docker build -t lingolou .
 ```
 
-### Run with SQLite (simple)
+#### Run with SQLite (simple)
 
 ```bash
 docker run -p 8000:8000 \
@@ -99,7 +126,7 @@ docker run -p 8000:8000 \
   lingolou
 ```
 
-### Run with PostgreSQL (production)
+#### Run with PostgreSQL (production)
 
 ```bash
 docker run -p 8000:8000 \
@@ -112,7 +139,7 @@ docker run -p 8000:8000 \
   lingolou
 ```
 
-### Run with S3 Storage (optional)
+### S3 Storage (optional)
 
 Add these environment variables to use S3-compatible storage for audio files instead of local filesystem:
 
@@ -134,6 +161,7 @@ For Cloudflare R2 or MinIO, also set `S3_ENDPOINT_URL`.
 | `OPENAI_API_KEY` | No | - | Platform OpenAI key for free tier |
 | `ELEVENLABS_API_KEY` | No | - | Platform ElevenLabs key for free tier |
 | `DATABASE_URL` | No | `sqlite:///./lingolou.db` | Database connection string |
+| `REDIS_URL` | No | - | Redis URL for persistent task store (e.g. `redis://localhost:6379/0`) |
 | `FRONTEND_URL` | No | `http://localhost:5173` | Frontend URL for share links |
 | `CORS_ORIGINS` | No | `*` | Comma-separated allowed origins |
 | `PORT` | No | `8000` | Server port |
@@ -161,6 +189,7 @@ make test            # Backend + frontend tests
 make test-backend    # pytest + coverage
 make test-frontend   # Vitest + coverage
 make test-e2e        # Playwright (requires backend + frontend running)
+make compose-test    # Run backend tests in Docker with Redis
 make test-install    # Install all test dependencies
 ```
 
@@ -172,7 +201,8 @@ Single-container deployment serving both the API and built frontend:
 - **Frontend**: React SPA built by Vite, served as static files from the same container
 - **Database**: SQLite (dev) or PostgreSQL (production) via `DATABASE_URL`
 - **Audio Storage**: Local filesystem (default) or S3-compatible object storage
-- **Background Tasks**: In-process FastAPI BackgroundTasks (task state is in-memory)
+- **Background Tasks**: In-process FastAPI BackgroundTasks
+- **Task Store**: In-memory (dev) or Redis (production, via `REDIS_URL`) for tracking task progress
 
 ## Project Structure
 
@@ -193,6 +223,7 @@ webapp/
 │   ├── auth.py          # JWT creation, password hashing
 │   ├── crypto.py        # API key encryption (Fernet)
 │   ├── generation.py    # Background task logic (story/audio)
+│   ├── task_store.py    # Pluggable task backend (in-memory/Redis)
 │   ├── storage.py       # File storage abstraction (local/S3)
 │   └── oauth.py         # Google OAuth provider config
 ├── tests/               # Backend tests (pytest)

@@ -32,6 +32,10 @@ httpx>=0.27.0
 # Encryption
 cryptography>=41.0.0
 
+# Task store (optional, for Redis backend)
+redis>=5.0.0
+types-redis>=4.6.0
+
 # Object storage (optional, for S3/R2/MinIO)
 boto3>=1.28.0
 boto3-stubs[s3]>=1.28.0

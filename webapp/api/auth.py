@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
-from webapp.models.database import FREE_STORIES_PER_USER, User, get_db
+from webapp.models.database import FREE_AUDIO_PER_USER, FREE_STORIES_PER_USER, User, get_db
 from webapp.models.schemas import ApiKeysStatus, ApiKeysUpdate
 from webapp.services.auth import (
     Token,
@@ -91,6 +91,8 @@ async def update_api_keys(
         has_elevenlabs_key=bool(current_user.elevenlabs_api_key),
         free_stories_used=current_user.free_stories_used or 0,
         free_stories_limit=FREE_STORIES_PER_USER,
+        free_audio_used=current_user.free_audio_used or 0,
+        free_audio_limit=FREE_AUDIO_PER_USER,
     )
 
 
@@ -104,4 +106,6 @@ async def get_api_keys_status(
         has_elevenlabs_key=bool(current_user.elevenlabs_api_key),
         free_stories_used=current_user.free_stories_used or 0,
         free_stories_limit=FREE_STORIES_PER_USER,
+        free_audio_used=current_user.free_audio_used or 0,
+        free_audio_limit=FREE_AUDIO_PER_USER,
     )

@@ -27,14 +27,16 @@ const mockApiKeysStatus: ApiKeysStatus = {
   has_openai_key: false,
   has_elevenlabs_key: false,
   free_stories_used: 0,
-  free_stories_limit: 3,
+  free_stories_limit: 20,
+  free_audio_used: 0,
+  free_audio_limit: 5,
 }
 
 const mockBudget: BudgetStatus = {
   total_budget: 50.0,
   total_spent: 5.0,
   free_stories_generated: 10,
-  free_stories_per_user: 3,
+  free_stories_per_user: 20,
 }
 
 const mockStory: PublicStoryListItem = {
@@ -54,13 +56,13 @@ const mockStory: PublicStoryListItem = {
 
 const mockWorld: WorldResponse = {
   id: 1,
-  name: 'PAW Patrol',
-  description: 'The classic PAW Patrol language learning world.',
+  name: 'Winnie the Pooh',
+  description: 'The Hundred Acre Wood — a cozy world with Pooh and friends.',
   is_builtin: true,
   visibility: 'public',
   prompt_template: 'Write a story about {language} and {theme} with {plot} in {num_chapters} chapters.',
-  characters: { NARRATOR: 'Tells the story', RYDER: 'The human leader' },
-  valid_speakers: ['NARRATOR', 'RYDER'],
+  characters: { NARRATOR: 'Tells the story', WINNIE: 'A lovable bear who adores honey' },
+  valid_speakers: ['NARRATOR', 'WINNIE'],
   voice_config: { NARRATOR: { voice_id: 'abc123', stability: 0.6 } },
   story_count: 5,
   owner_name: null,
@@ -207,10 +209,10 @@ export const handlers = [
   // Voice config
   http.get(`${BASE}/stories/:storyId/voice-config`, () => {
     return HttpResponse.json({
-      speakers: ['NARRATOR', 'RYDER'],
+      speakers: ['NARRATOR', 'WINNIE'],
       voice_config: {
         NARRATOR: { voice_id: 'abc123', stability: 0.6 },
-        RYDER: { voice_id: 'def456', stability: 0.5 },
+        WINNIE: { voice_id: 'def456', stability: 0.5 },
       },
     } satisfies VoiceConfigResponse)
   }),

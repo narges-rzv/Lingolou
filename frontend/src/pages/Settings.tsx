@@ -149,7 +149,7 @@ export default function Settings() {
             </p>
             {status.free_stories_used >= status.free_stories_limit && !status.has_openai_key && (
               <p className="field-hint">
-                You've used all free generations. Add your own OpenAI API key above to continue creating stories.
+                You've used all free story generations. Add your own OpenAI API key above to continue creating stories.
               </p>
             )}
             {status.free_stories_used < status.free_stories_limit && !status.has_openai_key && (
@@ -160,6 +160,24 @@ export default function Settings() {
             {status.has_openai_key && (
               <p className="field-hint">
                 You're using your own OpenAI key — no limits on story generation.
+              </p>
+            )}
+            <p>
+              Free audio generations used: <strong>{status.free_audio_used} / {status.free_audio_limit}</strong>
+            </p>
+            {status.free_audio_used >= status.free_audio_limit && !status.has_elevenlabs_key && (
+              <p className="field-hint">
+                You've used all free audio generations. Add your own ElevenLabs API key above to continue generating audio.
+              </p>
+            )}
+            {status.free_audio_used < status.free_audio_limit && !status.has_elevenlabs_key && (
+              <p className="field-hint">
+                You have {status.free_audio_limit - status.free_audio_used} free audio generation{status.free_audio_limit - status.free_audio_used !== 1 ? 's' : ''} remaining.
+              </p>
+            )}
+            {status.has_elevenlabs_key && (
+              <p className="field-hint">
+                You're using your own ElevenLabs key — no limits on audio generation.
               </p>
             )}
           </div>

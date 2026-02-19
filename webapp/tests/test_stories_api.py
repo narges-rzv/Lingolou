@@ -207,7 +207,7 @@ def test_generate_story_free_tier(mock_gen, client, auth_headers, db, test_user)
 
 @patch("webapp.api.stories.generate_story")
 def test_generate_story_free_tier_exhausted(mock_gen, client, auth_headers, db, test_user):
-    test_user.free_stories_used = 3
+    test_user.free_stories_used = 20
     db.commit()
 
     create_resp = _create_story(client, auth_headers)
@@ -354,9 +354,9 @@ def test_generate_audio_no_script(client, auth_headers):
 
 
 def test_get_task_status(client, auth_headers):
-    from webapp.services.generation import update_task_status
+    from webapp.services.task_store import get_task_backend
 
-    update_task_status("test_task_1", "running", 50, "Halfway there")
+    get_task_backend().update("test_task_1", "running", 50, "Halfway there")
 
     resp = client.get("/api/stories/tasks/test_task_1", headers=auth_headers)
     assert resp.status_code == 200
@@ -371,9 +371,9 @@ def test_get_task_status_not_found(client, auth_headers):
 
 
 def test_cancel_task(client, auth_headers):
-    from webapp.services.generation import update_task_status
+    from webapp.services.task_store import get_task_backend
 
-    update_task_status("cancel_me", "running", 30, "Running...")
+    get_task_backend().update("cancel_me", "running", 30, "Running...")
 
     resp = client.delete("/api/stories/tasks/cancel_me", headers=auth_headers)
     assert resp.status_code == 200

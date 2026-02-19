@@ -6,64 +6,64 @@
     "style": 0.2,
     "use_speaker_boost": true
   },
-  "RYDER": {
-    "voice_id": "YOUR_RYDER_VOICE_ID",
+  "WINNIE": {
+    "voice_id": "YOUR_WINNIE_VOICE_ID",
     "stability": 1.0,
     "similarity_boost": 0.95,
     "style": 0.3,
     "use_speaker_boost": true
   },
-  "CHASE": {
-    "voice_id": "YOUR_CHASE_VOICE_ID",
+  "PIGLET": {
+    "voice_id": "YOUR_PIGLET_VOICE_ID",
     "stability": 1.0,
     "similarity_boost": 0.95,
     "style": 0.3,
     "use_speaker_boost": true
   },
-  "MARSHALL": {
-    "voice_id": "YOUR_MARSHALL_VOICE_ID",
+  "TIGGER": {
+    "voice_id": "YOUR_TIGGER_VOICE_ID",
     "stability": 1.0,
     "similarity_boost": 0.95,
     "style": 0.4,
     "use_speaker_boost": true
   },
-  "SKYE": {
-    "voice_id": "YOUR_SKYE_VOICE_ID",
+  "EEYORE": {
+    "voice_id": "YOUR_EEYORE_VOICE_ID",
     "stability": 1.0,
     "similarity_boost": 0.95,
     "style": 0.3,
     "use_speaker_boost": true
   },
-  "ROCKY": {
-    "voice_id": "YOUR_ROCKY_VOICE_ID",
+  "RABBIT": {
+    "voice_id": "YOUR_RABBIT_VOICE_ID",
     "stability": 1.0,
     "similarity_boost": 0.95,
     "style": 0.3,
     "use_speaker_boost": true
   },
-  "RUBBLE": {
-    "voice_id": "YOUR_RUBBLE_VOICE_ID",
+  "OWL": {
+    "voice_id": "YOUR_OWL_VOICE_ID",
     "stability": 1.0,
     "similarity_boost": 0.95,
     "style": 0.3,
     "use_speaker_boost": true
   },
-  "ZUMA": {
-    "voice_id": "YOUR_ZUMA_VOICE_ID",
+  "KANGA": {
+    "voice_id": "YOUR_KANGA_VOICE_ID",
     "stability": 1.0,
     "similarity_boost": 0.95,
     "style": 0.3,
     "use_speaker_boost": true
   },
-  "EVEREST": {
-    "voice_id": "YOUR_EVEREST_VOICE_ID",
+  "ROO": {
+    "voice_id": "YOUR_ROO_VOICE_ID",
     "stability": 1.0,
     "similarity_boost": 0.95,
     "style": 0.3,
     "use_speaker_boost": true
   },
-  "POUYA": {
-    "voice_id": "YOUR_POUYA_VOICE_ID",
+  "CHRISTOPHER_ROBIN": {
+    "voice_id": "YOUR_CHRISTOPHER_ROBIN_VOICE_ID",
     "stability": 1.0,
     "similarity_boost": 0.95,
     "style": 0.3,

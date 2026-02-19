@@ -221,6 +221,8 @@ class ApiKeysStatus(BaseModel):
     has_elevenlabs_key: bool
     free_stories_used: int
     free_stories_limit: int
+    free_audio_used: int
+    free_audio_limit: int
 
 
 class BudgetStatus(BaseModel):

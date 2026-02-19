@@ -1,23 +1,22 @@
 {
-  "default_prompt": "Create a children's story for language learning featuring the PAW Patrol characters.\nThe story should teach basic Farsi (Persian) words and phrases to English-speaking children.\n\nThe story should:\n1. Have an exciting adventure plot appropriate for ages 4-8\n2. Introduce 5-10 Farsi words/phrases naturally through dialogue\n3. Include Pouya teaching the other pups simple Farsi expressions\n4. Have moments of humor and teamwork\n5. Be split into 3 chapters with clear scene breaks",
+  "default_prompt": "Create a children's story for language learning featuring Winnie the Pooh and friends.\nThe story should teach basic Farsi (Persian) words and phrases to English-speaking children.\n\nThe story should:\n1. Have a gentle, whimsical adventure plot appropriate for ages 4-8\n2. Introduce 5-10 Farsi words/phrases naturally through dialogue\n3. Include a new visitor to the Hundred Acre Wood who teaches the characters simple Farsi expressions\n4. Have moments of humor (Pooh mixing things up, Owl trying to sound clever, Tigger bouncing while repeating)\n5. Be split into 3 chapters with clear scene breaks",
 
   "characters": {
-    "NARRATOR": "Tells the story",
-    "RYDER": "The human leader",
-    "CHASE": "Police pup, brave and loyal",
-    "MARSHALL": "Fire pup, clumsy but enthusiastic",
-    "SKYE": "Aviation pup, cheerful and confident",
-    "ROCKY": "Recycling pup, clever and resourceful",
-    "RUBBLE": "Construction pup, strong and friendly",
-    "ZUMA": "Water rescue pup, laid-back and cool",
-    "EVEREST": "Snow rescue pup, adventurous",
-    "POUYA": "A new Farsi-speaking pup who teaches the others"
+    "NARRATOR": "Tells the story in a warm, storybook tone",
+    "WINNIE": "Winnie the Pooh, a lovable bear of very little brain who adores honey",
+    "PIGLET": "Pooh's best friend, small and timid but brave when it counts",
+    "TIGGER": "Bouncy, energetic tiger who loves to bounce and have fun",
+    "EEYORE": "A gloomy but endearing donkey, often losing his tail",
+    "RABBIT": "Organized and bossy, loves his garden",
+    "OWL": "Thinks he is very wise, uses big words (sometimes incorrectly)",
+    "KANGA": "A kind, motherly kangaroo",
+    "ROO": "Kanga's adventurous little joey",
+    "CHRISTOPHER_ROBIN": "The human child who is friends with everyone in the Hundred Acre Wood"
   },
 
   "valid_speakers": [
-    "NARRATOR", "RYDER", "CHASE", "MARSHALL", "SKYE",
-    "ROCKY", "RUBBLE", "ZUMA", "EVEREST", "POUYA",
-    "ALL_PUPS", "ALL_PUPS_AND_RYDER"
+    "NARRATOR", "WINNIE", "PIGLET", "TIGGER", "EEYORE",
+    "RABBIT", "OWL", "KANGA", "ROO", "CHRISTOPHER_ROBIN"
   ],
 
   "target_language": {
@@ -26,9 +25,9 @@
     "script": "Persian"
   },
 
-  "story_system_prompt": "You are a children's story writer creating scripts for an audiobook language learning app.\n\nGenerate stories in JSON format. Each chapter is a JSON array with the following entry types:\n\n1. Scene markers:\n   {\"type\": \"scene\", \"id\": \"ch1_s1\", \"title\": \"Scene Title\"}\n\n2. Background/ambience descriptions (for audio production):\n   {\"type\": \"bg\", \"value\": \"Description of environment sounds\"}\n\n3. Music cues:\n   {\"type\": \"music\", \"value\": \"Music description\", \"volume\": 0.25}\n\n4. Character dialogue:\n   {\"type\": \"line\", \"speaker\": \"CHARACTER_NAME\", \"lang\": \"en\", \"text\": \"Dialogue text\"}\n\n   For target language lines, include transliteration and translation:\n   {\"type\": \"line\", \"speaker\": \"POUYA\", \"lang\": \"fa\", \"text\": \"سلام!\", \"transliteration\": \"Salâm!\", \"gloss_en\": \"Hello!\"}\n\n5. Pauses:\n   {\"type\": \"pause\", \"seconds\": 0.5}\n\n6. Sound effects:\n   {\"type\": \"sfx\", \"value\": \"Description of sound effect\"}\n\n7. Performance markers (crowd reactions):\n   {\"type\": \"performance\", \"value\": \"LAUGH\"} or {\"type\": \"performance\", \"value\": \"CHEER\"}\n\n8. Chapter end:\n   {\"type\": \"end\", \"value\": \"END_CHAPTER_1\"}\n\nImportant:\n- Keep dialogue natural and age-appropriate\n- Include pauses after important target language words for learning\n- Use sfx and music cues to make the story engaging\n- Each chapter should be 2-4 scenes\n- Target language text must use actual native script with accurate transliteration",
+  "story_system_prompt": "You are a children's story writer creating scripts for an audiobook language learning app.\n\nGenerate stories in JSON format. Each chapter is a JSON array with the following entry types:\n\n1. Scene markers:\n   {\"type\": \"scene\", \"id\": \"ch1_s1\", \"title\": \"Scene Title\"}\n\n2. Background/ambience descriptions (for audio production):\n   {\"type\": \"bg\", \"value\": \"Description of environment sounds\"}\n\n3. Music cues:\n   {\"type\": \"music\", \"value\": \"Music description\", \"volume\": 0.25}\n\n4. Character dialogue:\n   {\"type\": \"line\", \"speaker\": \"CHARACTER_NAME\", \"lang\": \"en\", \"text\": \"Dialogue text\"}\n\n   For target language lines, include transliteration and translation:\n   {\"type\": \"line\", \"speaker\": \"WINNIE\", \"lang\": \"fa\", \"text\": \"سلام!\", \"transliteration\": \"Salâm!\", \"gloss_en\": \"Hello!\"}\n\n5. Pauses:\n   {\"type\": \"pause\", \"seconds\": 0.5}\n\n6. Sound effects:\n   {\"type\": \"sfx\", \"value\": \"Description of sound effect\"}\n\n7. Performance markers (crowd reactions):\n   {\"type\": \"performance\", \"value\": \"LAUGH\"} or {\"type\": \"performance\", \"value\": \"CHEER\"}\n\n8. Chapter end:\n   {\"type\": \"end\", \"value\": \"END_CHAPTER_1\"}\n\nImportant:\n- Keep dialogue natural and age-appropriate\n- Include pauses after important target language words for learning\n- Use sfx and music cues to make the story engaging\n- Each chapter should be 2-4 scenes\n- Target language text must use actual native script with accurate transliteration",
 
-  "enhance_system_prompt": "You are an audio director adding emotion and delivery tags to a story script.\n\nAdd emotion tags in square brackets at the START of each line's text field. The tag describes HOW the line should be spoken.\n\nExample transformations:\n- \"Ready for action, Ryder!\" → \"[excited] Ready for action, Ryder!\"\n- \"We have to help her!\" → \"[determined] We have to help her!\"\n- \"سلام!\" → \"[friendly] سلام!\"\n\nAvailable emotion tags:\n- High energy: excited, enthusiastic, happy, cheerful, playful, laughing\n- Calm/steady: warm, gentle, calm, relaxed, steady, matter-of-fact\n- Confident: confident, commanding, determined, proud, strong\n- Teaching: teacherly, encouraging, clear, thoughtful\n- Concerned: concerned, worried, serious, urgent, alarmed\n- Uncertain: confused, sheepish, careful, trying\n- Positive: pleased, smiling, welcoming, friendly, amused\n- Narrative: adventurous, curious, hopeful, teasing\n- Alert: alert, focused, reassuring, bright\n\nGuidelines:\n- Match the emotion to the context and punctuation\n- NARRATOR lines often use: warm, matter-of-fact, adventurous, curious, hopeful\n- Exclamations (!) often pair with: excited, enthusiastic, alarmed, determined\n- Questions (?) often pair with: curious, confused, concerned\n- Teaching moments use: teacherly, encouraging, clear\n- Keep the JSON structure exactly the same, only add [emotion] tags to text fields\n- Only add tags to \"line\" type entries\n\nReturn the complete enhanced JSON.",
+  "enhance_system_prompt": "You are an audio director adding emotion and delivery tags to a story script.\n\nAdd emotion tags in square brackets at the START of each line's text field. The tag describes HOW the line should be spoken.\n\nExample transformations:\n- \"Oh bother, where's my honey?\" → \"[worried] Oh bother, where's my honey?\"\n- \"The wonderful thing about Tiggers!\" → \"[excited] The wonderful thing about Tiggers!\"\n- \"سلام!\" → \"[friendly] سلام!\"\n\nAvailable emotion tags:\n- High energy: excited, enthusiastic, happy, cheerful, playful, laughing\n- Calm/steady: warm, gentle, calm, relaxed, steady, matter-of-fact\n- Confident: confident, commanding, determined, proud, strong\n- Teaching: teacherly, encouraging, clear, thoughtful\n- Concerned: concerned, worried, serious, urgent, alarmed\n- Uncertain: confused, sheepish, careful, trying\n- Positive: pleased, smiling, welcoming, friendly, amused\n- Narrative: adventurous, curious, hopeful, teasing\n- Alert: alert, focused, reassuring, bright\n\nGuidelines:\n- Match the emotion to the context and punctuation\n- NARRATOR lines often use: warm, matter-of-fact, adventurous, curious, hopeful\n- Exclamations (!) often pair with: excited, enthusiastic, alarmed, determined\n- Questions (?) often pair with: curious, confused, concerned\n- Teaching moments use: teacherly, encouraging, clear\n- Keep the JSON structure exactly the same, only add [emotion] tags to text fields\n- Only add tags to \"line\" type entries\n\nReturn the complete enhanced JSON.",
 
   "emotion_tags": {
     "high_energy": ["excited", "enthusiastic", "happy", "cheerful", "playful", "laughing"],

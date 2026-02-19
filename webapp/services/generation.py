@@ -1,7 +1,7 @@
 """
 Background task services for story and audio generation.
 
-Uses in-memory task store with FastAPI BackgroundTasks (no Celery/Redis needed).
+Uses pluggable task store (in-memory or Redis) with FastAPI BackgroundTasks.
 """
 
 from __future__ import annotations
@@ -10,74 +10,15 @@ import json
 import os
 import subprocess
 import tempfile
-from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 from webapp.models.database import Chapter, SessionLocal, Story, UsageLog, World
 from webapp.services.storage import get_storage
-
-# In-memory task status store
-# Keys are task_id strings, values are status dicts
-task_store: dict[str, dict[str, Any]] = {}
-
-
-def update_task_status(
-    task_id: str,
-    status: str,
-    progress: float = 0,
-    message: str = "",
-    result: dict | None = None,
-    words_generated: int | None = None,
-    estimated_total_words: int | None = None,
-) -> None:
-    """Update task status in in-memory store."""
-    task_store[task_id] = {
-        "task_id": task_id,
-        "status": status,
-        "progress": progress,
-        "message": message,
-        "result": result,
-        "words_generated": words_generated,
-        "estimated_total_words": estimated_total_words,
-        "updated_at": datetime.now(UTC).isoformat(),
-    }
-
-
-def get_task_status(task_id: str) -> dict[str, Any] | None:
-    """Get task status from in-memory store."""
-    return task_store.get(task_id)
-
-
-def find_active_task_for_story(story_id: int) -> dict[str, Any] | None:
-    """Find a running or pending task for the given story_id.
-
-    Task keys follow the pattern: story_{id}_{ts} or audio_{id}_{ts}.
-    Returns the most recently updated active task, or None.
-    """
-    prefixes = (f"story_{story_id}_", f"audio_{story_id}_")
-    active = []
-    for key, val in task_store.items():
-        if any(key.startswith(p) for p in prefixes) and val.get("status") in ("pending", "running"):
-            active.append(val)
-    if not active:
-        return None
-    # Return the most recently updated one
-    active.sort(key=lambda t: t.get("updated_at", ""), reverse=True)
-    return active[0]
-
-
-def cancel_task(task_id: str) -> bool:
-    """Mark a task as cancelled. Returns True if task was running."""
-    status = task_store.get(task_id)
-    if status and status["status"] in ("pending", "running"):
-        task_store[task_id]["status"] = "cancelled"
-        task_store[task_id]["message"] = "Task cancelled by user"
-        return True
-    return False
+from webapp.services.task_store import get_task_backend
 
 
 def generate_story(
@@ -103,11 +44,11 @@ def generate_story(
     db = SessionLocal()
 
     try:
-        update_task_status(task_id, "running", 0, "Starting story generation...")
+        get_task_backend().update(task_id, "running", 0, "Starting story generation...")
 
         story = db.query(Story).filter(Story.id == story_id).first()
         if not story:
-            update_task_status(task_id, "failed", 0, "Story not found")
+            get_task_backend().update(task_id, "failed", 0, "Story not found")
             return
 
         # Load config
@@ -139,7 +80,7 @@ def generate_story(
 
         for ch_num in range(1, num_chapters + 1):
             # Check for cancellation
-            if task_store.get(task_id, {}).get("status") == "cancelled":
+            if (get_task_backend().get(task_id) or {}).get("status") == "cancelled":
                 story.status = "failed"
                 db.commit()
                 return
@@ -156,7 +97,7 @@ def generate_story(
             db.commit()
 
             progress = (current_step / total_steps) * 100
-            update_task_status(
+            get_task_backend().update(
                 task_id,
                 "running",
                 progress,
@@ -191,7 +132,7 @@ def generate_story(
             # Enhance with emotion tags
             if enhance:
                 progress = (current_step / total_steps) * 100
-                update_task_status(
+                get_task_backend().update(
                     task_id,
                     "running",
                     progress,
@@ -232,7 +173,7 @@ def generate_story(
         story.status = "completed"
         db.commit()
 
-        update_task_status(
+        get_task_backend().update(
             task_id, "completed", 100, "Story generation completed", {"story_id": story_id, "chapters": num_chapters}
         )
 
@@ -241,7 +182,7 @@ def generate_story(
         if story:
             story.status = "failed"
             db.commit()
-        update_task_status(task_id, "failed", 0, str(e))
+        get_task_backend().update(task_id, "failed", 0, str(e))
 
     finally:
         db.close()  # generate_story cleanup
@@ -275,7 +216,7 @@ def generate_audio(
     db = SessionLocal()
 
     try:
-        update_task_status(task_id, "running", 0, "Starting audio generation...")
+        get_task_backend().update(task_id, "running", 0, "Starting audio generation...")
 
         # Check if story has a world with voice config
         story = db.query(Story).filter(Story.id == story_id).first()
@@ -296,7 +237,7 @@ def generate_audio(
             # Fall back to voices_config.json from disk
             voices_path = Path(__file__).parent.parent.parent / "voices_config.json"
             if not voices_path.exists():
-                update_task_status(task_id, "failed", 0, "Voice config not found")
+                get_task_backend().update(task_id, "failed", 0, "Voice config not found")
                 return
 
             voice_map = create_voice_map(str(voices_path))
@@ -308,12 +249,12 @@ def generate_audio(
                     voice_map[speaker] = _dict_to_voice_config(settings)
 
         if not voice_map:
-            update_task_status(task_id, "failed", 0, "No voices configured")
+            get_task_backend().update(task_id, "failed", 0, "No voices configured")
             return
 
         api_key = elevenlabs_api_key or os.environ.get("ELEVENLABS_API_KEY")
         if not api_key:
-            update_task_status(task_id, "failed", 0, "ElevenLabs API key not set")
+            get_task_backend().update(task_id, "failed", 0, "ElevenLabs API key not set")
             return
 
         generator = AudiobookGenerator(api_key=api_key, voice_map=voice_map, model_id="eleven_v3")
@@ -340,7 +281,7 @@ def generate_audio(
 
         for chapter_id in chapter_ids:
             # Check for cancellation — reset any in-progress chapters back to completed
-            if task_store.get(task_id, {}).get("status") == "cancelled":
+            if (get_task_backend().get(task_id) or {}).get("status") == "cancelled":
                 for cid in chapter_ids:
                     ch = db.query(Chapter).filter(Chapter.id == cid).first()
                     if ch and ch.status == "generating_audio":
@@ -356,7 +297,7 @@ def generate_audio(
             db.commit()
 
             progress = (entries_done / max(total_entries, 1)) * 100
-            update_task_status(
+            get_task_backend().update(
                 task_id, "running", progress, f"Generating audio for chapter {chapter.chapter_number}..."
             )
 
@@ -379,7 +320,7 @@ def generate_audio(
                     nonlocal entries_done
                     entries_done = base_done + entry_index
                     pct = (entries_done / max(total_entries, 1)) * 100
-                    update_task_status(
+                    get_task_backend().update(
                         task_id,
                         "running",
                         pct,
@@ -438,7 +379,7 @@ def generate_audio(
         db.add(usage_log)
         db.commit()
 
-        update_task_status(
+        get_task_backend().update(
             task_id,
             "completed",
             100,
@@ -453,7 +394,7 @@ def generate_audio(
                 # Reset to completed so the script text remains accessible
                 chapter.status = "completed"
                 db.commit()
-        update_task_status(task_id, "failed", 0, str(e))
+        get_task_backend().update(task_id, "failed", 0, str(e))
 
     finally:
         # Clean up temp directory used for intermediate audio files

@@ -54,6 +54,7 @@ class User(Base):
     openai_api_key = Column(Text, nullable=True)
     elevenlabs_api_key = Column(Text, nullable=True)
     free_stories_used = Column(Integer, default=0)
+    free_audio_used = Column(Integer, default=0)
 
     # Relationships
     stories = relationship("Story", back_populates="owner")
@@ -217,45 +218,49 @@ class PlatformBudget(Base):
     free_stories_generated = Column(Integer, default=0)
 
 
-FREE_STORIES_PER_USER = 3
+FREE_STORIES_PER_USER = 20
+FREE_AUDIO_PER_USER = 5
 COST_PER_STORY = 0.05
 
 
 def _seed_paw_patrol_world(db: Session) -> None:
-    """Seed the built-in PAW Patrol world from config files on disk."""
+    """Seed the built-in PAW Patrol world."""
     import json
-    from pathlib import Path
 
     if db.query(World).filter(World.is_builtin.is_(True), World.name == "PAW Patrol").first():
         return
 
-    root = Path(__file__).parent.parent.parent
-    story_config_path = root / "story_config.json"
-    voices_config_path = root / "voices_config.json"
-
-    characters: dict[str, str] = {}
-    valid_speakers: list[str] = []
-    prompt_template = ""
-    voice_config: dict[str, dict[str, object]] = {}
-
-    if story_config_path.exists():
-        with open(story_config_path) as f:
-            cfg = json.load(f)
-        characters = cfg.get("characters", {})
-        valid_speakers = cfg.get("valid_speakers", [])
-        prompt_template = (
-            "Write a story aimed for 4-8 year old kids, which involves the PAW Patrol "
-            "in a new adventure. They meet a new pup, who speaks a different language "
-            "({language} here), and the PAW Patrol learn a bit of basic {language} by "
-            "communicating with the new pup, and repeating. Include short repetition of "
-            "the language lessons. The current theme is {theme} and a few basic nouns, "
-            "sentence structures, and pronouns. The plot is around {plot}. Keep the story "
-            "in {num_chapters} chapters. Each chapter should be around 1000 words."
-        )
-
-    if voices_config_path.exists():
-        with open(voices_config_path) as f:
-            voice_config = json.load(f)
+    characters = {
+        "NARRATOR": "Tells the story",
+        "RYDER": "The human leader of the PAW Patrol",
+        "CHASE": "Police pup, brave and loyal",
+        "MARSHALL": "Fire pup, clumsy but enthusiastic",
+        "SKYE": "Aviation pup, cheerful and confident",
+        "ROCKY": "Recycling pup, clever and resourceful",
+        "RUBBLE": "Construction pup, strong and friendly",
+        "ZUMA": "Water rescue pup, laid-back and cool",
+        "EVEREST": "Snow rescue pup, adventurous",
+    }
+    valid_speakers = [
+        "NARRATOR",
+        "RYDER",
+        "CHASE",
+        "MARSHALL",
+        "SKYE",
+        "ROCKY",
+        "RUBBLE",
+        "ZUMA",
+        "EVEREST",
+    ]
+    prompt_template = (
+        "Write a story aimed for 4-8 year old kids, which involves the PAW Patrol "
+        "in a new adventure. They meet a new pup, who speaks a different language "
+        "({language} here), and the PAW Patrol learn a bit of basic {language} by "
+        "communicating with the new pup, and repeating. Include short repetition of "
+        "the language lessons. The current theme is {theme} and a few basic nouns, "
+        "sentence structures, and pronouns. The plot is around {plot}. Keep the story "
+        "in {num_chapters} chapters. Each chapter should be around 1000 words."
+    )
 
     world = World(
         user_id=None,
@@ -265,7 +270,7 @@ def _seed_paw_patrol_world(db: Session) -> None:
         prompt_template=prompt_template,
         characters_json=json.dumps(characters),
         valid_speakers_json=json.dumps(valid_speakers),
-        voice_config_json=json.dumps(voice_config),
+        voice_config_json=None,
         visibility="public",
     )
     db.add(world)
@@ -467,9 +472,101 @@ def _seed_peppa_pig_world(db: Session) -> None:
     db.commit()
 
 
+def _seed_elara_and_arion_world(db: Session) -> None:
+    """Seed the built-in Elara and Arion world."""
+    import json
+
+    if db.query(World).filter(World.is_builtin.is_(True), World.name == "Elara and Arion").first():
+        return
+
+    characters = {
+        "NARRATOR": "Tells the story",
+        "ELARA": "Elara, an energetic 4-year-old girl who is smart, kind, and very creative",
+        "ARION": "Arion, a fun and energetic almost 2-year-old boy who loves cars, animals, and running around",
+    }
+    valid_speakers = ["NARRATOR", "ELARA", "ARION"]
+    prompt_template = (
+        "Write a story aimed for 4-8 year old kids. It is built around the world of "
+        "Elara and Arion. Elara and Arion are siblings. Elara is an energetic 4yo girl. "
+        "She is smart and kind and very creative. Arion is a fun and energetic almost "
+        "2 year old boy. He loves cars and anything that moves, animals and running "
+        "around. Elara and Arion play a lot of games and go to playground, daycare/school, "
+        "swimming class, and they love each other and their mommy and daddies. Their mom "
+        "and dads also love them, and they have the most cozy, magical and amazing days "
+        "and nights.\n\nElara and Arion have lots of friends, and they play with them "
+        "all the time.\n\nThis story is about {theme}. The characters learn basic "
+        "{language} words and phrases. The plot is: {plot}. Keep the story in "
+        "{num_chapters} chapters."
+    )
+
+    voice_config = {
+        "NARRATOR": {
+            "voice_id": "8Es4wFxsDlHBmFWAOWRS",
+            "stability": 0.5,
+            "similarity_boost": 0.75,
+            "style": 0.3,
+            "use_speaker_boost": True,
+        },
+        "ELARA": {
+            "voice_id": "BrSJSyxXUlQmFzftrXCz",
+            "stability": 0.5,
+            "similarity_boost": 0.75,
+            "style": 0.3,
+            "use_speaker_boost": True,
+        },
+        "ARION": {
+            "voice_id": "mHX7OoPk2G45VMAuinIt",
+            "stability": 0.5,
+            "similarity_boost": 0.75,
+            "style": 0.3,
+            "use_speaker_boost": True,
+        },
+    }
+
+    world = World(
+        user_id=None,
+        name="Elara and Arion",
+        description=(
+            "Elara and Arion are siblings. Elara is an energetic 4yo girl who is smart, "
+            "kind, and very creative. Arion is a fun and energetic almost 2-year-old boy "
+            "who loves cars, animals, and running around. They have the most cozy, magical "
+            "and amazing days and nights with their family and friends."
+        ),
+        is_builtin=True,
+        prompt_template=prompt_template,
+        characters_json=json.dumps(characters),
+        valid_speakers_json=json.dumps(valid_speakers),
+        voice_config_json=json.dumps(voice_config),
+        visibility="public",
+    )
+    db.add(world)
+    db.commit()
+
+
+def _run_migrations() -> None:
+    """Add missing columns to existing tables (lightweight schema migration)."""
+    import sqlalchemy
+
+    inspector = sqlalchemy.inspect(engine)
+
+    # Map of (table_name, column_name) -> ALTER TABLE SQL
+    migrations: list[tuple[str, str, str]] = [
+        ("users", "free_audio_used", "ALTER TABLE users ADD COLUMN free_audio_used INTEGER DEFAULT 0"),
+    ]
+
+    with engine.connect() as conn:
+        for table, column, sql in migrations:
+            if table in inspector.get_table_names():
+                existing = {c["name"] for c in inspector.get_columns(table)}
+                if column not in existing:
+                    conn.execute(sqlalchemy.text(sql))
+                    conn.commit()
+
+
 def init_db() -> None:
     """Initialize the database tables and seed platform budget + built-in worlds."""
     Base.metadata.create_all(bind=engine)
+    _run_migrations()
     db = SessionLocal()
     try:
         if not db.query(PlatformBudget).first():
@@ -479,6 +576,7 @@ def init_db() -> None:
         _seed_winnie_the_pooh_world(db)
         _seed_bluey_world(db)
         _seed_peppa_pig_world(db)
+        _seed_elara_and_arion_world(db)
     finally:
         db.close()
 

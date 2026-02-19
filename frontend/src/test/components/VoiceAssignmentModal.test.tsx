@@ -26,7 +26,7 @@ describe('VoiceAssignmentModal', () => {
       expect(screen.getByText('NARRATOR')).toBeInTheDocument()
     })
 
-    expect(screen.getByText('RYDER')).toBeInTheDocument()
+    expect(screen.getByText('WINNIE')).toBeInTheDocument()
     expect(screen.getByText('Voice Assignments')).toBeInTheDocument()
     expect(screen.getByText('Confirm & Generate')).toBeInTheDocument()
     expect(screen.getByText('Cancel')).toBeInTheDocument()
@@ -84,6 +84,6 @@ describe('VoiceAssignmentModal', () => {
     const override = onConfirm.mock.calls[0][0]
     expect(override.NARRATOR).toBeDefined()
     expect(override.NARRATOR.voice_id).toBe('abc123')
-    expect(override.RYDER.voice_id).toBe('def456')
+    expect(override.WINNIE.voice_id).toBe('def456')
   })
 })
