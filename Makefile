@@ -1,4 +1,6 @@
-.PHONY: test test-backend test-frontend test-e2e test-all test-install install dev lint format all docker-build docker-run docker-run-prod compose-up compose-down compose-test
+ACR_IMAGE ?= lingolou.azurecr.io/lingolou-app:latest
+
+.PHONY: test test-backend test-frontend test-e2e test-all test-install install dev lint format all docker-build docker-run docker-run-prod compose-up compose-down compose-test docker-push
 
 # Install all dependencies (backend + frontend)
 install:
@@ -76,3 +78,7 @@ compose-down:
 compose-test:
 	docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
 	docker compose -f docker-compose.test.yml down
+
+# Build linux/amd64 image and push to Azure Container Registry
+docker-push:
+	docker buildx build --platform linux/amd64 -t $(ACR_IMAGE) --push .
