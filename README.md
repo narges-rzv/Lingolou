@@ -153,6 +153,62 @@ Add these environment variables to use S3-compatible storage for audio files ins
 
 For Cloudflare R2 or MinIO, also set `S3_ENDPOINT_URL`.
 
+### Azure Container Instances
+
+Deploy the app and Redis as a container group on Azure.
+
+#### 1. Prerequisites
+
+```bash
+make az-login    # az login + az acr login -n lingolou
+```
+
+#### 2. Push the image
+
+```bash
+make docker-push
+```
+
+#### 3. Create `.env.azure`
+
+```bash
+GOOGLE_CLIENT_ID="your-google-client-id"
+GOOGLE_CLIENT_SECRET="your-google-client-secret"
+ELEVENLABS_API_KEY="your-elevenlabs-key"
+OPENAI_API_KEY="your-openai-key"
+STORAGE_BACKEND="s3"
+S3_BUCKET="your-blob-container"
+S3_ENDPOINT_URL="https://your-account.blob.core.windows.net"
+S3_REGION="us-east-1"
+S3_PREFIX="audio"
+AWS_ACCESS_KEY_ID="your-storage-account-name"
+AWS_SECRET_ACCESS_KEY="your-storage-account-key"
+SESSION_SECRET_KEY="a-random-string-at-least-32-chars"
+STORAGE_ACCOUNT_NAME="your-storage-account-name"
+STORAGE_ACCOUNT_KEY="your-storage-account-key"
+FRONTEND_URL="https://lingolou.eastus.azurecontainer.io"
+CORS_ORIGINS="https://lingolou.eastus.azurecontainer.io"
+ACR_PASSWORD="your-acr-password"
+```
+
+> `.env.azure` is in `.gitignore` — never commit secrets.
+
+#### 4. Create Azure File Shares
+
+```bash
+az storage share-rm create --name lingolou-data --storage-account your-storage-account
+az storage share-rm create --name lingolou-redis --storage-account your-storage-account
+```
+
+#### 5. Deploy
+
+```bash
+make az-create   # first deploy
+make az-update   # subsequent updates
+```
+
+These commands render `azure.yml` with your secrets into `azure.secret.yml` (gitignored), then deploy via `az container create`.
+
 ## Environment Variables
 
 | Variable | Required | Default | Description |

@@ -1,6 +1,6 @@
 ACR_IMAGE ?= lingolou.azurecr.io/lingolou-app:latest
 
-.PHONY: test test-backend test-frontend test-e2e test-all test-install install dev lint format all docker-build docker-run docker-run-prod compose-up compose-down compose-test az-login docker-push az-render az-deploy az-update
+.PHONY: test test-backend test-frontend test-e2e test-all test-install install dev lint format all docker-build docker-run docker-run-prod compose-up compose-down compose-test az-login docker-push az-render az-create az-update
 
 # Install all dependencies (backend + frontend)
 install:
@@ -93,7 +93,7 @@ az-render:
 	set -a && source .env.azure && set +a && envsubst < azure.yml > azure.secret.yml
 
 # Deploy a new container group to Azure
-az-deploy: az-render
+az-create: az-render
 	az container create --resource-group Lingolou --file azure.secret.yml
 
 # Update (same as deploy — ACI upserts)

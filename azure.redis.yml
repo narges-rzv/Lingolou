@@ -19,6 +19,8 @@ properties:
       environmentVariables:
       - name: DATABASE_URL
         value: sqlite:///./data/lingolou.db
+      - name: REDIS_URL
+        value: redis://localhost:6379/0
       - name: SESSION_SECRET_KEY
         secureValue: ${SESSION_SECRET_KEY}
       - name: OPENAI_API_KEY
@@ -48,6 +50,23 @@ properties:
       volumeMounts:
       - name: data
         mountPath: /app/data
+  - name: redis
+    properties:
+      image: lingolou.azurecr.io/redis:7-alpine
+      command:
+      - redis-server
+      - --dir
+      - /data
+      - --appendonly
+      - "yes"
+      resources:
+        requests:
+          cpu: 0.5
+          memoryInGb: 0.5
+      ports: []
+      volumeMounts:
+      - name: redis-data
+        mountPath: /data
   osType: Linux
   ipAddress:
     type: Public
@@ -59,6 +78,11 @@ properties:
   - name: data
     azureFile:
       shareName: lingolou-data
+      storageAccountName: ${STORAGE_ACCOUNT_NAME}
+      storageAccountKey: ${STORAGE_ACCOUNT_KEY}
+  - name: redis-data
+    azureFile:
+      shareName: lingolou-redis
       storageAccountName: ${STORAGE_ACCOUNT_NAME}
       storageAccountKey: ${STORAGE_ACCOUNT_KEY}
 type: Microsoft.ContainerInstance/containerGroups
