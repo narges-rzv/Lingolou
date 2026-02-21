@@ -15,8 +15,8 @@ services:
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       - FRONTEND_URL=${FRONTEND_URL:-}
     volumes:
-      - ./data:/app/data
-      - ./audio:/app/webapp/static/audio
+      - ${WEBAPP_STORAGE_HOME:-./data}:/app/data
+      - ${WEBAPP_STORAGE_HOME:-./data}/audio:/app/webapp/static/audio
     depends_on:
       - redis
 

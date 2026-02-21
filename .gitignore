@@ -19,6 +19,7 @@ voices_list.txt
 __pycache__/
 *.pyc
 .env
+.env.azure
 
 # Secrets / credentials
 *.ignore
