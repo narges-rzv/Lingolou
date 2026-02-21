@@ -34,17 +34,7 @@ properties:
       - name: CORS_ORIGINS
         value: ${CORS_ORIGINS}
       - name: STORAGE_BACKEND
-        value: s3
-      - name: S3_BUCKET
-        value: ${S3_BUCKET}
-      - name: S3_ENDPOINT_URL
-        value: ${S3_ENDPOINT_URL}
-      - name: S3_PREFIX
-        value: audio
-      - name: AWS_ACCESS_KEY_ID
-        secureValue: ${AWS_ACCESS_KEY_ID}
-      - name: AWS_SECRET_ACCESS_KEY
-        secureValue: ${AWS_SECRET_ACCESS_KEY}
+        value: local
       volumeMounts:
       - name: data
         mountPath: /app/data
