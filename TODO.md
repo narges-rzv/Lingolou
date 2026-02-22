@@ -16,6 +16,7 @@
 
 ## Testing
 - [ ] Improve overall test coverage (frontend currently 31%)
+- [ ] Resolve all warnings
 
 ## Database
 - [ ] Add Alembic migrations
