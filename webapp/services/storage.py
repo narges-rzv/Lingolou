@@ -1,6 +1,6 @@
 """File storage abstraction for audio files.
 
-Supports local filesystem (default) and S3-compatible object storage.
+Supports local filesystem (default), S3-compatible, and Azure Blob object storage.
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ import os
 import shutil
 import tempfile
 from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
@@ -159,6 +160,84 @@ class S3StorageBackend:
         )
 
 
+class AzureBlobStorageBackend:
+    """Store files in Azure Blob Storage using managed identity."""
+
+    def __init__(self) -> None:
+        """Initialize Azure Blob client from environment variables."""
+        from azure.identity import DefaultAzureCredential
+        from azure.storage.blob import BlobServiceClient
+
+        self._account_name = os.getenv("AZURE_STORAGE_ACCOUNT_NAME", "lingoloudisk")
+        self._container_name = os.getenv("AZURE_STORAGE_CONTAINER", "audio")
+        account_url = f"https://{self._account_name}.blob.core.windows.net"
+
+        self._credential = DefaultAzureCredential()
+        self._service_client = BlobServiceClient(account_url, credential=self._credential)
+        self._container_client = self._service_client.get_container_client(self._container_name)
+
+    def save(self, key: str, data: bytes) -> str:
+        """Upload data to Azure Blob Storage and return a SAS URL."""
+        blob_client = self._container_client.get_blob_client(key)
+        blob_client.upload_blob(data, overwrite=True, content_settings=_content_settings())
+        return self.get_url(key)
+
+    def delete(self, key: str) -> None:
+        """Delete a single blob."""
+        blob_client = self._container_client.get_blob_client(key)
+        blob_client.delete_blob()
+
+    def delete_dir(self, prefix: str) -> None:
+        """Delete all blobs under a prefix."""
+        blobs = self._container_client.list_blobs(name_starts_with=prefix)
+        for blob in blobs:
+            self._container_client.delete_blob(blob.name)
+
+    @contextmanager
+    def get_path(self, key: str) -> Iterator[Path | None]:
+        """Download blob to a temp file and yield its path."""
+        tmp_dir = tempfile.mkdtemp()
+        tmp_path = Path(tmp_dir) / Path(key).name
+        try:
+            blob_client = self._container_client.get_blob_client(key)
+            with tmp_path.open("wb") as f:
+                stream = blob_client.download_blob()
+                stream.readinto(f)
+            yield tmp_path
+        except Exception:
+            logger.exception("Failed to download blob %s", key)
+            yield None
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    def get_url(self, key: str) -> str:
+        """Return a user-delegation SAS URL (1-hour expiry, no storage account key needed)."""
+        from azure.storage.blob import BlobSasPermissions, generate_blob_sas
+
+        now = datetime.now(tz=UTC)
+        delegation_key = self._service_client.get_user_delegation_key(
+            key_start_time=now,
+            key_expiry_time=now + timedelta(hours=2),
+        )
+        sas_token = generate_blob_sas(
+            account_name=self._account_name,
+            container_name=self._container_name,
+            blob_name=key,
+            user_delegation_key=delegation_key,
+            permission=BlobSasPermissions(read=True),
+            expiry=now + timedelta(hours=1),
+        )
+        blob_client = self._container_client.get_blob_client(key)
+        return f"{blob_client.url}?{sas_token}"
+
+
+def _content_settings():  # noqa: ANN202 — avoids importing ContentSettings at module level
+    """Return ContentSettings for audio/mpeg."""
+    from azure.storage.blob import ContentSettings
+
+    return ContentSettings(content_type="audio/mpeg")
+
+
 _storage: StorageBackend | None = None
 
 
@@ -170,6 +249,13 @@ def get_storage() -> StorageBackend:
         if backend == "s3":
             _storage = S3StorageBackend()
             logger.info("Using S3 storage backend (bucket=%s)", os.getenv("S3_BUCKET"))
+        elif backend == "azure_blob":
+            _storage = AzureBlobStorageBackend()
+            logger.info(
+                "Using Azure Blob storage backend (account=%s, container=%s)",
+                os.getenv("AZURE_STORAGE_ACCOUNT_NAME", "lingoloudisk"),
+                os.getenv("AZURE_STORAGE_CONTAINER", "audio"),
+            )
         else:
             _storage = LocalStorageBackend()
             logger.info("Using local storage backend")

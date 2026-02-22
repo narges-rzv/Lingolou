@@ -1,3 +1,33 @@
+[project]
+name = "lingolou"
+version = "1.0.0"
+
+[tool.bumpversion]
+current_version = "1.0.0"
+commit = true
+tag = true
+tag_name = "v{new_version}"
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'current_version = "{current_version}"'
+replace = 'current_version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "webapp/main.py"
+search = 'version="{current_version}"'
+replace = 'version="{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "frontend/package.json"
+search = '"version": "{current_version}"'
+replace = '"version": "{new_version}"'
+
 [tool.ruff]
 target-version = "py312"
 line-length = 120
@@ -102,6 +132,7 @@ module = [
     "pytest.*",
     "authlib.*",
     "jose.*",
+    "azure.*",
 ]
 ignore_missing_imports = false
 follow_imports = "normal"

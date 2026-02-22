@@ -1,0 +1,89 @@
+type: Microsoft.App/containerApps
+location: eastus
+name: lingolou
+identity:
+  type: SystemAssigned
+properties:
+  managedEnvironmentId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/Lingolou/providers/Microsoft.App/managedEnvironments/lingolou-env
+  configuration:
+    activeRevisionsMode: Single
+    ingress:
+      external: true
+      targetPort: 8000
+      transport: http
+      allowInsecure: false
+    registries:
+      - server: lingolou.azurecr.io
+        username: lingolou
+        passwordSecretRef: acr-password
+    secrets:
+      - name: acr-password
+        value: ${ACR_PASSWORD}
+      - name: session-secret-key
+        value: ${SESSION_SECRET_KEY}
+      - name: openai-api-key
+        value: ${OPENAI_API_KEY}
+      - name: elevenlabs-api-key
+        value: ${ELEVENLABS_API_KEY}
+      - name: google-client-secret
+        value: ${GOOGLE_CLIENT_SECRET}
+  template:
+    containers:
+      - name: app
+        image: lingolou.azurecr.io/lingolou-app:latest
+        resources:
+          cpu: 1
+          memory: 2Gi
+        env:
+          - name: DATABASE_URL
+            value: sqlite:////app/data/lingolou.db
+          - name: SESSION_SECRET_KEY
+            secretRef: session-secret-key
+          - name: OPENAI_API_KEY
+            secretRef: openai-api-key
+          - name: ELEVENLABS_API_KEY
+            secretRef: elevenlabs-api-key
+          - name: GOOGLE_CLIENT_ID
+            value: ${GOOGLE_CLIENT_ID}
+          - name: GOOGLE_CLIENT_SECRET
+            secretRef: google-client-secret
+          - name: FRONTEND_URL
+            value: ${FRONTEND_URL}
+          - name: CORS_ORIGINS
+            value: ${CORS_ORIGINS}
+          - name: STORAGE_BACKEND
+            value: azure_blob
+          - name: AZURE_STORAGE_ACCOUNT_NAME
+            value: lingoloudisk
+          - name: AZURE_STORAGE_CONTAINER
+            value: audio
+        probes:
+          - type: Liveness
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          - type: Readiness
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          - type: Startup
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 10
+        volumeMounts:
+          - volumeName: data
+            mountPath: /app/data
+    volumes:
+      - name: data
+        storageName: lingolou-data
+        storageType: AzureFile
+    scale:
+      minReplicas: 0
+      maxReplicas: 1

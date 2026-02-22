@@ -1,6 +1,6 @@
 ACR_IMAGE ?= lingolou.azurecr.io/lingolou-app:latest
 
-.PHONY: test test-backend test-frontend test-e2e test-all test-install install dev lint format all docker-build docker-run docker-run-prod compose-up compose-down compose-test az-login docker-push az-render az-create az-update
+.PHONY: test test-backend test-frontend test-e2e test-all test-install install dev lint format all docker-build docker-run docker-run-prod compose-up compose-down compose-test az-login docker-push az-render az-create az-update aca-render aca-create aca-deploy aca-logs aca-url release-patch release-minor release-major
 
 # Install all dependencies (backend + frontend)
 install:
@@ -99,3 +99,39 @@ az-create: az-render
 # Update (same as deploy — ACI upserts)
 az-update: az-render
 	az container create --resource-group Lingolou --file azure.secret.yml
+
+# --- Container Apps (ACA) ---
+
+# Render containerapp.yml with secrets from .env.azure
+aca-render:
+	set -a && source .env.azure && set +a && envsubst < containerapp.yml > containerapp.secret.yml
+
+# Create Container App from YAML
+aca-create: aca-render
+	az containerapp create --resource-group Lingolou --yaml containerapp.secret.yml
+
+# Deploy new image to Container App
+aca-deploy:
+	az containerapp update --name lingolou --resource-group Lingolou --image $(ACR_IMAGE)
+
+# Tail Container App logs
+aca-logs:
+	az containerapp logs show --name lingolou --resource-group Lingolou --follow
+
+# Print the Container App FQDN
+aca-url:
+	@az containerapp show --name lingolou --resource-group Lingolou --query properties.configuration.ingress.fqdn -o tsv
+
+# --- Release (version bump + tag push → triggers CI/CD) ---
+
+release-patch:
+	bump-my-version bump patch
+	git push && git push --tags
+
+release-minor:
+	bump-my-version bump minor
+	git push && git push --tags
+
+release-major:
+	bump-my-version bump major
+	git push && git push --tags
