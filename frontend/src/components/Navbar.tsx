@@ -25,6 +25,7 @@ export default function Navbar() {
         <div className="navbar-right">
           {isAuthenticated ? (
             <>
+              <Link to="/timeline" className="btn btn-ghost btn-sm">Timeline</Link>
               <Link to="/dashboard" className="btn btn-ghost btn-sm">My Stories</Link>
               <Link to="/bookmarks" className="btn btn-ghost btn-sm">Bookmarks</Link>
               <Link to="/worlds" className="btn btn-ghost btn-sm">Worlds</Link>

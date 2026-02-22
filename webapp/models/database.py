@@ -63,6 +63,18 @@ class User(Base):
     votes = relationship("Vote", back_populates="user")
     reports = relationship("Report", back_populates="user")
     bookmarks = relationship("Bookmark", back_populates="user")
+    following = relationship(
+        "Follow",
+        foreign_keys="Follow.follower_id",
+        backref="follower",
+        cascade="all, delete-orphan",
+    )
+    followers = relationship(
+        "Follow",
+        foreign_keys="Follow.following_id",
+        backref="followed_user",
+        cascade="all, delete-orphan",
+    )
 
 
 class World(Base):
@@ -187,6 +199,18 @@ class Bookmark(Base):
 
     user = relationship("User", back_populates="bookmarks")
     story = relationship("Story", back_populates="bookmarks")
+
+
+class Follow(Base):
+    """Follow relationship between users."""
+
+    __tablename__ = "follows"
+    __table_args__ = (UniqueConstraint("follower_id", "following_id", name="uq_follower_following"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    follower_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    following_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class UsageLog(Base):

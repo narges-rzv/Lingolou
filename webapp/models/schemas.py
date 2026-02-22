@@ -101,6 +101,7 @@ class PublicStoryListItem(BaseModel):
     downvotes: int = 0
     created_at: datetime
     owner_name: str
+    owner_id: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -123,8 +124,69 @@ class PublicStoryResponse(BaseModel):
     created_at: datetime
     chapters: list[ChapterResponse] = []
     owner_name: str
+    owner_id: int = 0
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# Follow / Timeline / Profile schemas
+class FollowResponse(BaseModel):
+    """Response schema for follow toggle."""
+
+    following: bool
+
+
+class FollowUserItem(BaseModel):
+    """Response schema for a user in a follow list."""
+
+    id: int
+    username: str
+    story_count: int = 0
+    is_following: bool = False
+
+
+class TimelineStoryItem(BaseModel):
+    """Response schema for a story in the timeline feed."""
+
+    id: int
+    title: str
+    description: str | None = None
+    language: str | None = None
+    world_id: int | None = None
+    world_name: str | None = None
+    status: str
+    chapter_count: int = 0
+    upvotes: int = 0
+    downvotes: int = 0
+    created_at: datetime
+    owner_name: str
+    owner_id: int
+
+
+class TimelineWorldItem(BaseModel):
+    """Response schema for a world in the timeline feed."""
+
+    id: int
+    name: str
+    description: str | None = None
+    visibility: str
+    story_count: int = 0
+    owner_name: str
+    owner_id: int
+    created_at: datetime
+
+
+class UserProfileResponse(BaseModel):
+    """Response schema for a user profile."""
+
+    id: int
+    username: str
+    story_count: int = 0
+    world_count: int = 0
+    follower_count: int = 0
+    following_count: int = 0
+    is_following: bool = False
+    created_at: datetime
 
 
 # Generation schemas

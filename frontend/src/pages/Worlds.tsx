@@ -260,6 +260,7 @@ export default function Worlds() {
               onChange={(e) => setVisibility(e.target.value)}
             >
               <option value="private">Private</option>
+              <option value="followers">Followers</option>
               <option value="link_only">Link-only</option>
               <option value="public">Public</option>
             </select>

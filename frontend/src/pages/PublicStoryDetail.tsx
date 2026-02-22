@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { publicApiFetch, apiFetch } from '../api';
 import AudioPlayer from '../components/AudioPlayer';
+import FollowButton from '../components/FollowButton';
 import PublicChapterList from '../components/PublicChapterList';
 import type { PublicStoryResponse } from '../types';
 
@@ -17,7 +18,7 @@ function statusClass(status: string | undefined): string {
 export default function PublicStoryDetail({ preloadedStory }: PublicStoryDetailProps) {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [story, setStory] = useState<PublicStoryResponse | null>(preloadedStory || null);
   const [loading, setLoading] = useState(!preloadedStory);
   const [error, setError] = useState<string | null>(null);
@@ -166,8 +167,11 @@ export default function PublicStoryDetail({ preloadedStory }: PublicStoryDetailP
             <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
               {chapters.length} chapter{chapters.length !== 1 ? 's' : ''}
               {' \u00b7 '}
-              by {story.owner_name}
+              by <Link to={`/users/${story.owner_id}`}>{story.owner_name}</Link>
             </span>
+            {isAuthenticated && story.owner_id !== user?.id && (
+              <FollowButton userId={story.owner_id} initialFollowing={false} />
+            )}
           </div>
           {story.description && (
             <p className="description" style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>

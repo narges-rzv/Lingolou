@@ -206,6 +206,7 @@ export default function StoryDetail() {
           <div className="story-meta">
             <span className={statusClass(story.status)}>{story.status}</span>
             {story.visibility === 'public' && <span className="status-badge status-completed">Public</span>}
+            {story.visibility === 'followers' && <span className="status-badge status-created">Followers</span>}
             {story.visibility === 'link_only' && <span className="status-badge status-created">Link-only</span>}
             {story.world_name && (
               <Link to={`/worlds/${story.world_id}`} style={{ fontSize: '0.85rem' }}>
@@ -289,10 +290,11 @@ export default function StoryDetail() {
             className="visibility-select"
           >
             <option value="private">Private</option>
+            <option value="followers">Followers</option>
             <option value="link_only">Link-only</option>
             <option value="public">Public</option>
           </select>
-          {story.visibility !== 'private' && (
+          {story.visibility !== 'private' && story.visibility !== 'followers' && (
             <button className="btn btn-ghost btn-sm" onClick={handleCopyShareLink}>
               {copySuccess ? 'Copied!' : 'Copy Share Link'}
             </button>

@@ -273,7 +273,7 @@ async def update_story(
     if story_update.description:
         story.description = story_update.description
     if story_update.visibility is not None:
-        if story_update.visibility not in ("private", "link_only", "public"):
+        if story_update.visibility not in ("private", "link_only", "public", "followers"):
             raise HTTPException(status_code=400, detail="Invalid visibility value")
         story.visibility = story_update.visibility
         if story_update.visibility in ("link_only", "public") and not story.share_code:

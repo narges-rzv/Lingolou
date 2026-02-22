@@ -174,7 +174,11 @@ def generate_story(
         db.commit()
 
         get_task_backend().update(
-            task_id, "completed", 100, "Story generation completed", {"story_id": story_id, "chapters": num_chapters}
+            task_id,
+            "completed",
+            100,
+            "Story generation completed",
+            result={"story_id": story_id, "chapters": num_chapters},
         )
 
     except Exception as e:
@@ -384,7 +388,7 @@ def generate_audio(
             "completed",
             100,
             "Audio generation completed",
-            {"story_id": story_id, "chapters_generated": len(chapter_ids)},
+            result={"story_id": story_id, "chapters_generated": len(chapter_ids)},
         )
 
     except Exception as e:

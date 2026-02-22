@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from webapp.models.database import Story, User, World, get_db
+from webapp.models.database import Follow, Story, User, World, get_db
 from webapp.models.schemas import ShareLinkResponse, WorldCreate, WorldListItem, WorldResponse, WorldUpdate
 from webapp.services.auth import get_current_active_user
 
@@ -58,7 +58,8 @@ async def list_worlds(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ) -> list[WorldListItem]:
-    """List user's own worlds plus public and built-in worlds."""
+    """List user's own worlds plus public, built-in, and followed users' worlds."""
+    followed_ids = [f.following_id for f in db.query(Follow).filter(Follow.follower_id == current_user.id).all()]
     worlds = (
         db.query(World)
         .filter(
@@ -66,6 +67,7 @@ async def list_worlds(
                 World.user_id == current_user.id,
                 World.visibility == "public",
                 World.is_builtin.is_(True),
+                (World.visibility == "followers") & (World.user_id.in_(followed_ids)) if followed_ids else False,
             )
         )
         .order_by(World.is_builtin.desc(), World.created_at.desc())
@@ -81,7 +83,7 @@ async def create_world(
     db: Session = Depends(get_db),
 ) -> WorldResponse:
     """Create a new world."""
-    if world_data.visibility not in ("private", "link_only", "public"):
+    if world_data.visibility not in ("private", "link_only", "public", "followers"):
         raise HTTPException(status_code=400, detail="Invalid visibility value")
 
     world = World(
@@ -112,7 +114,11 @@ async def get_world(
         raise HTTPException(status_code=404, detail="World not found")
 
     if world.user_id != current_user.id and world.visibility != "public" and not world.is_builtin:
-        raise HTTPException(status_code=404, detail="World not found")
+        # Allow followers-visibility worlds if user follows the owner
+        from webapp.api.follows import is_following as check_following
+
+        if world.visibility != "followers" or not check_following(db, current_user.id, world.user_id):
+            raise HTTPException(status_code=404, detail="World not found")
 
     return _world_to_response(world)
 
@@ -144,7 +150,7 @@ async def update_world(
     if world_update.voice_config is not None:
         world.voice_config_json = json.dumps(world_update.voice_config)
     if world_update.visibility is not None:
-        if world_update.visibility not in ("private", "link_only", "public"):
+        if world_update.visibility not in ("private", "link_only", "public", "followers"):
             raise HTTPException(status_code=400, detail="Invalid visibility value")
         world.visibility = world_update.visibility
         if world_update.visibility in ("link_only", "public") and not world.share_code:

@@ -104,6 +104,28 @@ def other_auth_headers(other_user):
 
 
 @pytest.fixture()
+def third_user(db):
+    """Create a third user for follow/visibility tests."""
+    user = User(
+        email="third@example.com",
+        username="thirduser",
+        hashed_password=get_password_hash("thirdpass123"),
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@pytest.fixture()
+def third_auth_headers(third_user):
+    """Return authorization headers for the third user."""
+    token = create_access_token(data={"sub": str(third_user.id)})
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture()
 def test_world(db, test_user):
     """Create a test world owned by test_user."""
     import json

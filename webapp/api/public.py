@@ -17,6 +17,7 @@ from webapp.models.database import (
     FREE_STORIES_PER_USER,
     Bookmark,
     Chapter,
+    Follow,
     PlatformBudget,
     Story,
     User,
@@ -89,6 +90,7 @@ async def list_public_stories(
             downvotes=s.downvotes,
             created_at=s.created_at,
             owner_name=s.owner.username,
+            owner_id=s.user_id,
         )
         for s in stories
     ]
@@ -100,18 +102,32 @@ async def get_public_story(
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
 ) -> PublicStoryResponse:
-    """Get a public or link-only story with its chapters."""
+    """Get a public, link-only, or followers-visible story with its chapters."""
     story = (
         db.query(Story)
         .filter(
             Story.id == story_id,
-            Story.visibility.in_(["public", "link_only"]),
+            Story.visibility.in_(["public", "link_only", "followers"]),
         )
         .first()
     )
 
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
+
+    # Followers-visibility stories require the viewer to be a follower
+    if story.visibility == "followers":
+        if not current_user:
+            raise HTTPException(status_code=404, detail="Story not found")
+        if current_user.id != story.user_id:
+            is_follower = (
+                db.query(Follow)
+                .filter(Follow.follower_id == current_user.id, Follow.following_id == story.user_id)
+                .first()
+                is not None
+            )
+            if not is_follower:
+                raise HTTPException(status_code=404, detail="Story not found")
 
     user_vote = None
     is_bookmarked = False
@@ -140,6 +156,7 @@ async def get_public_story(
         created_at=story.created_at,
         chapters=story.chapters,
         owner_name=story.owner.username,
+        owner_id=story.user_id,
     )
 
 
@@ -189,6 +206,7 @@ async def get_shared_story(
         created_at=story.created_at,
         chapters=story.chapters,
         owner_name=story.owner.username,
+        owner_id=story.user_id,
     )
 
 
@@ -268,18 +286,30 @@ async def get_public_chapter_script(
     chapter_number: int,
     enhanced: bool = True,
     db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ) -> list:
-    """Get the JSON script for a chapter of a public/link-only story."""
+    """Get the JSON script for a chapter of a public/link-only/followers story."""
     story = (
         db.query(Story)
         .filter(
             Story.id == story_id,
-            Story.visibility.in_(["public", "link_only"]),
+            Story.visibility.in_(["public", "link_only", "followers"]),
         )
         .first()
     )
 
     if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    if story.visibility == "followers" and (
+        not current_user
+        or (
+            current_user.id != story.user_id
+            and not db.query(Follow)
+            .filter(Follow.follower_id == current_user.id, Follow.following_id == story.user_id)
+            .first()
+        )
+    ):
         raise HTTPException(status_code=404, detail="Story not found")
 
     chapter = next(
@@ -401,18 +431,30 @@ async def get_shared_world(
 async def download_public_combined_audio(
     story_id: int,
     db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ) -> FileResponse:
-    """Download combined audio for a public/link-only story."""
+    """Download combined audio for a public/link-only/followers story."""
     story = (
         db.query(Story)
         .filter(
             Story.id == story_id,
-            Story.visibility.in_(["public", "link_only"]),
+            Story.visibility.in_(["public", "link_only", "followers"]),
         )
         .first()
     )
 
     if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    if story.visibility == "followers" and (
+        not current_user
+        or (
+            current_user.id != story.user_id
+            and not db.query(Follow)
+            .filter(Follow.follower_id == current_user.id, Follow.following_id == story.user_id)
+            .first()
+        )
+    ):
         raise HTTPException(status_code=404, detail="Story not found")
 
     storage = get_storage()

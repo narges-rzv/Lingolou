@@ -11,6 +11,11 @@ import type {
   VoiceConfigResponse,
   LoginResponse,
   TaskStatusResponse,
+  FollowResponse,
+  FollowUserItem,
+  TimelineStoryItem,
+  TimelineWorldItem,
+  UserProfileResponse,
 } from '../../types'
 
 const BASE = 'http://localhost:5173/api'
@@ -52,6 +57,7 @@ const mockStory: PublicStoryListItem = {
   downvotes: 1,
   created_at: '2024-01-01T00:00:00',
   owner_name: 'testuser',
+  owner_id: 1,
 }
 
 const mockWorld: WorldResponse = {
@@ -244,6 +250,71 @@ export const handlers = [
       message: 'Task cancelled',
       task_id: params['taskId'],
     })
+  }),
+
+  // Follows
+  http.post(`${BASE}/follows/users/:id`, () => {
+    return HttpResponse.json({ following: true } satisfies FollowResponse)
+  }),
+
+  http.get(`${BASE}/follows/following`, () => {
+    return HttpResponse.json([
+      { id: 2, username: 'otheruser', story_count: 3, is_following: true },
+    ] satisfies FollowUserItem[])
+  }),
+
+  http.get(`${BASE}/follows/followers`, () => {
+    return HttpResponse.json([
+      { id: 3, username: 'followeruser', story_count: 1, is_following: false },
+    ] satisfies FollowUserItem[])
+  }),
+
+  http.get(`${BASE}/follows/timeline`, () => {
+    return HttpResponse.json([
+      {
+        id: 10,
+        title: 'Timeline Story',
+        description: 'A story from someone you follow',
+        language: 'Persian (Farsi)',
+        world_id: null,
+        world_name: null,
+        status: 'completed',
+        chapter_count: 2,
+        upvotes: 3,
+        downvotes: 0,
+        created_at: '2024-06-01T00:00:00',
+        owner_name: 'otheruser',
+        owner_id: 2,
+      },
+    ] satisfies TimelineStoryItem[])
+  }),
+
+  http.get(`${BASE}/follows/timeline/worlds`, () => {
+    return HttpResponse.json([
+      {
+        id: 5,
+        name: 'Timeline World',
+        description: 'A world from someone you follow',
+        visibility: 'public',
+        story_count: 2,
+        owner_name: 'otheruser',
+        owner_id: 2,
+        created_at: '2024-06-01T00:00:00',
+      },
+    ] satisfies TimelineWorldItem[])
+  }),
+
+  http.get(`${BASE}/follows/users/:id/profile`, ({ params }) => {
+    return HttpResponse.json({
+      id: Number(params['id']),
+      username: 'otheruser',
+      story_count: 5,
+      world_count: 2,
+      follower_count: 10,
+      following_count: 3,
+      is_following: false,
+      created_at: '2024-01-01T00:00:00',
+    } satisfies UserProfileResponse)
   }),
 ]
 

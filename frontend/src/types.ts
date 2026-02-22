@@ -75,6 +75,7 @@ export interface PublicStoryListItem {
   downvotes: number;
   created_at: string;
   owner_name: string;
+  owner_id: number;
 }
 
 export interface PublicStoryResponse {
@@ -93,6 +94,56 @@ export interface PublicStoryResponse {
   created_at: string;
   chapters: ChapterResponse[];
   owner_name: string;
+  owner_id: number;
+}
+
+export interface FollowResponse {
+  following: boolean;
+}
+
+export interface FollowUserItem {
+  id: number;
+  username: string;
+  story_count: number;
+  is_following: boolean;
+}
+
+export interface TimelineStoryItem {
+  id: number;
+  title: string;
+  description: string | null;
+  language: string | null;
+  world_id: number | null;
+  world_name: string | null;
+  status: string;
+  chapter_count: number;
+  upvotes: number;
+  downvotes: number;
+  created_at: string;
+  owner_name: string;
+  owner_id: number;
+}
+
+export interface TimelineWorldItem {
+  id: number;
+  name: string;
+  description: string | null;
+  visibility: string;
+  story_count: number;
+  owner_name: string;
+  owner_id: number;
+  created_at: string;
+}
+
+export interface UserProfileResponse {
+  id: number;
+  username: string;
+  story_count: number;
+  world_count: number;
+  follower_count: number;
+  following_count: number;
+  is_following: boolean;
+  created_at: string;
 }
 
 export interface BookmarkResponse {

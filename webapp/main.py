@@ -20,7 +20,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from webapp.api import auth, bookmarks, oauth, public, reports, stories, votes, worlds
+from webapp.api import auth, bookmarks, follows, oauth, public, reports, stories, votes, worlds
 from webapp.models.database import init_db
 
 
@@ -82,6 +82,7 @@ app.include_router(public.router)
 app.include_router(votes.router)
 app.include_router(reports.router)
 app.include_router(bookmarks.router)
+app.include_router(follows.router)
 app.include_router(worlds.router)
 
 
