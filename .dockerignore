@@ -8,6 +8,7 @@
 !generate_story.py
 !generate_audiobook.py
 !story_config.json
+!alembic.ini
 !Dockerfile
 
 # Re-ignore build artifacts within allowed dirs

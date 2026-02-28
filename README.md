@@ -7,6 +7,8 @@ A web app and CLI pipeline for generating children's language learning audiobook
 
 Designed for kids' language learning with support for multiple characters, 35+ languages, emotions, and concurrent group dialogue.
 
+**Live at [www.lingolou.app](https://www.lingolou.app)**
+
 ## Features
 
 - **Web app** with React frontend and FastAPI backend
@@ -82,12 +84,10 @@ make dev    # Starts backend + frontend (Ctrl-C to stop both)
 
 ## Docker Deployment
 
-### Docker Compose (recommended)
-
-The easiest way to run Lingolou in production — includes the app and a Redis instance for persistent task tracking:
+### Docker Compose
 
 ```bash
-# Start app + Redis
+# Start app
 make compose-up
 # or: docker compose up -d
 
@@ -95,17 +95,6 @@ make compose-up
 make compose-down
 # or: docker compose down
 ```
-
-Configure via `.env` file or environment variables (see table below). The compose setup uses Redis for task state so background job progress survives container restarts.
-
-### Run integration tests in Docker
-
-```bash
-make compose-test
-# or: docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
-```
-
-This spins up a Redis container and runs the full backend test suite inside Docker.
 
 ### Standalone Docker
 
@@ -139,75 +128,60 @@ docker run -p 8000:8000 \
   lingolou
 ```
 
-### S3 Storage (optional)
+## Azure Container Apps Deployment
 
-Add these environment variables to use S3-compatible storage for audio files instead of local filesystem:
+The production deployment runs on Azure Container Apps with Azure Blob Storage for audio files, Azure Files for the SQLite database, and a managed TLS certificate.
 
-```bash
--e STORAGE_BACKEND=s3 \
--e S3_BUCKET=lingolou-audio \
--e S3_REGION=us-east-1 \
--e AWS_ACCESS_KEY_ID=... \
--e AWS_SECRET_ACCESS_KEY=...
-```
+### Prerequisites
 
-For Cloudflare R2 or MinIO, also set `S3_ENDPOINT_URL`.
+- Azure CLI (`az`) logged in
+- Azure Container Registry (ACR) with the app image
+- Resource group with storage account
 
-### Azure Container Instances
-
-Deploy the app and Redis as a container group on Azure.
-
-#### 1. Prerequisites
+### 1. Push the image
 
 ```bash
-make az-login    # az login + az acr login -n lingolou
+make az-login      # az login + az acr login
+make docker-push   # Build linux/amd64 and push to ACR
 ```
 
-#### 2. Push the image
-
-```bash
-make docker-push
-```
-
-#### 3. Create `.env.azure`
+### 2. Create `.env.azure`
 
 ```bash
 GOOGLE_CLIENT_ID="your-google-client-id"
 GOOGLE_CLIENT_SECRET="your-google-client-secret"
 ELEVENLABS_API_KEY="your-elevenlabs-key"
 OPENAI_API_KEY="your-openai-key"
-STORAGE_BACKEND="s3"
-S3_BUCKET="your-blob-container"
-S3_ENDPOINT_URL="https://your-account.blob.core.windows.net"
-S3_REGION="us-east-1"
-S3_PREFIX="audio"
-AWS_ACCESS_KEY_ID="your-storage-account-name"
-AWS_SECRET_ACCESS_KEY="your-storage-account-key"
+STORAGE_BACKEND="azure_blob"
+AZURE_SUBSCRIPTION_ID="your-subscription-id"
 SESSION_SECRET_KEY="a-random-string-at-least-32-chars"
-STORAGE_ACCOUNT_NAME="your-storage-account-name"
-STORAGE_ACCOUNT_KEY="your-storage-account-key"
-FRONTEND_URL="https://lingolou.eastus.azurecontainer.io"
-CORS_ORIGINS="https://lingolou.eastus.azurecontainer.io"
+FRONTEND_URL="https://www.your-domain.com"
+CORS_ORIGINS="https://www.your-domain.com"
 ACR_PASSWORD="your-acr-password"
 ```
 
 > `.env.azure` is in `.gitignore` — never commit secrets.
 
-#### 4. Create Azure File Shares
+### 3. Deploy
 
 ```bash
-az storage share-rm create --name lingolou-data --storage-account your-storage-account
-az storage share-rm create --name lingolou-redis --storage-account your-storage-account
+make aca-create    # Render containerapp.yml with secrets and deploy
+make aca-deploy    # Update to latest image
+make aca-logs      # Tail container logs
+make aca-url       # Print the app FQDN
 ```
 
-#### 5. Deploy
+### CI/CD
+
+Pushing a version tag triggers the GitHub Actions pipeline (`.github/workflows/deploy.yml`):
 
 ```bash
-make az-create   # first deploy
-make az-update   # subsequent updates
+make release-patch   # Bumps version, pushes tag → lint + test + build + deploy
+make release-minor
+make release-major
 ```
 
-These commands render `azure.yml` with your secrets into `azure.secret.yml` (gitignored), then deploy via `az container create`.
+The pipeline runs `make all` (format + lint + test) before building and deploying.
 
 ## Environment Variables
 
@@ -217,18 +191,20 @@ These commands render `azure.yml` with your secrets into `azure.secret.yml` (git
 | `OPENAI_API_KEY` | No | - | Platform OpenAI key for free tier |
 | `ELEVENLABS_API_KEY` | No | - | Platform ElevenLabs key for free tier |
 | `DATABASE_URL` | No | `sqlite:///./lingolou.db` | Database connection string |
-| `REDIS_URL` | No | - | Redis URL for persistent task store (e.g. `redis://localhost:6379/0`) |
-| `FRONTEND_URL` | No | `http://localhost:5173` | Frontend URL for share links |
+| `FRONTEND_URL` | No | `http://localhost:5173` | Frontend URL for OAuth redirects and share links |
 | `CORS_ORIGINS` | No | `*` | Comma-separated allowed origins |
 | `PORT` | No | `8000` | Server port |
-| `STORAGE_BACKEND` | No | `local` | `local` or `s3` |
+| `STORAGE_BACKEND` | No | `local` | `local`, `s3`, or `azure_blob` |
 | `S3_BUCKET` | If S3 | - | S3 bucket name |
 | `S3_REGION` | No | `us-east-1` | AWS region |
 | `S3_ENDPOINT_URL` | No | - | Custom S3 endpoint (R2, MinIO) |
 | `AWS_ACCESS_KEY_ID` | If S3 | - | AWS access key |
 | `AWS_SECRET_ACCESS_KEY` | If S3 | - | AWS secret key |
+| `AZURE_STORAGE_ACCOUNT_NAME` | If azure_blob | - | Azure storage account name |
+| `AZURE_STORAGE_CONTAINER` | If azure_blob | - | Azure blob container name |
 | `GOOGLE_CLIENT_ID` | No | - | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | No | - | Google OAuth client secret |
+| `VITE_CONTACT_EMAIL` | No | `lingolou@lingolou.app` | Contact email shown in footer (build-time) |
 
 ## Code Quality
 
@@ -245,7 +221,6 @@ make test            # Backend + frontend tests
 make test-backend    # pytest + coverage
 make test-frontend   # Vitest + coverage
 make test-e2e        # Playwright (requires backend + frontend running)
-make compose-test    # Run backend tests in Docker with Redis
 make test-install    # Install all test dependencies
 ```
 
@@ -255,10 +230,9 @@ Single-container deployment serving both the API and built frontend:
 
 - **Backend**: FastAPI (Python) serving API at `/api/` and static files
 - **Frontend**: React SPA built by Vite, served as static files from the same container
-- **Database**: SQLite (dev) or PostgreSQL (production) via `DATABASE_URL`
-- **Audio Storage**: Local filesystem (default) or S3-compatible object storage
-- **Background Tasks**: In-process FastAPI BackgroundTasks
-- **Task Store**: In-memory (dev) or Redis (production, via `REDIS_URL`) for tracking task progress
+- **Database**: SQLite (dev/production) or PostgreSQL via `DATABASE_URL`
+- **Audio Storage**: Local filesystem (default), S3-compatible, or Azure Blob Storage
+- **Background Tasks**: In-process FastAPI BackgroundTasks with in-memory progress tracking
 
 ## Project Structure
 
@@ -279,8 +253,7 @@ webapp/
 │   ├── auth.py          # JWT creation, password hashing
 │   ├── crypto.py        # API key encryption (Fernet)
 │   ├── generation.py    # Background task logic (story/audio)
-│   ├── task_store.py    # Pluggable task backend (in-memory/Redis)
-│   ├── storage.py       # File storage abstraction (local/S3)
+│   ├── storage.py       # File storage abstraction (local/S3/Azure Blob)
 │   └── oauth.py         # Google OAuth provider config
 ├── tests/               # Backend tests (pytest)
 │   ├── conftest.py      # Shared fixtures
@@ -323,7 +296,9 @@ python test_voice.py list
 
 1. Create a project in [Google Cloud Console](https://console.cloud.google.com/)
 2. Configure OAuth consent screen (External, add `email`/`profile`/`openid` scopes)
-3. Create OAuth client ID (Web application) with redirect URI: `http://localhost:8000/api/auth/oauth/google/callback`
+3. Create OAuth client ID (Web application) with redirect URIs:
+   - Local: `http://localhost:8000/api/auth/oauth/google/callback`
+   - Production: `https://www.lingolou.app/api/auth/oauth/google/callback`
 4. Add credentials to `.env` (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET_KEY`)
 5. Add your Google email as a test user while in "Testing" mode
 

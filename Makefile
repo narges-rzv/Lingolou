@@ -1,6 +1,6 @@
 ACR_IMAGE ?= lingolou.azurecr.io/lingolou-app:latest
 
-.PHONY: test test-backend test-frontend test-e2e test-all test-install install dev lint format all docker-build docker-run docker-run-prod compose-up compose-down compose-test az-login docker-push az-render az-create az-update aca-render aca-create aca-deploy aca-logs aca-url release-patch release-minor release-major
+.PHONY: test test-backend test-frontend test-e2e test-all test-install install dev lint format all docker-build docker-run docker-run-prod compose-up compose-down az-login docker-push aca-render aca-create aca-deploy aca-logs aca-url release-patch release-minor release-major
 
 # Install all dependencies (backend + frontend)
 install:
@@ -52,6 +52,9 @@ test-all: test-backend test-frontend
 # Alias
 test: test-all
 
+# --- Local Docker (for testing) ---
+# NOTE: For production deployments, use the CI/CD pipeline instead (see release-* targets below).
+
 # Build Docker image
 docker-build:
 	docker build -t lingolou .
@@ -68,16 +71,16 @@ docker-run-prod:
 		-e FRONTEND_URL=$${FRONTEND_URL} \
 		lingolou
 
-# Docker Compose targets
+# Docker Compose (local)
 compose-up:
 	docker compose up -d
 
 compose-down:
 	docker compose down
 
-compose-test:
-	docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
-	docker compose -f docker-compose.test.yml down
+# --- Azure (manual) ---
+# NOTE: The recommended way to deploy is via CI/CD: make release-patch (see below).
+# These targets are for manual intervention only.
 
 # Log in to Azure and ACR
 az-login:
@@ -88,25 +91,11 @@ az-login:
 docker-push:
 	docker buildx build --platform linux/amd64 -t $(ACR_IMAGE) --push .
 
-# Render azure.yml with secrets from .env.azure
-az-render:
-	set -a && source .env.azure && set +a && envsubst < azure.yml > azure.secret.yml
-
-# Deploy a new container group to Azure
-az-create: az-render
-	az container create --resource-group Lingolou --file azure.secret.yml
-
-# Update (same as deploy — ACI upserts)
-az-update: az-render
-	az container create --resource-group Lingolou --file azure.secret.yml
-
-# --- Container Apps (ACA) ---
-
 # Render containerapp.yml with secrets from .env.azure
 aca-render:
 	set -a && source .env.azure && set +a && envsubst < containerapp.yml > containerapp.secret.yml
 
-# Create Container App from YAML
+# Create/update Container App from YAML
 aca-create: aca-render
 	az containerapp create --name lingolou --resource-group Lingolou --yaml containerapp.secret.yml
 
@@ -122,7 +111,8 @@ aca-logs:
 aca-url:
 	@az containerapp show --name lingolou --resource-group Lingolou --query properties.configuration.ingress.fqdn -o tsv
 
-# --- Release (version bump + tag push → triggers CI/CD) ---
+# --- Release (recommended for production) ---
+# Bumps version, pushes tag → triggers CI/CD pipeline (lint, test, build, deploy)
 
 release-patch:
 	bump-my-version bump patch

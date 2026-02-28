@@ -13,6 +13,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY webapp/ webapp/
+COPY alembic.ini .
 COPY --from=frontend /app/webapp/static/frontend/ webapp/static/frontend/
 COPY generate_story.py generate_audiobook.py ./
 COPY story_config.json ./

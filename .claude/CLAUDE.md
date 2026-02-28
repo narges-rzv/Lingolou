@@ -36,6 +36,12 @@ make lint            # ruff check + ruff format --check + mypy
 make format          # ruff check --fix + ruff format
 make all             # lint then test (pre-commit check)
 
+# Database migrations (Alembic)
+PYTHONPATH=. alembic revision --autogenerate -m "description"  # Generate migration
+PYTHONPATH=. alembic upgrade head                               # Apply all migrations
+PYTHONPATH=. alembic downgrade -1                               # Rollback last migration
+PYTHONPATH=. alembic history                                    # Show migration history
+
 # CLI tools
 python generate_story.py -o stories/s1
 python generate_audiobook.py stories/s1 --voices voices_config.json
@@ -129,7 +135,7 @@ Key models in `webapp/models/database.py`:
 - **Report**: user_id, story_id, reason, status
 - **PlatformBudget**: monthly_limit, amount_used (community free tier pool)
 
-Note: SQLite is used locally. Schema changes require deleting `lingolou.db` (SQLAlchemy `create_all` won't alter existing tables).
+Schema changes are managed via **Alembic migrations** (see "When Making Changes" below).
 
 ## Environment Variables
 
@@ -164,11 +170,12 @@ make all             # lint + test (pre-commit check)
 - **Frontend tests**: `frontend/src/test/` — Vitest + React Testing Library + MSW v2 for network mocking
 - **E2E tests**: `frontend/src/e2e/` — Playwright (chromium)
 - **Shared test utils**: `frontend/src/test/test-utils.tsx` wraps components in all providers (Router, Auth, Language)
+- **Coverage rule**: Test coverage must not decrease — new features require new tests, `make test` must pass before committing
 
 ## Gotchas
 
 - **OAuth-only users** have `hashed_password=None` — `authenticate_user()` guards against this
-- **SQLite schema changes** require deleting the `.db` file
+- **Schema changes** use Alembic migrations — never delete `lingolou.db` manually
 - **Background tasks** run in-process; task progress is lost on server restart
 - **CORS** is set to `allow_origins=["*"]` — restrict in production
 - **Session middleware** is required for OAuth state/CSRF (authlib requirement)
@@ -177,7 +184,17 @@ make all             # lint + test (pre-commit check)
 ## When Making Changes
 
 1. **Adding API endpoints**: Create in `webapp/api/`, include router in `main.py`, add tests in `webapp/tests/`
-2. **Adding database columns**: Update model in `database.py`, delete `lingolou.db`
+2. **Adding/changing database columns**: Update model in `database.py`, then run `PYTHONPATH=. alembic revision --autogenerate -m "description"`, review the generated migration, commit it
 3. **Frontend changes**: Files in `frontend/src/`, hot-reloads with Vite, add tests in `frontend/src/test/`
 4. **New dependencies**: Add to `requirements.txt`
 5. **Always run `make all`** before committing (lint + test)
+
+## Deployment
+
+- **Production** runs on Azure Container Apps at `www.lingolou.app`
+- **CI/CD**: Auto-deployed via GitHub Actions on `v*` tag push (lint → test → build → deploy → ACR cleanup)
+- **Release**: `make release-patch` / `release-minor` / `release-major` bumps version, pushes tag, triggers pipeline
+- **Manual targets**: `make az-login`, `make docker-push`, `make aca-create`, `make aca-deploy`, `make aca-logs`, `make aca-url`
+- **Infrastructure**: ACR registry `lingolou.azurecr.io`, Container App `lingolou` in resource group `Lingolou`
+- **Database**: SQLite on Azure Files (SMB) with `unix-none` VFS, single replica
+- **Migrations**: Applied automatically on startup via `init_db()` → `alembic upgrade head`. First deploy on existing DB auto-stamps `head`

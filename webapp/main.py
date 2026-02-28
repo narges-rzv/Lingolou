@@ -96,9 +96,15 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 
 # Health check
 @app.get("/health")
-async def health_check() -> dict[str, str]:
+async def health_check() -> dict[str, str | None]:
     """Health check endpoint."""
-    return {"status": "healthy"}
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    alembic_cfg = Config(str(Path(__file__).parent.parent / "alembic.ini"))
+    script = ScriptDirectory.from_config(alembic_cfg)
+    head = script.get_current_head()
+    return {"status": "healthy", "version": app.version, "migration": head}
 
 
 # Root endpoint — serve SPA if built, otherwise API info

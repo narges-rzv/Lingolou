@@ -625,31 +625,37 @@ def _seed_elara_and_arion_world(db: Session) -> None:
     db.commit()
 
 
-def _run_migrations() -> None:
-    """Add missing columns to existing tables (lightweight schema migration)."""
+def init_db() -> None:
+    """Initialize the database tables via Alembic and seed data."""
+    import logging
+    from pathlib import Path
+
     import sqlalchemy
+    from alembic import command
+    from alembic.config import Config
+
+    logger = logging.getLogger(__name__)
+
+    alembic_cfg = Config(str(Path(__file__).resolve().parent.parent.parent / "alembic.ini"))
 
     inspector = sqlalchemy.inspect(engine)
+    existing_tables = inspector.get_table_names()
+    has_app_tables = "users" in existing_tables
 
-    # Map of (table_name, column_name) -> ALTER TABLE SQL
-    migrations: list[tuple[str, str, str]] = [
-        ("users", "free_audio_used", "ALTER TABLE users ADD COLUMN free_audio_used INTEGER DEFAULT 0"),
-        ("users", "last_followers_seen_at", "ALTER TABLE users ADD COLUMN last_followers_seen_at DATETIME"),
-    ]
+    # Check if Alembic is tracking this DB (has a stamped revision)
+    has_alembic_stamp = False
+    if "alembic_version" in existing_tables:
+        with engine.connect() as conn:
+            result = conn.execute(sqlalchemy.text("SELECT version_num FROM alembic_version"))
+            has_alembic_stamp = result.first() is not None
 
-    with engine.connect() as conn:
-        for table, column, sql in migrations:
-            if table in inspector.get_table_names():
-                existing = {c["name"] for c in inspector.get_columns(table)}
-                if column not in existing:
-                    conn.execute(sqlalchemy.text(sql))
-                    conn.commit()
-
-
-def init_db() -> None:
-    """Initialize the database tables and seed platform budget + built-in worlds."""
-    Base.metadata.create_all(bind=engine)
-    _run_migrations()
+    if has_app_tables and not has_alembic_stamp:
+        # Existing DB without Alembic tracking — stamp as current
+        logger.info("Existing database detected without alembic tracking — stamping head")
+        command.stamp(alembic_cfg, "head")
+    else:
+        # Fresh DB or already tracked — run migrations
+        command.upgrade(alembic_cfg, "head")
     db = SessionLocal()
     try:
         if not db.query(PlatformBudget).first():
