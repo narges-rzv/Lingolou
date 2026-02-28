@@ -1,14 +1,20 @@
-.git
-.env
-node_modules
-__pycache__
-*.pyc
-.pytest_cache
-htmlcov
+# Ignore everything by default
+*
+
+# Allow only what the Dockerfile needs
+!frontend/
+!webapp/
+!requirements.txt
+!generate_story.py
+!generate_audiobook.py
+!story_config.json
+!Dockerfile
+
+# Re-ignore build artifacts within allowed dirs
 frontend/node_modules
 frontend/dist
 webapp/static/audio
 webapp/static/frontend
-lingolou.db
-stories/
-.claude/
+webapp/tests
+**/__pycache__
+**/*.pyc
