@@ -107,13 +107,6 @@ async def health_check() -> dict[str, str | None]:
     return {"status": "healthy", "version": app.version, "alembic_head": head}
 
 
-# Favicon
-@app.get("/favicon.svg", response_model=None)
-async def favicon() -> FileResponse:
-    """Serve the favicon."""
-    return FileResponse(str(Path(__file__).parent / "static" / "frontend" / "favicon.svg"), media_type="image/svg+xml")
-
-
 # Root endpoint — serve SPA if built, otherwise API info
 @app.get("/", response_model=None)
 async def root() -> FileResponse | dict[str, str]:
@@ -130,6 +123,10 @@ async def serve_spa(request: Request, full_path: str) -> FileResponse | JSONResp
     """Catch-all route to serve SPA for non-API paths."""
     if full_path.startswith("api/"):
         return JSONResponse({"detail": "Not found"}, status_code=404)
+    # Serve static files from the frontend build directory if they exist
+    static_file = Path(__file__).parent / "static" / "frontend" / full_path
+    if static_file.is_file():
+        return FileResponse(str(static_file))
     index = Path(__file__).parent / "static" / "frontend" / "index.html"
     if index.exists():
         return FileResponse(str(index))
