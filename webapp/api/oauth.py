@@ -96,6 +96,10 @@ async def google_login(request: Request) -> RedirectResponse:
     # what's registered in Google Console (avoids 127.0.0.1 vs localhost mismatch)
     redirect_uri = str(request.url_for("google_callback"))
     redirect_uri = redirect_uri.replace("://127.0.0.1:", "://localhost:")
+    # Behind a reverse proxy (e.g. Azure Container Apps), the app sees http://
+    # but the proxy terminates TLS — force https when FRONTEND_URL uses it
+    if FRONTEND_URL.startswith("https://"):
+        redirect_uri = redirect_uri.replace("http://", "https://", 1)
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 

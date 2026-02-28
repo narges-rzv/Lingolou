@@ -108,7 +108,7 @@ aca-render:
 
 # Create Container App from YAML
 aca-create: aca-render
-	az containerapp create --resource-group Lingolou --yaml containerapp.secret.yml
+	az containerapp create --name lingolou --resource-group Lingolou --yaml containerapp.secret.yml
 
 # Deploy new image to Container App
 aca-deploy:

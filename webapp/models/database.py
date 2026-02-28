@@ -5,6 +5,7 @@ Database models and setup for Lingolou webapp.
 from __future__ import annotations
 
 import os
+import sqlite3
 from collections.abc import Generator
 from datetime import datetime
 
@@ -19,17 +20,47 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     create_engine,
+    event,
 )
 from sqlalchemy.orm import Session, declarative_base, relationship, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./lingolou.db")
 
-# check_same_thread is only needed for SQLite
-_connect_args: dict[str, bool] = {}
-if DATABASE_URL.startswith("sqlite"):
-    _connect_args["check_same_thread"] = False
+_engine_kwargs: dict[str, object] = {}
 
-engine = create_engine(DATABASE_URL, connect_args=_connect_args)
+if DATABASE_URL.startswith("sqlite"):
+    # Extract the file path from the SQLAlchemy URL
+    _db_path = DATABASE_URL.replace("sqlite:///", "", 1)
+
+    def _sqlite_creator() -> sqlite3.Connection:
+        """Create a SQLite connection with unix-none VFS (no file locking).
+
+        Safe because we run a single replica (maxReplicas=1). Avoids POSIX
+        locking which fails on network filesystems like Azure Files (SMB).
+        """
+        return sqlite3.connect(
+            f"file:{_db_path}?vfs=unix-none",
+            uri=True,
+            check_same_thread=False,
+        )
+
+    _engine_kwargs["creator"] = _sqlite_creator
+    _engine_kwargs["poolclass"] = StaticPool
+    engine = create_engine("sqlite://", **_engine_kwargs)
+else:
+    engine = create_engine(DATABASE_URL)
+
+if DATABASE_URL.startswith("sqlite"):
+
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_pragma(dbapi_conn, _connection_record):  # noqa: ANN001, ANN202
+        """Configure SQLite for network filesystem compatibility."""
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA journal_mode=DELETE")  # WAL not supported on SMB
+        cursor.close()
+
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

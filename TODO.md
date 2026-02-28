@@ -1,14 +1,16 @@
 # TODO
 
 ## Deployment
-- [ ] Move from ACI to Azure Container Apps
-- [ ] Enable Azure Blob Storage for audio files (azure-storage-blob SDK)
+- [x] Move from ACI to Azure Container Apps
+- [x] Enable Azure Blob Storage for audio files (azure-storage-blob SDK)
+- [x] Set up HTTPS (Container Apps provides TLS automatically)
 - [ ] Re-enable Redis for task store (needs proper volume support)
-- [ ] Set up HTTPS (requires custom domain first)
+- [ ] Decommission old ACI deployment (`az container delete -g Lingolou -n lingolou`)
 
 ## CI/CD
-- [ ] Set up CI pipeline triggered by git tags
-- [ ] Switch Docker image labeling from `latest` to versioned tags (auto bump)
+- [x] Set up CI pipeline triggered by git tags (`.github/workflows/deploy.yml`)
+- [x] Switch Docker image labeling from `latest` to versioned tags (`bump-my-version`)
+- [x] Set GitHub Actions secrets
 - [ ] Auto-delete old container images from ACR
 
 ## UX

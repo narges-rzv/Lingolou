@@ -1,4 +1,21 @@
-import { useState, type ReactNode } from 'react';
+import { useState, useMemo, type ReactNode } from 'react';
+
+const CONTACT_EMAIL = import.meta.env.VITE_CONTACT_EMAIL || 'lingolouApp@gmail.com';
+
+/** Render email as separate spans so it doesn't appear as a single scraped string. */
+function ObfuscatedEmail() {
+  const [user, domain] = useMemo(() => CONTACT_EMAIL.split('@'), []);
+  return (
+    <a href={`mailto:${user}\u0040${domain}`} onClick={(e) => {
+      e.preventDefault();
+      window.location.href = `mailto:${user}@${domain}`;
+    }}>
+      <span>{user}</span>
+      <span>{'@'}</span>
+      <span>{domain}</span>
+    </a>
+  );
+}
 
 interface InfoSection {
   label: string;
@@ -115,7 +132,7 @@ const INFO_SECTIONS: Record<string, InfoSection> = {
             GitHub Issues
           </a>
           {' '}or reach out by email at{' '}
-          <a href="mailto:lingolouApp@gmail.com">lingolouApp@gmail.com</a>.
+          <ObfuscatedEmail />.
         </p>
       </>
     ),
