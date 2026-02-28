@@ -107,6 +107,13 @@ async def health_check() -> dict[str, str | None]:
     return {"status": "healthy", "version": app.version, "alembic_head": head}
 
 
+# Favicon
+@app.get("/favicon.svg", response_model=None)
+async def favicon() -> FileResponse:
+    """Serve the favicon."""
+    return FileResponse(str(Path(__file__).parent / "static" / "frontend" / "favicon.svg"), media_type="image/svg+xml")
+
+
 # Root endpoint — serve SPA if built, otherwise API info
 @app.get("/", response_model=None)
 async def root() -> FileResponse | dict[str, str]:
