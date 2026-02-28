@@ -104,7 +104,7 @@ async def health_check() -> dict[str, str | None]:
     alembic_cfg = Config(str(Path(__file__).parent.parent / "alembic.ini"))
     script = ScriptDirectory.from_config(alembic_cfg)
     head = script.get_current_head()
-    return {"status": "healthy", "version": app.version, "migration": head}
+    return {"status": "healthy", "version": app.version, "alembic_head": head}
 
 
 # Root endpoint — serve SPA if built, otherwise API info
