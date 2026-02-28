@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiFetch } from '../api';
-import type { ApiKeysStatus, ApiKeysUpdate } from '../types';
+import type { ApiKeysStatus, ApiKeysUpdate, BlockedUserItem, BlockResponse } from '../types';
 
 export default function Settings() {
   const [openaiKey, setOpenaiKey] = useState('');
@@ -9,12 +9,18 @@ export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUserItem[]>([]);
+  const [blockedLoading, setBlockedLoading] = useState(true);
 
   useEffect(() => {
     apiFetch('/auth/api-keys')
       .then(setStatus)
       .catch(() => {})
       .finally(() => setLoading(false));
+    apiFetch<BlockedUserItem[]>('/blocks/')
+      .then(setBlockedUsers)
+      .catch(() => {})
+      .finally(() => setBlockedLoading(false));
   }, []);
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -57,6 +63,17 @@ export default function Settings() {
       setMessage(`Error: ${(err as Error).message}`);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleUnblock = async (userId: number) => {
+    try {
+      const data = await apiFetch<BlockResponse>(`/blocks/users/${userId}`, { method: 'POST' });
+      if (!data.blocked) {
+        setBlockedUsers((prev) => prev.filter((u) => u.id !== userId));
+      }
+    } catch {
+      // ignore
     }
   };
 
@@ -181,6 +198,38 @@ export default function Settings() {
               </p>
             )}
           </div>
+        )}
+      </section>
+
+      <section className="settings-section">
+        <h2>Blocked Users</h2>
+        {blockedLoading ? (
+          <div className="loading">Loading...</div>
+        ) : blockedUsers.length === 0 ? (
+          <p className="settings-description">You haven't blocked anyone.</p>
+        ) : (
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            {blockedUsers.map((bu) => (
+              <li
+                key={bu.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '0.5rem 0',
+                  borderBottom: '1px solid var(--color-border)',
+                }}
+              >
+                <span>{bu.username}</span>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => handleUnblock(bu.id)}
+                >
+                  Unblock
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
     </div>

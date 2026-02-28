@@ -20,7 +20,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from webapp.api import auth, bookmarks, follows, oauth, public, reports, stories, votes, worlds
+from webapp.api import auth, blocks, bookmarks, follows, oauth, public, reports, stories, votes, worlds
 from webapp.models.database import init_db
 
 
@@ -82,6 +82,7 @@ app.include_router(public.router)
 app.include_router(votes.router)
 app.include_router(reports.router)
 app.include_router(bookmarks.router)
+app.include_router(blocks.router)
 app.include_router(follows.router)
 app.include_router(worlds.router)
 
@@ -114,6 +115,8 @@ async def root() -> FileResponse | dict[str, str]:
 @app.get("/{full_path:path}", response_model=None)
 async def serve_spa(request: Request, full_path: str) -> FileResponse | JSONResponse:
     """Catch-all route to serve SPA for non-API paths."""
+    if full_path.startswith("api/"):
+        return JSONResponse({"detail": "Not found"}, status_code=404)
     index = Path(__file__).parent / "static" / "frontend" / "index.html"
     if index.exists():
         return FileResponse(str(index))

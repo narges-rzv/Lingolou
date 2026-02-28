@@ -143,7 +143,23 @@ export interface UserProfileResponse {
   follower_count: number;
   following_count: number;
   is_following: boolean;
+  is_blocked: boolean;
   created_at: string;
+}
+
+export interface BlockResponse {
+  blocked: boolean;
+}
+
+export interface BlockedUserItem {
+  id: number;
+  username: string;
+  blocked_at: string;
+}
+
+export interface NewFollowersResponse {
+  count: number;
+  followers: FollowUserItem[];
 }
 
 export interface BookmarkResponse {

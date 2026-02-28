@@ -1,6 +1,8 @@
 """Tests for the follows API — follow/unfollow, timeline, user profiles, followers visibility."""
 
-from webapp.models.database import Chapter, Follow, Story, World
+from datetime import UTC, datetime, timedelta
+
+from webapp.models.database import Block, Chapter, Follow, Story, World
 
 
 class TestFollowToggle:
@@ -141,6 +143,69 @@ class TestUserProfile:
         assert resp.status_code == 404
 
 
+class TestUserFollowersList:
+    def test_list_user_followers(self, client, db, test_user, other_user, auth_headers):
+        db.add(Follow(follower_id=test_user.id, following_id=other_user.id))
+        db.commit()
+        resp = client.get(f"/api/follows/users/{other_user.id}/followers", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["username"] == "testuser"
+
+    def test_list_user_following(self, client, db, test_user, other_user, auth_headers):
+        db.add(Follow(follower_id=other_user.id, following_id=test_user.id))
+        db.commit()
+        resp = client.get(f"/api/follows/users/{other_user.id}/following", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["username"] == "testuser"
+
+    def test_list_user_followers_not_found(self, client, test_user, auth_headers):
+        resp = client.get("/api/follows/users/9999/followers", headers=auth_headers)
+        assert resp.status_code == 404
+
+
+class TestNewFollowers:
+    def test_new_followers_all_when_never_seen(self, client, db, test_user, other_user, other_auth_headers):
+        db.add(Follow(follower_id=test_user.id, following_id=other_user.id))
+        db.commit()
+        resp = client.get("/api/follows/new-followers", headers=other_auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["count"] == 1
+        assert data["followers"][0]["username"] == "testuser"
+
+    def test_new_followers_empty_after_seen(self, client, db, test_user, other_user, other_auth_headers):
+        db.add(Follow(follower_id=test_user.id, following_id=other_user.id))
+        db.commit()
+        # Mark as seen
+        resp = client.post("/api/follows/new-followers/seen", headers=other_auth_headers)
+        assert resp.status_code == 200
+        # Now check — should be empty
+        resp = client.get("/api/follows/new-followers", headers=other_auth_headers)
+        assert resp.status_code == 200
+        assert resp.json()["count"] == 0
+
+    def test_new_followers_only_after_seen(self, client, db, test_user, other_user, third_user, other_auth_headers):
+        # Old follow
+        old_follow = Follow(follower_id=test_user.id, following_id=other_user.id)
+        old_follow.created_at = datetime.now(tz=UTC) - timedelta(hours=2)
+        db.add(old_follow)
+        db.commit()
+        # Mark as seen
+        client.post("/api/follows/new-followers/seen", headers=other_auth_headers)
+        # New follow
+        db.add(Follow(follower_id=third_user.id, following_id=other_user.id))
+        db.commit()
+        resp = client.get("/api/follows/new-followers", headers=other_auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["count"] == 1
+        assert data["followers"][0]["username"] == "thirduser"
+
+
 class TestFollowersVisibility:
     def _create_story(self, db, user, *, visibility="followers"):
         story = Story(
@@ -193,4 +258,128 @@ class TestFollowersVisibility:
         db.commit()
         db.refresh(world)
         resp = client.get(f"/api/worlds/{world.id}", headers=third_auth_headers)
+        assert resp.status_code == 404
+
+
+class TestUserStories:
+    def _create_story(self, db, user, *, visibility="public", status="completed"):
+        story = Story(
+            user_id=user.id,
+            title=f"{visibility} story",
+            status=status,
+            visibility=visibility,
+        )
+        db.add(story)
+        db.flush()
+        db.add(Chapter(story_id=story.id, chapter_number=1, status="completed"))
+        db.commit()
+        db.refresh(story)
+        return story
+
+    def test_own_profile_returns_all_stories(self, client, db, test_user, auth_headers):
+        self._create_story(db, test_user, visibility="public")
+        self._create_story(db, test_user, visibility="followers")
+        self._create_story(db, test_user, visibility="private")
+        self._create_story(db, test_user, visibility="public", status="created")
+
+        resp = client.get(f"/api/follows/users/{test_user.id}/stories", headers=auth_headers)
+        assert resp.status_code == 200
+        assert len(resp.json()) == 4
+
+    def test_following_user_returns_public_and_followers(self, client, db, test_user, other_user, auth_headers):
+        db.add(Follow(follower_id=test_user.id, following_id=other_user.id))
+        db.commit()
+        self._create_story(db, other_user, visibility="public")
+        self._create_story(db, other_user, visibility="followers")
+        self._create_story(db, other_user, visibility="private")
+
+        resp = client.get(f"/api/follows/users/{other_user.id}/stories", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 2
+        titles = {s["title"] for s in data}
+        assert "public story" in titles
+        assert "followers story" in titles
+        assert "private story" not in titles
+
+    def test_not_following_returns_public_only(self, client, db, test_user, other_user, auth_headers):
+        self._create_story(db, other_user, visibility="public")
+        self._create_story(db, other_user, visibility="followers")
+        self._create_story(db, other_user, visibility="private")
+
+        resp = client.get(f"/api/follows/users/{other_user.id}/stories", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["title"] == "public story"
+
+    def test_blocked_user_returns_404(self, client, db, test_user, other_user, auth_headers):
+        db.add(Block(blocker_id=other_user.id, blocked_id=test_user.id))
+        db.commit()
+
+        resp = client.get(f"/api/follows/users/{other_user.id}/stories", headers=auth_headers)
+        assert resp.status_code == 404
+
+    def test_nonexistent_user_returns_404(self, client, test_user, auth_headers):
+        resp = client.get("/api/follows/users/9999/stories", headers=auth_headers)
+        assert resp.status_code == 404
+
+
+class TestUserWorlds:
+    def _create_world(self, db, user, *, visibility="public"):
+        world = World(
+            user_id=user.id,
+            name=f"{visibility} world",
+            visibility=visibility,
+        )
+        db.add(world)
+        db.commit()
+        db.refresh(world)
+        return world
+
+    def test_own_profile_returns_all_worlds(self, client, db, test_user, auth_headers):
+        self._create_world(db, test_user, visibility="public")
+        self._create_world(db, test_user, visibility="followers")
+        self._create_world(db, test_user, visibility="private")
+
+        resp = client.get(f"/api/follows/users/{test_user.id}/worlds", headers=auth_headers)
+        assert resp.status_code == 200
+        assert len(resp.json()) == 3
+
+    def test_following_user_returns_public_and_followers_worlds(self, client, db, test_user, other_user, auth_headers):
+        db.add(Follow(follower_id=test_user.id, following_id=other_user.id))
+        db.commit()
+        self._create_world(db, other_user, visibility="public")
+        self._create_world(db, other_user, visibility="followers")
+        self._create_world(db, other_user, visibility="private")
+
+        resp = client.get(f"/api/follows/users/{other_user.id}/worlds", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 2
+        names = {w["name"] for w in data}
+        assert "public world" in names
+        assert "followers world" in names
+        assert "private world" not in names
+
+    def test_not_following_returns_public_worlds_only(self, client, db, test_user, other_user, auth_headers):
+        self._create_world(db, other_user, visibility="public")
+        self._create_world(db, other_user, visibility="followers")
+        self._create_world(db, other_user, visibility="private")
+
+        resp = client.get(f"/api/follows/users/{other_user.id}/worlds", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["name"] == "public world"
+
+    def test_blocked_user_returns_404(self, client, db, test_user, other_user, auth_headers):
+        db.add(Block(blocker_id=test_user.id, blocked_id=other_user.id))
+        db.commit()
+
+        resp = client.get(f"/api/follows/users/{other_user.id}/worlds", headers=auth_headers)
+        assert resp.status_code == 404
+
+    def test_nonexistent_user_returns_404(self, client, test_user, auth_headers):
+        resp = client.get("/api/follows/users/9999/worlds", headers=auth_headers)
         assert resp.status_code == 404

@@ -56,6 +56,9 @@ class User(Base):
     free_stories_used = Column(Integer, default=0)
     free_audio_used = Column(Integer, default=0)
 
+    # New-followers awareness
+    last_followers_seen_at = Column(DateTime, nullable=True)
+
     # Relationships
     stories = relationship("Story", back_populates="owner")
     worlds = relationship("World", back_populates="owner")
@@ -73,6 +76,18 @@ class User(Base):
         "Follow",
         foreign_keys="Follow.following_id",
         backref="followed_user",
+        cascade="all, delete-orphan",
+    )
+    blocks_given = relationship(
+        "Block",
+        foreign_keys="Block.blocker_id",
+        backref="blocker",
+        cascade="all, delete-orphan",
+    )
+    blocks_received = relationship(
+        "Block",
+        foreign_keys="Block.blocked_id",
+        backref="blocked_user",
         cascade="all, delete-orphan",
     )
 
@@ -210,6 +225,18 @@ class Follow(Base):
     id = Column(Integer, primary_key=True, index=True)
     follower_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     following_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Block(Base):
+    """Block relationship between users."""
+
+    __tablename__ = "blocks"
+    __table_args__ = (UniqueConstraint("blocker_id", "blocked_id", name="uq_blocker_blocked"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    blocker_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    blocked_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -576,6 +603,7 @@ def _run_migrations() -> None:
     # Map of (table_name, column_name) -> ALTER TABLE SQL
     migrations: list[tuple[str, str, str]] = [
         ("users", "free_audio_used", "ALTER TABLE users ADD COLUMN free_audio_used INTEGER DEFAULT 0"),
+        ("users", "last_followers_seen_at", "ALTER TABLE users ADD COLUMN last_followers_seen_at DATETIME"),
     ]
 
     with engine.connect() as conn:

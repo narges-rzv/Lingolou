@@ -11,18 +11,24 @@ const INFO_SECTIONS: Record<string, InfoSection> = {
     content: (
       <>
         <p>
-          Lingolou was born from a simple idea: every parent should be able to share bedtime stories
-          with their child in any language, even one they don&apos;t speak themselves.
+          Lingolou is developed by two nerd parents for personal use, and we are letting others use it, starting with our friends. The story of lingolou is that
+	  we want to teach out kids our native languages (Mama speaks Farsi, Papa speaks Gernam, and our household language is English).
+          We realized that our kids remember what they listen to (we have tonies) word by word, They love to listen to the same thing over and over. 
+          so why not have them learn the language as well while listening. For mama it has been really hard to find interesting Farsi content online, and 
+          hence, this mama started to build Lingolou. The code base was vibe coded, so papa acted as a code reviewer and proper engineer to patch up a solid service.
+          We are letting this tool be available online. We are not monitizing it. We primarily want to focus on the community creating content that can be used for all.
+	</p>
+        <p>
+          How this works primarily, is that we allow the user to make a script (with ChatGPT, but you can edit everything). We then use Elevenlabs to 
+	  turn that into speech, with amazing voices. After doing this a few times, we  automated all this, and now you can do it too. 
+	  The stories are generated based on worlds (i.e Winnie the Pooh, or your own kids' worlds, or their favorite shows). Your content can be private.
+	  The default approach is that you generate a story in a world, (you can specify the plot), and the story introduces a character which speaks the target language
+	  of your choice. Throughout the story this new character and the other characters in the world learn aspects of target language. The default prompt is provided
+	  but you can also adjust the prompt.	  
         </p>
         <p>
-          We use AI to generate engaging children&apos;s stories with multilingual dialogue, then
-          convert them to natural-sounding audio using state-of-the-art text-to-speech. The result
-          is a personalized audiobook that introduces your child to a new language through characters
-          and situations they love.
-        </p>
-        <p>
-          Lingolou supports 35+ languages, lets you fully customize your stories, and offers a
-          community library of public stories you can listen to for free.
+          Lingolou supports all languages that elevenLabs support (35+ languages so far). We let you fully customize your stories line by line, prompt by prompt, voice by voice, 
+	  and if you share your conent publicly or to your followed (hopefully we can follow you!!), we will have an increasing number of stories to play for our kids. 
         </p>
       </>
     ),
@@ -33,18 +39,18 @@ const INFO_SECTIONS: Record<string, InfoSection> = {
       <dl className="info-faq-list">
         <dt>Is Lingolou free?</dt>
         <dd>
-          Every account gets 3 free stories using our community pool. After that, you can bring
+          Every account gets 20 free stories and 5 free audio generation with our own funded API keys. After that, you can bring
           your own OpenAI and ElevenLabs API keys to generate unlimited stories at your own cost.
         </dd>
         <dt>What languages are supported?</dt>
         <dd>
           We support 35+ languages including Arabic, Mandarin, Spanish, French, Persian, Hindi,
-          Japanese, Korean, and many more. Check the language selector above for the full list.
+          Japanese, Korean, German, and many more. Check the language selector above for the full list.
         </dd>
         <dt>How does story generation work?</dt>
         <dd>
           You describe a story scenario and characters. GPT-4 writes an emotion-tagged script with
-          bilingual dialogue. ElevenLabs then converts each line into natural-sounding speech with
+          bilingual dialogue. You can review and edit everything. ElevenLabs then converts each line into natural-sounding speech with
           the right emotion and accent.
         </dd>
         <dt>Can I edit a story after it&apos;s generated?</dt>
@@ -56,6 +62,13 @@ const INFO_SECTIONS: Record<string, InfoSection> = {
         <dd>
           Your stories are private by default. You can choose to share them in the public library
           if you like. API keys are encrypted at rest and never shared.
+        </dd>
+	<dt>Are there any rules?</dt>
+	<dd>
+	    Yes! (1)have to fully supervise the content and take responsibility for the generated content. We do not take any responsibility about the content.
+	    (2) We don't approve of political/religious/age-inappropriate/audio-aggressive uses of this work whatsoever. Such content will be taken down without 
+	     notice and drastic actions (deletion of account without notice and more) may follow. We allow stories to be "reported", and will moderate them. (3)
+            We have released the github repo for this package. 
         </dd>
       </dl>
     ),
@@ -73,6 +86,7 @@ const INFO_SECTIONS: Record<string, InfoSection> = {
             target="_blank"
             rel="noopener noreferrer"
             className="info-github-link"
+
           >
             github.com/narges-rzv/Lingolou
           </a>
@@ -101,7 +115,7 @@ const INFO_SECTIONS: Record<string, InfoSection> = {
             GitHub Issues
           </a>
           {' '}or reach out by email at{' '}
-          <a href="mailto:hello@lingolou.com">hello@lingolou.com</a>.
+          <a href="mailto:lingolouApp@gmail.com">lingolouApp@gmail.com</a>.
         </p>
       </>
     ),

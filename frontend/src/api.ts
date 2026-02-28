@@ -7,6 +7,14 @@ interface ApiFetchOptions extends Omit<RequestInit, 'body'> {
   body?: BodyInit;
 }
 
+function parseErrorDetail(err: { detail?: unknown }, fallback: string): string {
+  if (Array.isArray(err.detail)) {
+    return err.detail.map((e: { msg?: string }) => e.msg ?? 'Invalid input').join('. ');
+  }
+  if (typeof err.detail === 'string') return err.detail;
+  return fallback;
+}
+
 export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
   const token = localStorage.getItem('token');
   const headers: Record<string, string> = { ...(options.headers as Record<string, string>) };
@@ -31,7 +39,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || 'Request failed');
+    throw new Error(parseErrorDetail(err, 'Request failed'));
   }
 
   if (res.status === 204) return null as T;
@@ -51,7 +59,7 @@ export async function publicApiFetch<T>(path: string, options: ApiFetchOptions =
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || 'Request failed');
+    throw new Error(parseErrorDetail(err, 'Request failed'));
   }
 
   if (res.status === 204) return null as T;
@@ -68,7 +76,7 @@ export async function loginRequest(username: string, password: string): Promise<
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || 'Login failed');
+    throw new Error(parseErrorDetail(err, 'Login failed'));
   }
 
   return res.json() as Promise<LoginResponse>;
@@ -83,7 +91,7 @@ export async function registerRequest(email: string, username: string, password:
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || 'Registration failed');
+    throw new Error(parseErrorDetail(err, 'Registration failed'));
   }
 
   return res.json();

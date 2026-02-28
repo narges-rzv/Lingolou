@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from webapp.models.database import (
     FREE_STORIES_PER_USER,
+    Block,
     Bookmark,
     Chapter,
     Follow,
@@ -114,6 +115,19 @@ async def get_public_story(
 
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
+
+    # Block enforcement: hide story if viewer and owner have a block relationship
+    if current_user and current_user.id != story.user_id:
+        block_exists = (
+            db.query(Block)
+            .filter(
+                ((Block.blocker_id == current_user.id) & (Block.blocked_id == story.user_id))
+                | ((Block.blocker_id == story.user_id) & (Block.blocked_id == current_user.id))
+            )
+            .first()
+        )
+        if block_exists:
+            raise HTTPException(status_code=404, detail="Story not found")
 
     # Followers-visibility stories require the viewer to be a follower
     if story.visibility == "followers":

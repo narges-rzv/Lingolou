@@ -25,8 +25,8 @@ describe('UserProfile', () => {
       expect(screen.getByText('otheruser')).toBeInTheDocument()
     })
 
-    expect(screen.getByText('5')).toBeInTheDocument() // story_count
-    expect(screen.getByText('10')).toBeInTheDocument() // follower_count
+    expect(screen.getByText(/5 stories/)).toBeInTheDocument()
+    expect(screen.getByText(/10 followers/)).toBeInTheDocument()
   })
 
   it('shows follow button for other users', async () => {
@@ -49,6 +49,40 @@ describe('UserProfile', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Following')).toBeInTheDocument()
+    })
+  })
+
+  it('shows block button', async () => {
+    render(<UserProfile />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Block')).toBeInTheDocument()
+    })
+  })
+
+  it('renders stories tab by default with story cards', async () => {
+    render(<UserProfile />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Profile Story')).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole('button', { name: 'Stories' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Worlds' })).toBeInTheDocument()
+  })
+
+  it('switches to worlds tab and shows worlds', async () => {
+    const user = userEvent.setup()
+    render(<UserProfile />)
+
+    await waitFor(() => {
+      expect(screen.getByText('otheruser')).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Worlds' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Profile World')).toBeInTheDocument()
     })
   })
 })

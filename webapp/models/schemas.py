@@ -186,7 +186,29 @@ class UserProfileResponse(BaseModel):
     follower_count: int = 0
     following_count: int = 0
     is_following: bool = False
+    is_blocked: bool = False
     created_at: datetime
+
+
+class BlockResponse(BaseModel):
+    """Response schema for block toggle."""
+
+    blocked: bool
+
+
+class BlockedUserItem(BaseModel):
+    """Response schema for a user in the blocked list."""
+
+    id: int
+    username: str
+    blocked_at: datetime
+
+
+class NewFollowersResponse(BaseModel):
+    """Response schema for new followers since last seen."""
+
+    count: int
+    followers: list[FollowUserItem]
 
 
 # Generation schemas

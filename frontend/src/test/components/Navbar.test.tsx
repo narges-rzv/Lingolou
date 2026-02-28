@@ -58,4 +58,19 @@ describe('Navbar', () => {
     })
     expect(localStorage.getItem('token')).toBeNull()
   })
+
+  it('shows new followers badge when authenticated', async () => {
+    localStorage.setItem('token', 'valid-token')
+    render(<Navbar />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Followers')).toBeInTheDocument()
+    })
+
+    // Mock handler returns count: 2
+    await waitFor(() => {
+      expect(screen.getByTestId('new-followers-badge')).toBeInTheDocument()
+      expect(screen.getByTestId('new-followers-badge')).toHaveTextContent('2')
+    })
+  })
 })

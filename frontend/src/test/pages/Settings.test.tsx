@@ -79,4 +79,18 @@ describe('Settings', () => {
 
     expect(screen.getByText(/0 \/ 20/)).toBeInTheDocument()
   })
+
+  it('shows blocked users section', async () => {
+    render(<Settings />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Blocked Users')).toBeInTheDocument()
+    })
+
+    // Mock handler returns one blocked user
+    await waitFor(() => {
+      expect(screen.getByText('blockeduser')).toBeInTheDocument()
+      expect(screen.getByText('Unblock')).toBeInTheDocument()
+    })
+  })
 })

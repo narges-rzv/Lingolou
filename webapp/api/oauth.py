@@ -92,8 +92,11 @@ def _redirect_with_error(error: str) -> RedirectResponse:
 @router.get("/google/login")
 async def google_login(request: Request) -> RedirectResponse:
     """Initiate Google OAuth login flow."""
-    redirect_uri = request.url_for("google_callback")
-    return await oauth.google.authorize_redirect(request, str(redirect_uri))
+    # Build redirect URI from request but force the scheme/host to match
+    # what's registered in Google Console (avoids 127.0.0.1 vs localhost mismatch)
+    redirect_uri = str(request.url_for("google_callback"))
+    redirect_uri = redirect_uri.replace("://127.0.0.1:", "://localhost:")
+    return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
 @router.get("/google/callback", name="google_callback")

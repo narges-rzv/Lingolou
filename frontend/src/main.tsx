@@ -18,6 +18,7 @@ import Bookmarks from './pages/Bookmarks';
 import Settings from './pages/Settings';
 import Timeline from './pages/Timeline';
 import UserProfile from './pages/UserProfile';
+import Followers from './pages/Followers';
 import './app.css';
 
 function PrivateRoute({ children }: { children: ReactNode }) {
@@ -51,6 +52,7 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/worlds/:id" element={<PrivateRoute><WorldDetail /></PrivateRoute>} />
             <Route path="/timeline" element={<PrivateRoute><Timeline /></PrivateRoute>} />
             <Route path="/users/:id" element={<PrivateRoute><UserProfile /></PrivateRoute>} />
+            <Route path="/followers" element={<PrivateRoute><Followers /></PrivateRoute>} />
             <Route path="/bookmarks" element={<PrivateRoute><Bookmarks /></PrivateRoute>} />
             <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
           </Route>

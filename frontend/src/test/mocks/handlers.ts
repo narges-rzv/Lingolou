@@ -5,6 +5,7 @@ import type {
   BudgetStatus,
   PublicStoryListItem,
   WorldResponse,
+  WorldListItem,
   BookmarkedStoryListItem,
   StoryResponse,
   VoiceListItem,
@@ -16,6 +17,9 @@ import type {
   TimelineStoryItem,
   TimelineWorldItem,
   UserProfileResponse,
+  BlockResponse,
+  BlockedUserItem,
+  NewFollowersResponse,
 } from '../../types'
 
 const BASE = 'http://localhost:5173/api'
@@ -313,8 +317,82 @@ export const handlers = [
       follower_count: 10,
       following_count: 3,
       is_following: false,
+      is_blocked: false,
       created_at: '2024-01-01T00:00:00',
     } satisfies UserProfileResponse)
+  }),
+
+  http.get(`${BASE}/follows/users/:id/followers`, () => {
+    return HttpResponse.json([
+      { id: 3, username: 'followeruser', story_count: 1, is_following: false },
+    ] satisfies FollowUserItem[])
+  }),
+
+  http.get(`${BASE}/follows/users/:id/following`, () => {
+    return HttpResponse.json([
+      { id: 4, username: 'followinguser', story_count: 2, is_following: true },
+    ] satisfies FollowUserItem[])
+  }),
+
+  http.get(`${BASE}/follows/users/:id/stories`, () => {
+    return HttpResponse.json([
+      {
+        id: 20,
+        title: 'Profile Story',
+        description: 'A story on the profile',
+        language: 'Persian (Farsi)',
+        world_id: null,
+        world_name: null,
+        status: 'completed',
+        chapter_count: 3,
+        upvotes: 2,
+        downvotes: 0,
+        created_at: '2024-06-01T00:00:00',
+        owner_name: 'otheruser',
+        owner_id: 2,
+      },
+    ] satisfies PublicStoryListItem[])
+  }),
+
+  http.get(`${BASE}/follows/users/:id/worlds`, () => {
+    return HttpResponse.json([
+      {
+        id: 10,
+        name: 'Profile World',
+        description: 'A world on the profile',
+        is_builtin: false,
+        visibility: 'public',
+        story_count: 1,
+        owner_name: 'otheruser',
+        created_at: '2024-06-01T00:00:00',
+      },
+    ] satisfies WorldListItem[])
+  }),
+
+  // New followers
+  http.get(`${BASE}/follows/new-followers`, () => {
+    return HttpResponse.json({
+      count: 2,
+      followers: [
+        { id: 5, username: 'newfollower1', story_count: 1, is_following: false },
+        { id: 6, username: 'newfollower2', story_count: 0, is_following: false },
+      ],
+    } satisfies NewFollowersResponse)
+  }),
+
+  http.post(`${BASE}/follows/new-followers/seen`, () => {
+    return HttpResponse.json({ status: 'ok' })
+  }),
+
+  // Blocks
+  http.post(`${BASE}/blocks/users/:id`, () => {
+    return HttpResponse.json({ blocked: true } satisfies BlockResponse)
+  }),
+
+  http.get(`${BASE}/blocks/`, () => {
+    return HttpResponse.json([
+      { id: 10, username: 'blockeduser', blocked_at: '2024-06-01T00:00:00' },
+    ] satisfies BlockedUserItem[])
   }),
 ]
 
