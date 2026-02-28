@@ -12,6 +12,10 @@ properties:
       targetPort: 8000
       transport: http
       allowInsecure: false
+      customDomains:
+        - name: www.lingolou.app
+          certificateId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/Lingolou/providers/Microsoft.App/managedEnvironments/lingolou-env/managedCertificates/mc-lingolou-env-www-lingolou-app-7818
+          bindingType: SniEnabled
     registries:
       - server: lingolou.azurecr.io
         username: lingolou

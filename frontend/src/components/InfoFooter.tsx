@@ -1,6 +1,6 @@
 import { useState, useMemo, type ReactNode } from 'react';
 
-const CONTACT_EMAIL = import.meta.env.VITE_CONTACT_EMAIL || 'lingolouApp@gmail.com';
+const CONTACT_EMAIL = import.meta.env.VITE_CONTACT_EMAIL || 'lingolou@lingolou.app';
 
 /** Render email as separate spans so it doesn't appear as a single scraped string. */
 function ObfuscatedEmail() {
