@@ -1,8 +1,9 @@
 """
-ETag middleware for GET /api/* JSON responses.
+ETag middleware for all GET responses.
 
 Adds ETag headers and returns 304 Not Modified when the client sends
 a matching If-None-Match header, saving bandwidth on unchanged responses.
+Covers API JSON, index.html, and static assets.
 """
 
 from __future__ import annotations
@@ -15,20 +16,16 @@ from starlette.responses import Response
 
 
 class ETagMiddleware(BaseHTTPMiddleware):
-    """Add ETag / 304 support for GET API JSON responses."""
+    """Add ETag / 304 support for all GET 200 responses."""
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         """Process the request and add ETag if applicable."""
-        if request.method != "GET" or not request.url.path.startswith("/api/"):
+        if request.method != "GET":
             return await call_next(request)
 
         response = await call_next(request)
 
         if response.status_code != 200:
-            return response
-
-        content_type = response.headers.get("content-type", "")
-        if "application/json" not in content_type:
             return response
 
         # Read the streaming response body

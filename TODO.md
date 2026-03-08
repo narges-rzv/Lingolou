@@ -16,7 +16,7 @@
 - [x] CI writes VERSION file from git tag for fast startup
 
 ## Performance
-- [x] ETag middleware for GET /api/* JSON responses (304 Not Modified)
+- [x] ETag middleware for all GET responses including index.html (304 Not Modified)
 - [x] Voices cache — in-memory with 1h TTL, non-blocking startup warm
 - [x] Version-based fast startup — skip Alembic + seeding when version unchanged
 - [x] Embedded Redis in Docker — task state persists across restarts/scale-to-zero
@@ -33,4 +33,4 @@
 
 ## Future Improvements (optional)
 - [ ] PostgreSQL (replace SQLite for production scalability)
-- [ ] Add ETag/Last-Modified for index.html (avoid stale SPA after deploys)
+- [x] Add ETag for index.html (avoid stale SPA after deploys)

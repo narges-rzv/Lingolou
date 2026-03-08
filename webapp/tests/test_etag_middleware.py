@@ -31,10 +31,18 @@ def test_post_not_affected(client, auth_headers):
     assert "etag" not in resp.headers
 
 
-def test_non_api_paths_not_affected(client):
+def test_non_api_paths_get_etag(client):
     resp = client.get("/health")
-    # /health is not under /api/ so no ETag
-    assert "etag" not in resp.headers
+    assert resp.status_code == 200
+    assert "etag" in resp.headers
+
+
+def test_non_api_path_304_on_matching_if_none_match(client):
+    resp = client.get("/health")
+    etag = resp.headers["etag"]
+
+    resp2 = client.get("/health", headers={"if-none-match": etag})
+    assert resp2.status_code == 304
 
 
 def test_non_200_response_not_affected(client, auth_headers):
