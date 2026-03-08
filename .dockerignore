@@ -10,6 +10,10 @@
 !story_config.json
 !alembic.ini
 !Dockerfile
+!entrypoint.sh
+!voices_config.json
+!voices_config.example.json
+!VERSION
 
 # Re-ignore build artifacts within allowed dirs
 frontend/node_modules
