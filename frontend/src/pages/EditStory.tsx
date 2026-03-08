@@ -28,6 +28,7 @@ export default function EditStory() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryMessage, setRetryMessage] = useState<string | null>(null);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -85,6 +86,7 @@ export default function EditStory() {
       });
 
       // Trigger generation
+      setRetryMessage(null);
       const data = await apiFetch(`/stories/${id}/generate`, {
         method: 'POST',
         json: {
@@ -93,7 +95,9 @@ export default function EditStory() {
           num_chapters: numChapters,
           enhance: true,
         },
+        onRetry: () => setRetryMessage('Starting up, please wait...'),
       }) as { task_id: string };
+      setRetryMessage(null);
 
       // Navigate back to detail page with the task ID so it shows progress
       navigate(`/stories/${id}`, { state: { taskId: data.task_id, taskType: 'script' } });
@@ -222,9 +226,10 @@ export default function EditStory() {
           </span>
         </div>
 
+        {retryMessage && <div className="info-message">{retryMessage}</div>}
         <div className="form-actions">
           <button className="btn btn-primary" type="submit" disabled={submitting}>
-            {submitting ? 'Generating...' : story.status === 'created' ? 'Generate Story' : 'Regenerate Story'}
+            {submitting ? (retryMessage || 'Generating...') : story.status === 'created' ? 'Generate Story' : 'Regenerate Story'}
           </button>
           <Link to={`/stories/${id}`} className="btn btn-ghost">Cancel</Link>
         </div>

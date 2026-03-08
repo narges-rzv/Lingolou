@@ -15,6 +15,13 @@ os.environ.setdefault("SESSION_SECRET_KEY", "test-secret-key-at-least-32-charact
 os.environ.pop("OPENAI_API_KEY", None)
 os.environ.pop("ELEVENLABS_API_KEY", None)
 
+# Use a temp path for version file to avoid writing to /app/data in tests
+import tempfile
+
+_test_version_dir = tempfile.mkdtemp()
+os.environ.setdefault("VERSION_FILE_PATH", os.path.join(_test_version_dir, ".version"))
+os.environ.setdefault("VOICES_CONFIG_PATH", os.path.join(_test_version_dir, "voices_config.json"))
+
 from webapp.main import app
 from webapp.models.database import Base, PlatformBudget, User, World, get_db
 from webapp.services.auth import create_access_token, get_password_hash

@@ -124,6 +124,10 @@ def _extract_story_id(task_id: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
+class RedisNotReadyError(Exception):
+    """Raised when Redis is not reachable."""
+
+
 class RedisTaskBackend(TaskBackend):
     """Redis-backed task store — survives restarts, supports multi-instance."""
 
@@ -132,6 +136,13 @@ class RedisTaskBackend(TaskBackend):
         import redis as _redis
 
         self._r: _redis.Redis[str] = _redis.from_url(redis_url, decode_responses=True)
+
+    def ping(self) -> bool:
+        """Check if Redis is reachable."""
+        try:
+            return bool(self._r.ping())
+        except Exception:
+            return False
 
     # -- helpers ----------------------------------------------------------
 
@@ -161,24 +172,34 @@ class RedisTaskBackend(TaskBackend):
         estimated_total_words: int | None = None,
     ) -> None:
         """Create or update a task entry."""
-        key = self._task_key(task_id)
-        data: dict[str, str] = {
-            "task_id": task_id,
-            "status": status,
-            "progress": str(progress),
-            "message": message,
-            "result": json.dumps(result) if result is not None else "",
-            "words_generated": str(words_generated) if words_generated is not None else "",
-            "estimated_total_words": str(estimated_total_words) if estimated_total_words is not None else "",
-            "updated_at": datetime.now(UTC).isoformat(),
-        }
-        self._r.hset(key, mapping=data)  # type: ignore[arg-type]
-        self._r.expire(key, _TASK_TTL_SECONDS)
-        self._register_task(task_id)
+        import redis as _redis
+
+        try:
+            key = self._task_key(task_id)
+            data: dict[str, str] = {
+                "task_id": task_id,
+                "status": status,
+                "progress": str(progress),
+                "message": message,
+                "result": json.dumps(result) if result is not None else "",
+                "words_generated": str(words_generated) if words_generated is not None else "",
+                "estimated_total_words": str(estimated_total_words) if estimated_total_words is not None else "",
+                "updated_at": datetime.now(UTC).isoformat(),
+            }
+            self._r.hset(key, mapping=data)  # type: ignore[arg-type]
+            self._r.expire(key, _TASK_TTL_SECONDS)
+            self._register_task(task_id)
+        except _redis.ConnectionError as exc:
+            raise RedisNotReadyError("Redis not ready") from exc
 
     def get(self, task_id: str) -> dict[str, Any] | None:
         """Return the full task dict, or None if not found."""
-        raw = self._r.hgetall(self._task_key(task_id))
+        import redis as _redis
+
+        try:
+            raw = self._r.hgetall(self._task_key(task_id))
+        except _redis.ConnectionError as exc:
+            raise RedisNotReadyError("Redis not ready") from exc
         if not raw:
             return None
         return self._deserialize(raw)

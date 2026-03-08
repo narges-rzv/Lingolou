@@ -24,6 +24,7 @@ export default function StoryDetail() {
   const [generating, setGenerating] = useState(false);
   const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [autoExpand, setAutoExpand] = useState(0);
+  const [retryMessage, setRetryMessage] = useState<string | null>(null);
 
   const fetchStory = useCallback(async () => {
     try {
@@ -80,6 +81,7 @@ export default function StoryDetail() {
     setShowVoiceModal(false);
     setError(null);
     setGenerating(true);
+    setRetryMessage(null);
     try {
       const data = await apiFetch(`/stories/${id}/generate-audio`, {
         method: 'POST',
@@ -87,10 +89,13 @@ export default function StoryDetail() {
           story_id: Number(id),
           voice_override: Object.keys(voiceOverride).length > 0 ? voiceOverride : null,
         },
+        onRetry: () => setRetryMessage('Starting up, please wait...'),
       }) as { task_id: string };
+      setRetryMessage(null);
       setTaskId(data.task_id);
       setTaskType('audio');
     } catch (err) {
+      setRetryMessage(null);
       setError((err as Error).message);
       setGenerating(false);
     }
@@ -226,6 +231,7 @@ export default function StoryDetail() {
       </div>
 
       {error && <div className="error-message">{error}</div>}
+      {retryMessage && <div className="info-message">{retryMessage}</div>}
 
       {taskId && (
         <TaskProgress

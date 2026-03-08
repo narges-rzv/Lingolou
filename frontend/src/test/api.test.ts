@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { server } from './mocks/server'
 import { http, HttpResponse } from 'msw'
 
-import { apiFetch, publicApiFetch, registerRequest } from '../api'
+import { apiFetch, publicApiFetch, registerRequest, RETRY_CONFIG } from '../api'
 
 describe('apiFetch', () => {
   beforeEach(() => {
@@ -85,6 +85,80 @@ describe('loginRequest', () => {
     expect(body.get('username')).toBe('user')
     expect(body.get('password')).toBe('pass')
     expect(body.toString()).toBe('username=user&password=pass')
+  })
+})
+
+describe('apiFetch 503 retry', () => {
+  const originalBackoff = RETRY_CONFIG.initialBackoffMs
+
+  beforeEach(() => {
+    localStorage.clear()
+    RETRY_CONFIG.initialBackoffMs = 1 // Fast backoff for tests
+  })
+
+  afterEach(() => {
+    RETRY_CONFIG.initialBackoffMs = originalBackoff
+  })
+
+  it('retries on 503 and succeeds', async () => {
+    let callCount = 0
+    server.use(
+      http.get('http://localhost:5173/api/retry-test', () => {
+        callCount++
+        if (callCount <= 2) {
+          return HttpResponse.json({ detail: 'Service starting up' }, { status: 503 })
+        }
+        return HttpResponse.json({ ok: true })
+      })
+    )
+
+    const result = await apiFetch<{ ok: boolean }>('/retry-test')
+    expect(result.ok).toBe(true)
+    expect(callCount).toBe(3)
+  })
+
+  it('gives up after max retries', async () => {
+    server.use(
+      http.get('http://localhost:5173/api/always-503', () => {
+        return HttpResponse.json({ detail: 'Service starting up' }, { status: 503 })
+      })
+    )
+
+    await expect(apiFetch('/always-503')).rejects.toThrow()
+  })
+
+  it('does not retry non-503 errors', async () => {
+    let callCount = 0
+    server.use(
+      http.get('http://localhost:5173/api/bad-request', () => {
+        callCount++
+        return HttpResponse.json({ detail: 'Bad request' }, { status: 400 })
+      })
+    )
+
+    await expect(apiFetch('/bad-request')).rejects.toThrow('Bad request')
+    expect(callCount).toBe(1)
+  })
+
+  it('calls onRetry callback with attempt number', async () => {
+    let callCount = 0
+    const retryAttempts: number[] = []
+
+    server.use(
+      http.get('http://localhost:5173/api/retry-callback', () => {
+        callCount++
+        if (callCount <= 2) {
+          return HttpResponse.json({ detail: 'Starting up' }, { status: 503 })
+        }
+        return HttpResponse.json({ ok: true })
+      })
+    )
+
+    await apiFetch<{ ok: boolean }>('/retry-callback', {
+      onRetry: (attempt) => retryAttempts.push(attempt),
+    })
+
+    expect(retryAttempts).toEqual([1, 2])
   })
 })
 

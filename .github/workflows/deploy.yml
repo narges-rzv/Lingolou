@@ -37,6 +37,9 @@ jobs:
         id: version
         run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
+      - name: Write VERSION file for Docker image
+        run: echo "${{ steps.version.outputs.tag }}" > VERSION
+
       - name: Log in to Azure
         uses: azure/login@v2
         with:

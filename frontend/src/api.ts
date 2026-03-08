@@ -1,10 +1,15 @@
 import type { LoginResponse } from './types';
 
 const API_BASE = '/api';
+export const RETRY_CONFIG = {
+  maxRetries: 5,
+  initialBackoffMs: 1000,
+};
 
 interface ApiFetchOptions extends Omit<RequestInit, 'body'> {
   json?: unknown;
   body?: BodyInit;
+  onRetry?: (attempt: number) => void;
 }
 
 function parseErrorDetail(err: { detail?: unknown }, fallback: string): string {
@@ -15,6 +20,10 @@ function parseErrorDetail(err: { detail?: unknown }, fallback: string): string {
   return fallback;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
   const token = localStorage.getItem('token');
   const headers: Record<string, string> = { ...(options.headers as Record<string, string>) };
@@ -23,27 +32,42 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
     headers['Authorization'] = `Bearer ${token}`;
   }
 
+  // Prepare body from json option (only once, before retry loop)
+  let body: BodyInit | undefined = options.body;
   if (options.json !== undefined) {
     headers['Content-Type'] = 'application/json';
-    options.body = JSON.stringify(options.json);
-    delete options.json;
+    body = JSON.stringify(options.json);
   }
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const { json: _json, onRetry, ...fetchOptions } = options;
 
-  if (res.status === 401) {
-    localStorage.removeItem('token');
-    window.location.href = '/login';
-    throw new Error('Unauthorized');
+  for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
+    const res = await fetch(`${API_BASE}${path}`, { ...fetchOptions, headers, body });
+
+    if (res.status === 503 && attempt < RETRY_CONFIG.maxRetries) {
+      const backoff = RETRY_CONFIG.initialBackoffMs * Math.pow(2, attempt);
+      onRetry?.(attempt + 1);
+      await sleep(backoff);
+      continue;
+    }
+
+    if (res.status === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+      throw new Error('Unauthorized');
+    }
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(parseErrorDetail(err, 'Request failed'));
+    }
+
+    if (res.status === 204) return null as T;
+    return res.json() as Promise<T>;
   }
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(parseErrorDetail(err, 'Request failed'));
-  }
-
-  if (res.status === 204) return null as T;
-  return res.json() as Promise<T>;
+  // Should not reach here, but satisfy TypeScript
+  throw new Error('Request failed after retries');
 }
 
 export async function publicApiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {

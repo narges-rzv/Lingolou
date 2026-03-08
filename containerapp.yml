@@ -61,6 +61,14 @@ properties:
             value: lingoloudisk
           - name: AZURE_STORAGE_CONTAINER
             value: audio
+          - name: REDIS_URL
+            value: redis://localhost:6379
+          - name: VOICES_CONFIG_PATH
+            value: /app/data/voices_config.json
+          - name: VERSION_FILE_PATH
+            value: /app/data/.version
+          - name: REDIS_DATA_DIR
+            value: /app/data/redis
         probes:
           - type: Liveness
             httpGet:

@@ -152,6 +152,10 @@ Optional:
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 FRONTEND_URL=http://localhost:5173
+REDIS_URL=                            # redis://localhost:6379 in production (embedded)
+VOICES_CONFIG_PATH=                   # default: ./data/voices_config.json
+VERSION_FILE_PATH=                    # default: ./data/.version
+REDIS_DATA_DIR=                       # default: ./data/redis
 ```
 
 ## Testing

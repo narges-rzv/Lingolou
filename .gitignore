@@ -47,3 +47,9 @@ frontend/test-results/
 
 # Generated stories
 stories/
+
+# Local data directory (version file, voices config, redis)
+data/
+
+# CI-generated version file
+VERSION

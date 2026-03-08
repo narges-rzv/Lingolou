@@ -625,6 +625,66 @@ def _seed_elara_and_arion_world(db: Session) -> None:
     db.commit()
 
 
+def _get_app_version() -> str:
+    """Read the app version from the VERSION file (written by CI/CD pipeline).
+
+    Falls back to pyproject.toml for local development.
+    """
+    from pathlib import Path
+
+    # Prefer VERSION file (written by CI pipeline, copied into Docker image)
+    version_file = Path(__file__).resolve().parent.parent.parent / "VERSION"
+    if version_file.exists():
+        return version_file.read_text().strip()
+
+    # Fallback: parse pyproject.toml for local dev
+    pyproject = Path(__file__).resolve().parent.parent.parent / "pyproject.toml"
+    if pyproject.exists():
+        for line in pyproject.read_text().splitlines():
+            if line.strip().startswith("version") and "=" in line:
+                return line.split("=", 1)[1].strip().strip('"')
+    return "unknown"
+
+
+def _read_version_file() -> str | None:
+    """Read the stored version from the version file."""
+    version_path = os.getenv("VERSION_FILE_PATH", "./data/.version")
+    try:
+        with open(version_path) as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return None
+
+
+def _write_version_file(version: str) -> None:
+    """Write the current version to the version file."""
+    from pathlib import Path
+
+    version_path = os.getenv("VERSION_FILE_PATH", "./data/.version")
+    path = Path(version_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(version)
+
+
+def _copy_bundled_voices_config() -> None:
+    """Copy bundled voices_config.json to the data directory if missing."""
+    import logging
+    import shutil
+    from pathlib import Path
+
+    logger = logging.getLogger(__name__)
+    target = Path(os.getenv("VOICES_CONFIG_PATH", "./data/voices_config.json"))
+    if target.exists():
+        return
+
+    # Look for bundled default next to the app root
+    bundled = Path(__file__).resolve().parent.parent.parent / "voices_config.json"
+    if bundled.exists():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(str(bundled), str(target))
+        logger.info("Copied default voices_config.json to %s", target)
+
+
 def init_db() -> None:
     """Initialize the database tables via Alembic and seed data."""
     import logging
@@ -636,38 +696,56 @@ def init_db() -> None:
 
     logger = logging.getLogger(__name__)
 
-    alembic_cfg = Config(str(Path(__file__).resolve().parent.parent.parent / "alembic.ini"))
+    current_version = _get_app_version()
+    stored_version = _read_version_file()
+    skip_migrations = current_version != "unknown" and current_version == stored_version
 
-    inspector = sqlalchemy.inspect(engine)
-    existing_tables = inspector.get_table_names()
-    has_app_tables = "users" in existing_tables
-
-    # Check if Alembic is tracking this DB (has a stamped revision)
-    has_alembic_stamp = False
-    if "alembic_version" in existing_tables:
-        with engine.connect() as conn:
-            result = conn.execute(sqlalchemy.text("SELECT version_num FROM alembic_version"))
-            has_alembic_stamp = result.first() is not None
-
-    if has_app_tables and not has_alembic_stamp:
-        # Existing DB without Alembic tracking — stamp as current
-        logger.info("Existing database detected without alembic tracking — stamping head")
-        command.stamp(alembic_cfg, "head")
+    if skip_migrations:
+        logger.info("Version unchanged (%s), skipping migrations and seeding", current_version)
     else:
-        # Fresh DB or already tracked — run migrations
-        command.upgrade(alembic_cfg, "head")
+        alembic_cfg = Config(str(Path(__file__).resolve().parent.parent.parent / "alembic.ini"))
+
+        inspector = sqlalchemy.inspect(engine)
+        existing_tables = inspector.get_table_names()
+        has_app_tables = "users" in existing_tables
+
+        # Check if Alembic is tracking this DB (has a stamped revision)
+        has_alembic_stamp = False
+        if "alembic_version" in existing_tables:
+            with engine.connect() as conn:
+                result = conn.execute(sqlalchemy.text("SELECT version_num FROM alembic_version"))
+                has_alembic_stamp = result.first() is not None
+
+        if has_app_tables and not has_alembic_stamp:
+            # Existing DB without Alembic tracking — stamp as current
+            logger.info("Existing database detected without alembic tracking — stamping head")
+            command.stamp(alembic_cfg, "head")
+        else:
+            # Fresh DB or already tracked — run migrations
+            command.upgrade(alembic_cfg, "head")
+
     db = SessionLocal()
     try:
+        # Always ensure PlatformBudget exists (cheap check, needed for correctness)
         if not db.query(PlatformBudget).first():
             db.add(PlatformBudget(id=1, total_budget=50.0, total_spent=0.0, free_stories_generated=0))
             db.commit()
-        _seed_paw_patrol_world(db)
-        _seed_winnie_the_pooh_world(db)
-        _seed_bluey_world(db)
-        _seed_peppa_pig_world(db)
-        _seed_elara_and_arion_world(db)
+
+        if not skip_migrations:
+            _seed_paw_patrol_world(db)
+            _seed_winnie_the_pooh_world(db)
+            _seed_bluey_world(db)
+            _seed_peppa_pig_world(db)
+            _seed_elara_and_arion_world(db)
+
+            # Write version file after successful init
+            _write_version_file(current_version)
+            logger.info("Startup complete, version %s written to version file", current_version)
     finally:
         db.close()
+
+    # Copy bundled voices config if missing
+    _copy_bundled_voices_config()
 
 
 def get_db() -> Generator[Session, None, None]:

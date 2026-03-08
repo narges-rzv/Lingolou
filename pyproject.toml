@@ -111,6 +111,7 @@ ignore = [
     "B017",   # Do not assert blind exception — test files catch generic Exception
     "ASYNC210", # Async function with blocking HTTP call
     "ASYNC230", # Async function with blocking file operation
+    "ASYNC240", # Async function with pathlib method — acceptable for local filesystem ops
     "TC001",  # Move application imports into type-checking block — FastAPI needs runtime imports for validation
     "TC002",  # Move third-party imports into type-checking block — FastAPI needs runtime imports for Depends()
     "TC003",  # Move stdlib imports into type-checking block — Pydantic/SQLAlchemy need runtime types

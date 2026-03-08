@@ -13,7 +13,6 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-import requests as http_requests
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Request, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
@@ -66,30 +65,15 @@ async def get_story_defaults(current_user: User = Depends(get_current_active_use
 
 @router.get("/voices")
 async def get_available_voices(current_user: User = Depends(get_current_active_user)) -> list[dict]:
-    """Fetch available voices from ElevenLabs API."""
+    """Fetch available voices from ElevenLabs API (cached, non-blocking)."""
+    from webapp.services.voices_cache import get_voices
+
     api_key = os.environ.get("ELEVENLABS_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="ElevenLabs API key not configured")
 
-    resp = http_requests.get(
-        "https://api.elevenlabs.io/v1/voices",
-        headers={"xi-api-key": api_key},
-        timeout=10,
-    )
-    if resp.status_code != 200:
-        raise HTTPException(status_code=502, detail="Failed to fetch voices from ElevenLabs")
-
-    voices = resp.json().get("voices", [])
-    return [
-        {
-            "voice_id": v["voice_id"],
-            "name": v["name"],
-            "category": v.get("category", ""),
-            "labels": v.get("labels", {}),
-            "preview_url": v.get("preview_url", ""),
-        }
-        for v in voices
-    ]
+    voices = get_voices()
+    return voices
 
 
 @router.get("/", response_model=list[StoryListResponse])
@@ -204,7 +188,7 @@ async def get_voice_config(
             voice_config = json.loads(world.voice_config_json)
 
     if not voice_config:
-        voices_path = Path(__file__).parent.parent.parent / "voices_config.json"
+        voices_path = Path(os.environ.get("VOICES_CONFIG_PATH", "./data/voices_config.json"))
         if voices_path.exists():
             with open(voices_path) as f:
                 raw = json.load(f)

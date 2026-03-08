@@ -238,8 +238,8 @@ def generate_audio(
                 if isinstance(settings, dict) and "voice_id" in settings
             }
         else:
-            # Fall back to voices_config.json from disk
-            voices_path = Path(__file__).parent.parent.parent / "voices_config.json"
+            # Fall back to voices_config.json from disk (env-configurable path)
+            voices_path = Path(os.environ.get("VOICES_CONFIG_PATH", "./data/voices_config.json"))
             if not voices_path.exists():
                 get_task_backend().update(task_id, "failed", 0, "Voice config not found")
                 return

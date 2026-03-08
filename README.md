@@ -62,6 +62,12 @@ SESSION_SECRET_KEY="a-random-string-at-least-32-chars"
 GOOGLE_CLIENT_ID="your-google-client-id"
 GOOGLE_CLIENT_SECRET="your-google-client-secret"
 FRONTEND_URL="http://localhost:5173"
+
+# Performance (optional, defaults work for local dev)
+# REDIS_URL="redis://localhost:6379"
+# VOICES_CONFIG_PATH="/app/data/voices_config.json"
+# VERSION_FILE_PATH="/app/data/.version"
+# REDIS_DATA_DIR="/app/data/redis"
 ```
 
 > `.env` is in `.gitignore` — never commit API keys.
@@ -205,6 +211,10 @@ The pipeline runs `make all` (format + lint + test) before building and deployin
 | `GOOGLE_CLIENT_ID` | No | - | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | No | - | Google OAuth client secret |
 | `VITE_CONTACT_EMAIL` | No | `lingolou@lingolou.app` | Contact email shown in footer (build-time) |
+| `REDIS_URL` | No | _(empty = in-memory)_ | Redis connection URL. Set to `redis://localhost:6379` in production (embedded redis-server) |
+| `VOICES_CONFIG_PATH` | No | `./data/voices_config.json` | Path to ElevenLabs voice config JSON. Auto-copied from bundled default on first startup |
+| `VERSION_FILE_PATH` | No | `./data/.version` | Path to version stamp file for fast startup optimisation |
+| `REDIS_DATA_DIR` | No | `./data/redis` | Directory for Redis RDB persistence |
 
 ## Code Quality
 

@@ -21,6 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from webapp.api import auth, blocks, bookmarks, follows, oauth, public, reports, stories, votes, worlds
+from webapp.middleware.etag import ETagMiddleware
 from webapp.models.database import init_db
 
 
@@ -34,8 +35,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     Returns:
         AsyncGenerator[None, None]: Yields control to the server.
     """
+    import threading
+
+    from webapp.services.voices_cache import warm_cache
+
     # Start Up
     init_db()
+
+    # Warm the voices cache in a daemon thread (non-blocking startup)
+    threading.Thread(target=warm_cache, daemon=True).start()
+
     # Server
     yield
     # Shut Down
@@ -62,6 +71,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ETag middleware for GET /api/* JSON responses (after CORS so headers are present)
+app.add_middleware(ETagMiddleware)
+
 # Mount static files
 static_dir = Path(__file__).parent / "static"
 static_dir.mkdir(exist_ok=True)
@@ -87,10 +99,18 @@ app.include_router(follows.router)
 app.include_router(worlds.router)
 
 
-# Exception handler
+# Redis-not-ready handler — returns 503 with Retry-After so clients can retry
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    """Return JSON 500 response for unhandled exceptions."""
+    """Return JSON error response for unhandled exceptions."""
+    from webapp.services.task_store import RedisNotReadyError
+
+    if isinstance(exc, RedisNotReadyError):
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "Service starting up, please retry"},
+            headers={"Retry-After": "2"},
+        )
     return JSONResponse(status_code=500, content={"detail": str(exc)})
 
 
@@ -101,10 +121,20 @@ async def health_check() -> dict[str, str | None]:
     from alembic.config import Config
     from alembic.script import ScriptDirectory
 
+    from webapp.services.task_store import RedisTaskBackend, get_task_backend
+
     alembic_cfg = Config(str(Path(__file__).parent.parent / "alembic.ini"))
     script = ScriptDirectory.from_config(alembic_cfg)
     head = script.get_current_head()
-    return {"status": "healthy", "version": app.version, "alembic_head": head}
+
+    # Check Redis status
+    backend = get_task_backend()
+    if isinstance(backend, RedisTaskBackend):
+        redis_status = "connected" if backend.ping() else "error"
+    else:
+        redis_status = "not_configured"
+
+    return {"status": "healthy", "version": app.version, "alembic_head": head, "redis": redis_status}
 
 
 # Root endpoint — serve SPA if built, otherwise API info
