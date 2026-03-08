@@ -17,7 +17,6 @@ COPY alembic.ini .
 COPY --from=frontend /app/webapp/static/frontend/ webapp/static/frontend/
 COPY generate_story.py generate_audiobook.py ./
 COPY story_config.json ./
-COPY voices_config.example.json voices_config.json
 COPY VERSION* ./
 COPY entrypoint.sh ./
 RUN chmod +x entrypoint.sh
