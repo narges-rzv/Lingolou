@@ -7,7 +7,7 @@ from webapp.services.mnemonic import decode_slug, encode, generate
 
 
 def test_word_lists_have_256_entries():
-    path = Path(__file__).resolve().parent.parent.parent / "data" / "mnemonic_words.json"
+    path = Path(__file__).resolve().parent.parent / "services" / "mnemonic_words.json"
     with open(path) as f:
         data = json.load(f)
     for key in ["adjectives", "nouns_1", "verbs", "prepositions", "nouns_2"]:
@@ -15,7 +15,7 @@ def test_word_lists_have_256_entries():
 
 
 def test_word_lists_no_duplicates():
-    path = Path(__file__).resolve().parent.parent.parent / "data" / "mnemonic_words.json"
+    path = Path(__file__).resolve().parent.parent / "services" / "mnemonic_words.json"
     with open(path) as f:
         data = json.load(f)
     for key in ["adjectives", "nouns_1", "verbs", "prepositions", "nouns_2"]:
@@ -23,7 +23,7 @@ def test_word_lists_no_duplicates():
 
 
 def test_word_lists_lowercase_alpha():
-    path = Path(__file__).resolve().parent.parent.parent / "data" / "mnemonic_words.json"
+    path = Path(__file__).resolve().parent.parent / "services" / "mnemonic_words.json"
     with open(path) as f:
         data = json.load(f)
     for key in ["adjectives", "nouns_1", "verbs", "prepositions", "nouns_2"]:

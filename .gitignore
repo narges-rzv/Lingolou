@@ -50,7 +50,6 @@ stories/
 
 # Local data directory (version file, voices config, redis)
 data/
-!data/mnemonic_words.json
 
 # CI-generated version file
 VERSION

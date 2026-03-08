@@ -20,7 +20,7 @@ def _load_words() -> dict[str, list[str]]:
     """Load word lists from the bundled JSON file."""
     global _WORD_LISTS  # noqa: PLW0603 — module-level cache
     if _WORD_LISTS is None:
-        path = Path(__file__).resolve().parent.parent.parent / "data" / "mnemonic_words.json"
+        path = Path(__file__).resolve().parent / "mnemonic_words.json"
         with open(path) as f:
             _WORD_LISTS = json.load(f)
         for key in _LIST_KEYS:
