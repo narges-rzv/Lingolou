@@ -120,6 +120,7 @@ export default function StoryDetail() {
   const [downloading, setDownloading] = useState(false);
   const [updatingVisibility, setUpdatingVisibility] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
 
   const handleVisibilityChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newVisibility = e.target.value;
@@ -186,6 +187,20 @@ export default function StoryDetail() {
     } catch (err) {
       setError((err as Error).message);
       setShowDelete(false);
+    }
+  };
+
+  const handleDuplicate = async () => {
+    setDuplicating(true);
+    setError(null);
+    try {
+      const data = await apiFetch(`/stories/${id}/duplicate`, {
+        method: 'POST',
+      }) as StoryResponse;
+      navigate(`/stories/${data.id}`);
+    } catch (err) {
+      setError((err as Error).message);
+      setDuplicating(false);
     }
   };
 
@@ -279,13 +294,13 @@ export default function StoryDetail() {
         >
           {story.status === 'created' ? 'Generate Story' : 'Regenerate Story'}
         </button>
-        {someWithoutAudio && (
+        {hasScripts && canGenerate && (
           <button
             className="btn btn-primary"
             onClick={handleGenerateAllAudio}
             disabled={generating}
           >
-            Generate All Audio
+            {allAudio ? 'Regenerate Audio' : 'Generate All Audio'}
           </button>
         )}
         <div className="visibility-controls">
@@ -306,6 +321,13 @@ export default function StoryDetail() {
             </button>
           )}
         </div>
+        <button
+          className="btn btn-secondary"
+          onClick={handleDuplicate}
+          disabled={duplicating}
+        >
+          {duplicating ? 'Duplicating...' : 'Duplicate Story'}
+        </button>
         <button
           className="btn btn-danger"
           onClick={() => setShowDelete(true)}

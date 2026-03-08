@@ -378,3 +378,82 @@ def test_cancel_task(client, auth_headers):
     resp = client.delete("/api/stories/tasks/cancel_me", headers=auth_headers)
     assert resp.status_code == 200
     assert "cancelled" in resp.json()["message"].lower()
+
+
+def test_duplicate_story(client, auth_headers, db):
+    create_resp = _create_story(client, auth_headers, title="Original Story", description="My story")
+    story_id = create_resp.json()["id"]
+
+    # Add scripts to chapters so duplication copies them
+    story = db.query(Story).filter(Story.id == story_id).first()
+    for ch in story.chapters:
+        ch.script_json = '[{"type": "line", "text": "hello"}]'
+        ch.enhanced_json = '[{"type": "line", "text": "hello", "emotion": "happy"}]'
+        ch.status = "completed"
+    db.commit()
+
+    resp = client.post(f"/api/stories/{story_id}/duplicate", headers=auth_headers)
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["title"] == "Copy of Original Story"
+    assert data["description"] == "My story"
+    assert data["visibility"] == "private"
+    assert data["status"] == "completed"
+    assert data["id"] != story_id
+
+
+def test_duplicate_story_private(client, auth_headers, db):
+    create_resp = _create_story(client, auth_headers)
+    story_id = create_resp.json()["id"]
+
+    # Ensure it's private (default)
+    story = db.query(Story).filter(Story.id == story_id).first()
+    assert story.visibility == "private"
+
+    resp = client.post(f"/api/stories/{story_id}/duplicate", headers=auth_headers)
+    assert resp.status_code == 201
+
+
+def test_duplicate_story_not_found(client, auth_headers):
+    resp = client.post("/api/stories/999/duplicate", headers=auth_headers)
+    assert resp.status_code == 404
+
+
+def test_duplicate_story_not_owner(client, auth_headers, other_auth_headers):
+    create_resp = _create_story(client, other_auth_headers)
+    story_id = create_resp.json()["id"]
+
+    resp = client.post(f"/api/stories/{story_id}/duplicate", headers=auth_headers)
+    assert resp.status_code == 404
+
+
+def test_duplicate_story_chapters_copied(client, auth_headers, db):
+    create_resp = _create_story(client, auth_headers, num_chapters=3)
+    story_id = create_resp.json()["id"]
+
+    story = db.query(Story).filter(Story.id == story_id).first()
+    for ch in story.chapters:
+        ch.script_json = f'[{{"chapter": {ch.chapter_number}}}]'
+        ch.enhanced_json = f'[{{"chapter": {ch.chapter_number}, "enhanced": true}}]'
+        ch.status = "completed"
+        ch.audio_path = f"/audio/ch{ch.chapter_number}.mp3"
+        ch.audio_duration = 60.0
+    db.commit()
+
+    resp = client.post(f"/api/stories/{story_id}/duplicate", headers=auth_headers)
+    assert resp.status_code == 201
+    data = resp.json()
+    assert len(data["chapters"]) == 3
+
+    for ch in data["chapters"]:
+        assert ch["status"] == "completed"
+        assert ch["audio_path"] is None
+
+    # Verify scripts were copied in the DB (not in API response schema)
+    from webapp.models.database import Chapter
+
+    new_chapters = db.query(Chapter).filter(Chapter.story_id == data["id"]).all()
+    for ch in new_chapters:
+        assert ch.script_json is not None
+        assert ch.enhanced_json is not None
+        assert ch.audio_path is None

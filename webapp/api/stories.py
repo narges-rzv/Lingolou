@@ -290,6 +290,56 @@ async def generate_share_link(
     return ShareLinkResponse(share_code=story.share_code, share_url=f"{frontend_url}/share/{story.share_code}")
 
 
+@router.post("/{story_id}/duplicate", response_model=StoryResponse, status_code=201)
+async def duplicate_story(
+    story_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+) -> StoryResponse:
+    """Duplicate a story the current user owns (copies scripts, no audio)."""
+    story = db.query(Story).filter(Story.id == story_id, Story.user_id == current_user.id).first()
+
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    new_story = Story(
+        user_id=current_user.id,
+        title=f"Copy of {story.title}",
+        description=story.description,
+        prompt=story.prompt,
+        language=story.language,
+        world_id=story.world_id,
+        config_json=story.config_json,
+        status="completed" if any(ch.script_json or ch.enhanced_json for ch in story.chapters) else "created",
+        visibility="private",
+        upvotes=0,
+        downvotes=0,
+    )
+    db.add(new_story)
+    db.flush()
+
+    for src_ch in sorted(story.chapters, key=lambda c: c.chapter_number):
+        has_script = src_ch.script_json or src_ch.enhanced_json
+        new_ch = Chapter(
+            story_id=new_story.id,
+            chapter_number=src_ch.chapter_number,
+            title=src_ch.title,
+            script_json=src_ch.script_json,
+            enhanced_json=src_ch.enhanced_json,
+            status="completed" if has_script else "pending",
+            audio_path=None,
+            audio_duration=None,
+        )
+        db.add(new_ch)
+
+    db.commit()
+    db.refresh(new_story)
+
+    response = StoryResponse.model_validate(new_story)
+    response.world_name = new_story.world.name if new_story.world else None
+    return response
+
+
 @router.delete("/{story_id}")
 async def delete_story(
     story_id: int, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)
