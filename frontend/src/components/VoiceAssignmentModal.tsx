@@ -3,7 +3,7 @@ import { apiFetch } from '../api';
 import { VoiceSettings, VoiceListItem, VoiceConfigResponse } from '../types';
 
 interface VoiceAssignmentModalProps {
-  storyId: number;
+  storyId: string;
   onConfirm: (override: Record<string, Record<string, unknown>>) => void;
   onCancel: () => void;
 }

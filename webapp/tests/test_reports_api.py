@@ -1,14 +1,18 @@
 """Tests for webapp/api/reports.py"""
 
 from webapp.models.database import Story
+from webapp.services.mnemonic import generate as generate_mnemonic
 
 
 def _create_public_story(db, user):
+    _pid, _slug = generate_mnemonic()
     story = Story(
         user_id=user.id,
         title="Reportable Story",
         status="completed",
         visibility="public",
+        public_id=_pid,
+        slug=_slug,
     )
     db.add(story)
     db.commit()
@@ -20,7 +24,7 @@ def test_report_story(client, db, test_user, other_user, other_auth_headers):
     story = _create_public_story(db, test_user)
 
     resp = client.post(
-        f"/api/reports/stories/{story.id}",
+        f"/api/reports/stories/{story.slug}",
         json={
             "reason": "This story contains inappropriate content for children",
         },
@@ -34,7 +38,7 @@ def test_report_own_story(client, db, test_user, auth_headers):
     story = _create_public_story(db, test_user)
 
     resp = client.post(
-        f"/api/reports/stories/{story.id}",
+        f"/api/reports/stories/{story.slug}",
         json={
             "reason": "This story is bad and I wrote it",
         },
@@ -48,7 +52,7 @@ def test_report_reason_too_short(client, db, test_user, other_user, other_auth_h
     story = _create_public_story(db, test_user)
 
     resp = client.post(
-        f"/api/reports/stories/{story.id}",
+        f"/api/reports/stories/{story.slug}",
         json={
             "reason": "bad",
         },
@@ -63,7 +67,7 @@ def test_report_already_reported(client, db, test_user, other_user, other_auth_h
 
     # First report
     client.post(
-        f"/api/reports/stories/{story.id}",
+        f"/api/reports/stories/{story.slug}",
         json={
             "reason": "Inappropriate content for children",
         },
@@ -72,7 +76,7 @@ def test_report_already_reported(client, db, test_user, other_user, other_auth_h
 
     # Second report by same user
     resp = client.post(
-        f"/api/reports/stories/{story.id}",
+        f"/api/reports/stories/{story.slug}",
         json={
             "reason": "Still inappropriate content for children",
         },
@@ -83,18 +87,21 @@ def test_report_already_reported(client, db, test_user, other_user, other_auth_h
 
 
 def test_report_private_story(client, db, test_user, other_user, other_auth_headers):
+    _pid, _slug = generate_mnemonic()
     story = Story(
         user_id=test_user.id,
         title="Private Story",
         status="completed",
         visibility="private",
+        public_id=_pid,
+        slug=_slug,
     )
     db.add(story)
     db.commit()
     db.refresh(story)
 
     resp = client.post(
-        f"/api/reports/stories/{story.id}",
+        f"/api/reports/stories/{story.slug}",
         json={
             "reason": "This story should not be visible",
         },

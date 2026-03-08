@@ -1,6 +1,7 @@
 """Tests for the blocks API — block/unblock, block enforcement on follows/timeline/profiles."""
 
 from webapp.models.database import Block, Chapter, Follow, Story
+from webapp.services.mnemonic import generate as generate_mnemonic
 
 
 class TestBlockToggle:
@@ -86,7 +87,15 @@ class TestBlockEnforcement:
     def test_blocked_user_excluded_from_timeline(self, client, db, test_user, other_user, auth_headers):
         db.add(Follow(follower_id=test_user.id, following_id=other_user.id))
         db.commit()
-        story = Story(user_id=other_user.id, title="Blocked story", status="completed", visibility="public")
+        _pid, _slug = generate_mnemonic()
+        story = Story(
+            user_id=other_user.id,
+            title="Blocked story",
+            status="completed",
+            visibility="public",
+            public_id=_pid,
+            slug=_slug,
+        )
         db.add(story)
         db.flush()
         db.add(Chapter(story_id=story.id, chapter_number=1, status="completed"))
@@ -101,10 +110,18 @@ class TestBlockEnforcement:
     def test_blocked_user_story_returns_404(self, client, db, test_user, other_user, auth_headers):
         db.add(Block(blocker_id=test_user.id, blocked_id=other_user.id))
         db.commit()
-        story = Story(user_id=other_user.id, title="Hidden story", status="completed", visibility="public")
+        _pid, _slug = generate_mnemonic()
+        story = Story(
+            user_id=other_user.id,
+            title="Hidden story",
+            status="completed",
+            visibility="public",
+            public_id=_pid,
+            slug=_slug,
+        )
         db.add(story)
         db.flush()
         db.add(Chapter(story_id=story.id, chapter_number=1, status="completed"))
         db.commit()
-        resp = client.get(f"/api/public/stories/{story.id}", headers=auth_headers)
+        resp = client.get(f"/api/public/stories/{story.slug}", headers=auth_headers)
         assert resp.status_code == 404

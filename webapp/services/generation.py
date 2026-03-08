@@ -362,10 +362,10 @@ def generate_audio(
 
                 # Save to storage backend
                 storage_key = f"{story_id}/ch{chapter.chapter_number}.mp3"
-                audio_url = storage.save(storage_key, local_output.read_bytes())
+                storage.save(storage_key, local_output.read_bytes())
                 local_output.unlink(missing_ok=True)
 
-                chapter.audio_path = audio_url
+                chapter.audio_path = storage_key
                 chapter.audio_duration = duration
                 chapter.status = "completed"
                 db.commit()

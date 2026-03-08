@@ -92,7 +92,7 @@ function ScriptEntryComponent({ entry }: ScriptEntryProps) {
 }
 
 interface PublicScriptViewerProps {
-  storyId: number;
+  storyId: string;
   chapterNumber: number;
 }
 

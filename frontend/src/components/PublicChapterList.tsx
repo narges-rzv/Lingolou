@@ -13,7 +13,7 @@ function statusClass(status: string): string {
 
 interface PublicChapterListProps {
   chapters: ChapterResponse[];
-  storyId: number;
+  storyId: string;
 }
 
 export default function PublicChapterList({ chapters, storyId }: PublicChapterListProps) {

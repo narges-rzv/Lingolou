@@ -7,40 +7,37 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from webapp.models.database import Bookmark, Story, User, get_db
+from webapp.models.database import Bookmark, User, get_db
 from webapp.models.schemas import BookmarkedStoryListItem, BookmarkResponse
 from webapp.services.auth import get_current_active_user
+
+from .stories import _get_story_by_identifier
 
 router = APIRouter(prefix="/api/bookmarks", tags=["Bookmarks"])
 
 
 @router.post("/stories/{story_id}", response_model=BookmarkResponse)
 async def toggle_bookmark(
-    story_id: int,
+    story_id: str,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ) -> BookmarkResponse:
     """Toggle bookmark on a public or link-only story."""
-    story = (
-        db.query(Story)
-        .filter(
-            Story.id == story_id,
-            Story.visibility.in_(["public", "link_only"]),
-        )
-        .first()
-    )
+    story = _get_story_by_identifier(db, story_id)
+    if story and story.visibility not in ("public", "link_only"):
+        story = None
 
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
 
-    existing = db.query(Bookmark).filter(Bookmark.story_id == story_id, Bookmark.user_id == current_user.id).first()
+    existing = db.query(Bookmark).filter(Bookmark.story_id == story.id, Bookmark.user_id == current_user.id).first()
 
     if existing:
         db.delete(existing)
         db.commit()
         return BookmarkResponse(bookmarked=False)
 
-    db.add(Bookmark(user_id=current_user.id, story_id=story_id))
+    db.add(Bookmark(user_id=current_user.id, story_id=story.id))
     db.commit()
     return BookmarkResponse(bookmarked=True)
 
@@ -64,7 +61,7 @@ async def list_bookmarked_stories(
 
     return [
         BookmarkedStoryListItem(
-            id=bm.story.id,
+            id=bm.story.slug,
             title=bm.story.title,
             description=bm.story.description,
             language=bm.story.language,

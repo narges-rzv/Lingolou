@@ -325,7 +325,7 @@ async def get_timeline(
 
     return [
         TimelineStoryItem(
-            id=s.id,
+            id=s.slug,
             title=s.title,
             description=s.description,
             language=s.language,
@@ -421,7 +421,7 @@ async def list_user_stories(
 
     return [
         PublicStoryListItem(
-            id=s.id,
+            id=s.slug,
             title=s.title,
             description=s.description,
             language=s.language,

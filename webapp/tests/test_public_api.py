@@ -1,9 +1,11 @@
 """Tests for webapp/api/public.py"""
 
 from webapp.models.database import Chapter, Story, Vote
+from webapp.services.mnemonic import generate as generate_mnemonic
 
 
 def _create_public_story(db, user, title="Public Story", status="completed", visibility="public"):
+    _pid, _slug = generate_mnemonic()
     story = Story(
         user_id=user.id,
         title=title,
@@ -12,6 +14,8 @@ def _create_public_story(db, user, title="Public Story", status="completed", vis
         visibility=visibility,
         language="Persian (Farsi)",
         share_code=f"share-{title.replace(' ', '-').lower()}",
+        public_id=_pid,
+        slug=_slug,
     )
     db.add(story)
     db.commit()
@@ -84,7 +88,7 @@ def test_list_public_stories_language_filter(client, db, test_user):
 def test_get_public_story(client, db, test_user):
     story = _create_public_story(db, test_user)
 
-    resp = client.get(f"/api/public/stories/{story.id}")
+    resp = client.get(f"/api/public/stories/{story.slug}")
     assert resp.status_code == 200
     data = resp.json()
     assert data["title"] == "Public Story"
@@ -99,7 +103,7 @@ def test_get_public_story_with_user_vote(client, db, test_user, other_user, othe
     db.add(Vote(user_id=other_user.id, story_id=story.id, vote_type="up"))
     db.commit()
 
-    resp = client.get(f"/api/public/stories/{story.id}", headers=other_auth_headers)
+    resp = client.get(f"/api/public/stories/{story.slug}", headers=other_auth_headers)
     data = resp.json()
     assert data["user_vote"] == "up"
 
@@ -107,7 +111,7 @@ def test_get_public_story_with_user_vote(client, db, test_user, other_user, othe
 def test_get_private_story_returns_404(client, db, test_user):
     story = _create_public_story(db, test_user, visibility="private")
 
-    resp = client.get(f"/api/public/stories/{story.id}")
+    resp = client.get(f"/api/public/stories/{story.slug}")
     assert resp.status_code == 404
 
 
@@ -129,7 +133,7 @@ def test_fork_public_story(client, db, test_user, other_user, other_auth_headers
     story.prompt = "A story about cats"
     db.commit()
 
-    resp = client.post(f"/api/public/stories/{story.id}/fork", headers=other_auth_headers)
+    resp = client.post(f"/api/public/stories/{story.slug}/fork", headers=other_auth_headers)
     assert resp.status_code == 201
     data = resp.json()
     assert data["title"] == "Copy of Original Story"
@@ -146,18 +150,19 @@ def test_fork_public_story(client, db, test_user, other_user, other_auth_headers
 def test_fork_story_not_public(client, db, test_user, other_auth_headers):
     story = _create_public_story(db, test_user, visibility="private")
 
-    resp = client.post(f"/api/public/stories/{story.id}/fork", headers=other_auth_headers)
+    resp = client.post(f"/api/public/stories/{story.slug}/fork", headers=other_auth_headers)
     assert resp.status_code == 404
 
 
 def test_fork_story_unauthenticated(client, db, test_user):
     story = _create_public_story(db, test_user)
 
-    resp = client.post(f"/api/public/stories/{story.id}/fork")
+    resp = client.post(f"/api/public/stories/{story.slug}/fork")
     assert resp.status_code == 401
 
 
 def test_fork_story_no_chapters(client, db, test_user, other_auth_headers):
+    _pid, _slug = generate_mnemonic()
     story = Story(
         user_id=test_user.id,
         title="Empty Story",
@@ -165,12 +170,14 @@ def test_fork_story_no_chapters(client, db, test_user, other_auth_headers):
         status="completed",
         visibility="public",
         language="Arabic",
+        public_id=_pid,
+        slug=_slug,
     )
     db.add(story)
     db.commit()
     db.refresh(story)
 
-    resp = client.post(f"/api/public/stories/{story.id}/fork", headers=other_auth_headers)
+    resp = client.post(f"/api/public/stories/{story.slug}/fork", headers=other_auth_headers)
     assert resp.status_code == 201
     data = resp.json()
     assert data["title"] == "Copy of Empty Story"

@@ -49,7 +49,7 @@ const mockBudget: BudgetStatus = {
 }
 
 const mockStory: PublicStoryListItem = {
-  id: 1,
+  id: 'brave-dragon-leaps-over-castle',
   title: 'Test Story',
   description: 'A test story',
   language: 'Persian (Farsi)',
@@ -120,7 +120,7 @@ export const handlers = [
 
   http.post(`${BASE}/stories/`, async () => {
     return HttpResponse.json({
-      id: 2,
+      id: 'calm-kitten-sings-near-rainbow',
       title: 'New Story',
       description: null,
       prompt: null,
@@ -179,7 +179,7 @@ export const handlers = [
   http.get(`${BASE}/bookmarks/stories`, () => {
     return HttpResponse.json([
       {
-        id: 1,
+        id: 'swift-falcon-plays-along-meadow',
         title: 'Bookmarked Story',
         description: 'A bookmarked story',
         language: 'Persian (Farsi)',
@@ -197,7 +197,7 @@ export const handlers = [
   // Fork
   http.post(`${BASE}/public/stories/:id/fork`, () => {
     return HttpResponse.json({
-      id: 99,
+      id: 'happy-turtle-dances-through-sunset',
       title: `Copy of ${mockStory.title}`,
       description: mockStory.description,
       prompt: null,
@@ -276,7 +276,7 @@ export const handlers = [
   http.get(`${BASE}/follows/timeline`, () => {
     return HttpResponse.json([
       {
-        id: 10,
+        id: 'jolly-parrot-writes-beside-thunder',
         title: 'Timeline Story',
         description: 'A story from someone you follow',
         language: 'Persian (Farsi)',
@@ -337,7 +337,7 @@ export const handlers = [
   http.get(`${BASE}/follows/users/:id/stories`, () => {
     return HttpResponse.json([
       {
-        id: 20,
+        id: 'gentle-ocean-reads-upon-sparkle',
         title: 'Profile Story',
         description: 'A story on the profile',
         language: 'Persian (Farsi)',

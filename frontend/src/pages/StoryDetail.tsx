@@ -86,7 +86,7 @@ export default function StoryDetail() {
       const data = await apiFetch(`/stories/${id}/generate-audio`, {
         method: 'POST',
         json: {
-          story_id: Number(id),
+          story_id: id,
           voice_override: Object.keys(voiceOverride).length > 0 ? voiceOverride : null,
         },
         onRetry: () => setRetryMessage('Starting up, please wait...'),

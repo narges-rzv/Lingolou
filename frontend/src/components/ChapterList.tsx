@@ -15,7 +15,7 @@ function statusClass(status: string): string {
 
 interface ChapterListProps {
   chapters: ChapterResponse[];
-  storyId: number;
+  storyId: string;
   autoExpand?: number;
   onRefresh?: () => void;
 }

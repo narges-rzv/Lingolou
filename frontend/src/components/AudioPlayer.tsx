@@ -13,7 +13,8 @@ function formatDuration(seconds: number | null | undefined): string {
 }
 
 export default function AudioPlayer({ src, chapterNumber, duration, showDownload = true }: AudioPlayerProps) {
-  const cacheBust = duration ? `?v=${Math.round(duration * 100)}` : `?v=${Date.now()}`;
+  const sep = src.includes('?') ? '&' : '?';
+  const cacheBust = duration ? `${sep}v=${Math.round(duration * 100)}` : `${sep}v=${Date.now()}`;
   const audioSrc = `${src}${cacheBust}`;
 
   return (

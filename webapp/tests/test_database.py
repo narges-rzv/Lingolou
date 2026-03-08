@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
 from webapp.models.database import Base, Chapter, PlatformBudget, Report, Story, User, Vote
+from webapp.services.mnemonic import generate as generate_mnemonic
 
 
 @pytest.fixture()
@@ -51,7 +52,8 @@ def test_user_story_relationship(fresh_db):
     fresh_db.add(user)
     fresh_db.commit()
 
-    story = Story(user_id=user.id, title="My Story", status="created")
+    _pid, _slug = generate_mnemonic()
+    story = Story(user_id=user.id, title="My Story", status="created", public_id=_pid, slug=_slug)
     fresh_db.add(story)
     fresh_db.commit()
     fresh_db.refresh(user)
@@ -65,7 +67,8 @@ def test_story_chapter_relationship(fresh_db):
     fresh_db.add(user)
     fresh_db.commit()
 
-    story = Story(user_id=user.id, title="Story", status="created")
+    _pid, _slug = generate_mnemonic()
+    story = Story(user_id=user.id, title="Story", status="created", public_id=_pid, slug=_slug)
     fresh_db.add(story)
     fresh_db.commit()
 
@@ -83,7 +86,8 @@ def test_cascade_delete_story(fresh_db):
     fresh_db.add(user)
     fresh_db.commit()
 
-    story = Story(user_id=user.id, title="Story", status="created")
+    _pid, _slug = generate_mnemonic()
+    story = Story(user_id=user.id, title="Story", status="created", public_id=_pid, slug=_slug)
     fresh_db.add(story)
     fresh_db.commit()
 

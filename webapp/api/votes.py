@@ -7,29 +7,26 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from webapp.models.database import Story, User, Vote, get_db
+from webapp.models.database import User, Vote, get_db
 from webapp.models.schemas import VoteRequest
 from webapp.services.auth import get_current_active_user
+
+from .stories import _get_story_by_identifier
 
 router = APIRouter(prefix="/api/votes", tags=["Votes"])
 
 
 @router.post("/stories/{story_id}")
 async def vote_on_story(
-    story_id: int,
+    story_id: str,
     request: VoteRequest,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ) -> dict[str, str | int | None]:
     """Vote on a story. Send vote_type=null to remove vote."""
-    story = (
-        db.query(Story)
-        .filter(
-            Story.id == story_id,
-            Story.visibility.in_(["public", "link_only"]),
-        )
-        .first()
-    )
+    story = _get_story_by_identifier(db, story_id)
+    if story and story.visibility not in ("public", "link_only"):
+        story = None
 
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
@@ -40,7 +37,7 @@ async def vote_on_story(
     if request.vote_type is not None and request.vote_type not in ("up", "down"):
         raise HTTPException(status_code=400, detail="vote_type must be 'up', 'down', or null")
 
-    existing = db.query(Vote).filter(Vote.story_id == story_id, Vote.user_id == current_user.id).first()
+    existing = db.query(Vote).filter(Vote.story_id == story.id, Vote.user_id == current_user.id).first()
 
     if request.vote_type is None:
         # Remove vote
@@ -65,7 +62,7 @@ async def vote_on_story(
         db.add(
             Vote(
                 user_id=current_user.id,
-                story_id=story_id,
+                story_id=story.id,
                 vote_type=request.vote_type,
             )
         )

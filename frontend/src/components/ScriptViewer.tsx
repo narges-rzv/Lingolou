@@ -282,7 +282,7 @@ function ScriptEntryComponent({ entry, index, editing, onUpdate, onDelete }: Scr
 }
 
 interface ScriptViewerProps {
-  storyId: number;
+  storyId: string;
   chapterNumber: number;
 }
 

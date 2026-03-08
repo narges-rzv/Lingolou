@@ -126,7 +126,7 @@ export default function PublicStoryDetail({ preloadedStory }: PublicStoryDetailP
     setForking(true);
     setError(null);
     try {
-      const data = await apiFetch(`/public/stories/${story.id}/fork`, { method: 'POST' }) as { id: number };
+      const data = await apiFetch(`/public/stories/${story.id}/fork`, { method: 'POST' }) as { id: string };
       navigate(`/stories/${data.id}`);
     } catch (err) {
       setError((err as Error).message);
@@ -243,6 +243,12 @@ export default function PublicStoryDetail({ preloadedStory }: PublicStoryDetailP
       </div>
 
       {error && <div className="error-message">{error}</div>}
+
+      {story.status !== 'completed' && (
+        <div className="info-message">
+          This story is still being generated. Check back soon!
+        </div>
+      )}
 
       {hasAudio && (
         <div className="play-story-section">

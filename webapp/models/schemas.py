@@ -49,7 +49,7 @@ class ChapterResponse(BaseModel):
 class StoryResponse(BaseModel):
     """Response schema for a story with chapters."""
 
-    id: int
+    id: str
     title: str
     description: str | None
     prompt: str | None = None
@@ -72,7 +72,7 @@ class StoryResponse(BaseModel):
 class StoryListResponse(BaseModel):
     """Response schema for story list items."""
 
-    id: int
+    id: str
     title: str
     description: str | None
     language: str | None = None
@@ -89,7 +89,7 @@ class StoryListResponse(BaseModel):
 class PublicStoryListItem(BaseModel):
     """Response schema for public story list items."""
 
-    id: int
+    id: str
     title: str
     description: str | None
     language: str | None = None
@@ -109,7 +109,7 @@ class PublicStoryListItem(BaseModel):
 class PublicStoryResponse(BaseModel):
     """Response schema for a public story with chapters."""
 
-    id: int
+    id: str
     title: str
     description: str | None
     prompt: str | None = None
@@ -148,7 +148,7 @@ class FollowUserItem(BaseModel):
 class TimelineStoryItem(BaseModel):
     """Response schema for a story in the timeline feed."""
 
-    id: int
+    id: str
     title: str
     description: str | None = None
     language: str | None = None
@@ -224,7 +224,7 @@ class GenerateStoryRequest(BaseModel):
 class GenerateAudioRequest(BaseModel):
     """Request schema for audio generation."""
 
-    story_id: int
+    story_id: str
     chapter_numbers: list[int] | None = None  # None = all chapters
     voice_override: dict[str, dict] | None = None  # speaker -> voice settings override
 
@@ -255,7 +255,7 @@ class BookmarkResponse(BaseModel):
 class BookmarkedStoryListItem(BaseModel):
     """Response schema for a bookmarked story in the user's list."""
 
-    id: int
+    id: str
     title: str
     description: str | None
     language: str | None = None

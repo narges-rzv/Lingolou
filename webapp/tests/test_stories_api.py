@@ -6,6 +6,10 @@ from webapp.models.database import PlatformBudget, Story
 from webapp.services.crypto import encrypt_key
 
 
+def _get_story_by_slug(db, slug):
+    return db.query(Story).filter(Story.slug == slug).first()
+
+
 def _create_story(client, auth_headers, **overrides):
     payload = {
         "title": "Test Story",
@@ -25,6 +29,9 @@ def test_create_story(client, auth_headers):
     assert data["title"] == "Test Story"
     assert len(data["chapters"]) == 2
     assert data["status"] == "created"
+    # ID should be a mnemonic slug (5 words separated by hyphens)
+    assert isinstance(data["id"], str)
+    assert len(data["id"].split("-")) == 5
 
 
 def test_list_stories(client, auth_headers):
@@ -83,7 +90,7 @@ def test_get_story_generating_lost_task(client, auth_headers, db):
     story_id = create_resp.json()["id"]
 
     # Manually set story to generating
-    story = db.query(Story).filter(Story.id == story_id).first()
+    story = _get_story_by_slug(db, story_id)
     story.status = "generating"
     db.commit()
 
@@ -252,7 +259,7 @@ def test_generate_story_already_generating(client, auth_headers, db):
     create_resp = _create_story(client, auth_headers)
     story_id = create_resp.json()["id"]
 
-    story = db.query(Story).filter(Story.id == story_id).first()
+    story = _get_story_by_slug(db, story_id)
     story.status = "generating"
     db.commit()
 
@@ -278,7 +285,7 @@ def test_generate_audio_with_own_key(mock_gen, client, auth_headers, db, test_us
     story_id = create_resp.json()["id"]
 
     # Add script to chapters
-    story = db.query(Story).filter(Story.id == story_id).first()
+    story = _get_story_by_slug(db, story_id)
     for ch in story.chapters:
         ch.script_json = '[{"type": "line", "text": "hello"}]'
         ch.enhanced_json = '[{"type": "line", "text": "hello", "emotion": "happy"}]'
@@ -302,7 +309,7 @@ def test_generate_audio_with_platform_key(mock_gen, client, auth_headers, db, mo
     create_resp = _create_story(client, auth_headers)
     story_id = create_resp.json()["id"]
 
-    story = db.query(Story).filter(Story.id == story_id).first()
+    story = _get_story_by_slug(db, story_id)
     for ch in story.chapters:
         ch.script_json = '[{"type": "line", "text": "hello"}]'
     db.commit()
@@ -323,7 +330,7 @@ def test_generate_audio_no_key(client, auth_headers, db, monkeypatch):
     create_resp = _create_story(client, auth_headers)
     story_id = create_resp.json()["id"]
 
-    story = db.query(Story).filter(Story.id == story_id).first()
+    story = _get_story_by_slug(db, story_id)
     for ch in story.chapters:
         ch.script_json = '[{"type": "line", "text": "hello"}]'
     db.commit()
@@ -385,7 +392,7 @@ def test_duplicate_story(client, auth_headers, db):
     story_id = create_resp.json()["id"]
 
     # Add scripts to chapters so duplication copies them
-    story = db.query(Story).filter(Story.id == story_id).first()
+    story = _get_story_by_slug(db, story_id)
     for ch in story.chapters:
         ch.script_json = '[{"type": "line", "text": "hello"}]'
         ch.enhanced_json = '[{"type": "line", "text": "hello", "emotion": "happy"}]'
@@ -407,7 +414,7 @@ def test_duplicate_story_private(client, auth_headers, db):
     story_id = create_resp.json()["id"]
 
     # Ensure it's private (default)
-    story = db.query(Story).filter(Story.id == story_id).first()
+    story = _get_story_by_slug(db, story_id)
     assert story.visibility == "private"
 
     resp = client.post(f"/api/stories/{story_id}/duplicate", headers=auth_headers)
@@ -431,7 +438,7 @@ def test_duplicate_story_chapters_copied(client, auth_headers, db):
     create_resp = _create_story(client, auth_headers, num_chapters=3)
     story_id = create_resp.json()["id"]
 
-    story = db.query(Story).filter(Story.id == story_id).first()
+    story = _get_story_by_slug(db, story_id)
     for ch in story.chapters:
         ch.script_json = f'[{{"chapter": {ch.chapter_number}}}]'
         ch.enhanced_json = f'[{{"chapter": {ch.chapter_number}, "enhanced": true}}]'
@@ -452,7 +459,8 @@ def test_duplicate_story_chapters_copied(client, auth_headers, db):
     # Verify scripts were copied in the DB (not in API response schema)
     from webapp.models.database import Chapter
 
-    new_chapters = db.query(Chapter).filter(Chapter.story_id == data["id"]).all()
+    new_story = _get_story_by_slug(db, data["id"])
+    new_chapters = db.query(Chapter).filter(Chapter.story_id == new_story.id).all()
     for ch in new_chapters:
         assert ch.script_json is not None
         assert ch.enhanced_json is not None

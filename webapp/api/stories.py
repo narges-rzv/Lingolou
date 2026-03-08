@@ -41,10 +41,27 @@ from webapp.models.schemas import (
 from webapp.services.auth import get_current_active_user
 from webapp.services.crypto import decrypt_key
 from webapp.services.generation import generate_audio, generate_story
+from webapp.services.mnemonic import generate as generate_mnemonic
 from webapp.services.storage import get_storage
 from webapp.services.task_store import get_task_backend
 
 router = APIRouter(prefix="/api/stories", tags=["Stories"])
+
+
+def _get_story_by_identifier(db: Session, identifier: str, *, user_id: int | None = None) -> Story | None:
+    """Look up a story by slug or public_id, optionally filtered by owner."""
+    query = db.query(Story).filter((Story.slug == identifier) | (Story.public_id == identifier))
+    if user_id is not None:
+        query = query.filter(Story.user_id == user_id)
+    return query.first()
+
+
+def refresh_audio_urls(chapters: list[Chapter]) -> None:
+    """Replace storage keys in audio_path with fresh URLs for API responses."""
+    storage = get_storage()
+    for ch in chapters:
+        if ch.audio_path:
+            ch.audio_path = storage.get_url(ch.audio_path)
 
 
 @router.get("/defaults")
@@ -92,7 +109,7 @@ async def list_stories(
 
     return [
         StoryListResponse(
-            id=s.id,
+            id=s.slug,
             title=s.title,
             description=s.description,
             language=s.language,
@@ -118,8 +135,12 @@ async def create_story(
         if not world:
             raise HTTPException(status_code=404, detail="World not found")
 
+    public_id, slug = generate_mnemonic()
+
     db_story = Story(
         user_id=current_user.id,
+        public_id=public_id,
+        slug=slug,
         world_id=story.world_id,
         title=story.title,
         description=story.description,
@@ -139,8 +160,23 @@ async def create_story(
     db.commit()
     db.refresh(db_story)
 
-    response = StoryResponse.model_validate(db_story)
-    response.world_name = db_story.world.name if db_story.world else None
+    response = StoryResponse(
+        id=db_story.slug,
+        title=db_story.title,
+        description=db_story.description,
+        prompt=db_story.prompt,
+        language=db_story.language,
+        world_id=db_story.world_id,
+        world_name=db_story.world.name if db_story.world else None,
+        status=db_story.status,
+        visibility=db_story.visibility,
+        share_code=db_story.share_code,
+        upvotes=db_story.upvotes,
+        downvotes=db_story.downvotes,
+        created_at=db_story.created_at,
+        updated_at=db_story.updated_at,
+        chapters=db_story.chapters,
+    )
     return response
 
 
@@ -171,12 +207,12 @@ async def cancel_generation_task(task_id: str, current_user: User = Depends(get_
 
 @router.get("/{story_id}/voice-config")
 async def get_voice_config(
-    story_id: int,
+    story_id: str,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ) -> dict:
     """Get effective voice config and speakers for a story."""
-    story = db.query(Story).filter(Story.id == story_id, Story.user_id == current_user.id).first()
+    story = _get_story_by_identifier(db, story_id, user_id=current_user.id)
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
 
@@ -214,20 +250,37 @@ async def get_voice_config(
 
 @router.get("/{story_id}", response_model=StoryResponse)
 async def get_story(
-    story_id: int, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)
+    story_id: str, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)
 ) -> StoryResponse:
     """Get a specific story with all chapters."""
-    story = db.query(Story).filter(Story.id == story_id, Story.user_id == current_user.id).first()
+    story = _get_story_by_identifier(db, story_id, user_id=current_user.id)
 
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
 
-    response = StoryResponse.model_validate(story)
-    response.world_name = story.world.name if story.world else None
+    refresh_audio_urls(list(story.chapters))
+
+    response = StoryResponse(
+        id=story.slug,
+        title=story.title,
+        description=story.description,
+        prompt=story.prompt,
+        language=story.language,
+        world_id=story.world_id,
+        world_name=story.world.name if story.world else None,
+        status=story.status,
+        visibility=story.visibility,
+        share_code=story.share_code,
+        upvotes=story.upvotes,
+        downvotes=story.downvotes,
+        created_at=story.created_at,
+        updated_at=story.updated_at,
+        chapters=story.chapters,
+    )
 
     # If the story is generating, look for an active in-memory task
     if story.status == "generating":
-        active = get_task_backend().find_active_for_story(story_id)
+        active = get_task_backend().find_active_for_story(story.id)
         if active:
             response.active_task = TaskStatusResponse(**active)
         else:
@@ -241,13 +294,13 @@ async def get_story(
 
 @router.patch("/{story_id}", response_model=StoryResponse)
 async def update_story(
-    story_id: int,
+    story_id: str,
     story_update: StoryUpdate,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
-) -> Story:
+) -> StoryResponse:
     """Update story metadata."""
-    story = db.query(Story).filter(Story.id == story_id, Story.user_id == current_user.id).first()
+    story = _get_story_by_identifier(db, story_id, user_id=current_user.id)
 
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
@@ -265,18 +318,34 @@ async def update_story(
 
     db.commit()
     db.refresh(story)
-    return story
+    return StoryResponse(
+        id=story.slug,
+        title=story.title,
+        description=story.description,
+        prompt=story.prompt,
+        language=story.language,
+        world_id=story.world_id,
+        world_name=story.world.name if story.world else None,
+        status=story.status,
+        visibility=story.visibility,
+        share_code=story.share_code,
+        upvotes=story.upvotes,
+        downvotes=story.downvotes,
+        created_at=story.created_at,
+        updated_at=story.updated_at,
+        chapters=story.chapters,
+    )
 
 
 @router.post("/{story_id}/generate-share-link", response_model=ShareLinkResponse)
 async def generate_share_link(
-    story_id: int,
+    story_id: str,
     request: Request,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ) -> ShareLinkResponse:
     """Generate or return a share link for a story."""
-    story = db.query(Story).filter(Story.id == story_id, Story.user_id == current_user.id).first()
+    story = _get_story_by_identifier(db, story_id, user_id=current_user.id)
 
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
@@ -292,18 +361,22 @@ async def generate_share_link(
 
 @router.post("/{story_id}/duplicate", response_model=StoryResponse, status_code=201)
 async def duplicate_story(
-    story_id: int,
+    story_id: str,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ) -> StoryResponse:
     """Duplicate a story the current user owns (copies scripts, no audio)."""
-    story = db.query(Story).filter(Story.id == story_id, Story.user_id == current_user.id).first()
+    story = _get_story_by_identifier(db, story_id, user_id=current_user.id)
 
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
 
+    new_public_id, new_slug = generate_mnemonic()
+
     new_story = Story(
         user_id=current_user.id,
+        public_id=new_public_id,
+        slug=new_slug,
         title=f"Copy of {story.title}",
         description=story.description,
         prompt=story.prompt,
@@ -335,23 +408,37 @@ async def duplicate_story(
     db.commit()
     db.refresh(new_story)
 
-    response = StoryResponse.model_validate(new_story)
-    response.world_name = new_story.world.name if new_story.world else None
-    return response
+    return StoryResponse(
+        id=new_story.slug,
+        title=new_story.title,
+        description=new_story.description,
+        prompt=new_story.prompt,
+        language=new_story.language,
+        world_id=new_story.world_id,
+        world_name=new_story.world.name if new_story.world else None,
+        status=new_story.status,
+        visibility=new_story.visibility,
+        share_code=new_story.share_code,
+        upvotes=new_story.upvotes,
+        downvotes=new_story.downvotes,
+        created_at=new_story.created_at,
+        updated_at=new_story.updated_at,
+        chapters=new_story.chapters,
+    )
 
 
 @router.delete("/{story_id}")
 async def delete_story(
-    story_id: int, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)
+    story_id: str, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)
 ) -> dict[str, str]:
     """Delete a story and all its chapters."""
-    story = db.query(Story).filter(Story.id == story_id, Story.user_id == current_user.id).first()
+    story = _get_story_by_identifier(db, story_id, user_id=current_user.id)
 
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
 
-    # Delete audio files from storage
-    get_storage().delete_dir(str(story_id))
+    # Delete audio files from storage (uses internal integer ID)
+    get_storage().delete_dir(str(story.id))
 
     db.delete(story)
     db.commit()
@@ -360,14 +447,14 @@ async def delete_story(
 
 @router.post("/{story_id}/generate", response_model=TaskStatusResponse)
 async def generate_story_content(
-    story_id: int,
+    story_id: str,
     request: GenerateStoryRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ) -> TaskStatusResponse:
     """Start story script generation (async background task)."""
-    story = db.query(Story).filter(Story.id == story_id, Story.user_id == current_user.id).first()
+    story = _get_story_by_identifier(db, story_id, user_id=current_user.id)
 
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
@@ -392,14 +479,14 @@ async def generate_story_content(
         else:
             db.delete(ch)
 
-    # Delete old audio files from storage
-    get_storage().delete_dir(str(story_id))
+    # Delete old audio files from storage (uses internal integer ID)
+    get_storage().delete_dir(str(story.id))
 
     # Create any missing chapters if count was increased
     existing_nums = {ch.chapter_number for ch in existing_chapters}
     for i in range(1, request.num_chapters + 1):
         if i not in existing_nums:
-            db.add(Chapter(story_id=story_id, chapter_number=i, status="pending"))
+            db.add(Chapter(story_id=story.id, chapter_number=i, status="pending"))
 
     db.commit()
 
@@ -429,13 +516,14 @@ async def generate_story_content(
         current_user.free_stories_used = used + 1
         db.commit()
 
-    # Start background task
-    task_id = f"story_{story_id}_{int(time.time())}"
+    # Start background task (uses internal integer ID)
+    internal_id = story.id
+    task_id = f"story_{internal_id}_{int(time.time())}"
     get_task_backend().update(task_id, "pending", 0, "Task queued, waiting to start...")
     background_tasks.add_task(
         generate_story,
         task_id=task_id,
-        story_id=story_id,
+        story_id=internal_id,
         user_id=current_user.id,
         prompt=request.prompt,
         num_chapters=request.num_chapters,
@@ -449,14 +537,14 @@ async def generate_story_content(
 
 @router.post("/{story_id}/generate-audio", response_model=TaskStatusResponse)
 async def generate_story_audio(
-    story_id: int,
+    story_id: str,
     request: GenerateAudioRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ) -> TaskStatusResponse:
     """Start audio generation for chapters (async background task)."""
-    story = db.query(Story).filter(Story.id == story_id, Story.user_id == current_user.id).first()
+    story = _get_story_by_identifier(db, story_id, user_id=current_user.id)
 
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
@@ -503,14 +591,15 @@ async def generate_story_audio(
         current_user.free_audio_used = (current_user.free_audio_used or 0) + 1
         db.commit()
 
-    # Start background task
+    # Start background task (uses internal integer ID)
+    internal_id = story.id
     chapter_ids = [c.id for c in chapters]
-    task_id = f"audio_{story_id}_{int(time.time())}"
+    task_id = f"audio_{internal_id}_{int(time.time())}"
     get_task_backend().update(task_id, "pending", 0, "Task queued, waiting to start...")
     background_tasks.add_task(
         generate_audio,
         task_id=task_id,
-        story_id=story_id,
+        story_id=internal_id,
         user_id=current_user.id,
         chapter_ids=chapter_ids,
         elevenlabs_api_key=elevenlabs_api_key,
@@ -524,10 +613,10 @@ async def generate_story_audio(
 
 @router.get("/{story_id}/audio/combined")
 async def download_combined_audio(
-    story_id: int, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)
+    story_id: str, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)
 ) -> FileResponse:
     """Combine all chapter audio files into a single MP3 download."""
-    story = db.query(Story).filter(Story.id == story_id, Story.user_id == current_user.id).first()
+    story = _get_story_by_identifier(db, story_id, user_id=current_user.id)
 
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
@@ -538,8 +627,10 @@ async def download_combined_audio(
     if not chapters_with_audio:
         raise HTTPException(status_code=404, detail="No audio files available")
 
+    # Use internal integer ID for storage keys
+    int_id = story.id
     if len(chapters_with_audio) == 1:
-        key = f"{story_id}/ch{chapters_with_audio[0].chapter_number}.mp3"
+        key = f"{int_id}/ch{chapters_with_audio[0].chapter_number}.mp3"
         with storage.get_path(key) as single:
             if not single:
                 raise HTTPException(status_code=404, detail="Audio file not found")
@@ -551,7 +642,7 @@ async def download_combined_audio(
     try:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             for ch in chapters_with_audio:
-                key = f"{story_id}/ch{ch.chapter_number}.mp3"
+                key = f"{int_id}/ch{ch.chapter_number}.mp3"
                 with storage.get_path(key) as ch_path:
                     if ch_path:
                         f.write(f"file '{ch_path}'\n")
@@ -581,13 +672,13 @@ async def download_combined_audio(
 
 @router.get("/{story_id}/chapters/{chapter_number}", response_model=ChapterResponse)
 async def get_chapter(
-    story_id: int,
+    story_id: str,
     chapter_number: int,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ) -> Chapter:
     """Get a specific chapter."""
-    story = db.query(Story).filter(Story.id == story_id, Story.user_id == current_user.id).first()
+    story = _get_story_by_identifier(db, story_id, user_id=current_user.id)
 
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
@@ -602,14 +693,14 @@ async def get_chapter(
 
 @router.get("/{story_id}/chapters/{chapter_number}/script")
 async def get_chapter_script(
-    story_id: int,
+    story_id: str,
     chapter_number: int,
     enhanced: bool = True,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ) -> list:
     """Get the JSON script for a chapter."""
-    story = db.query(Story).filter(Story.id == story_id, Story.user_id == current_user.id).first()
+    story = _get_story_by_identifier(db, story_id, user_id=current_user.id)
 
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
@@ -629,14 +720,14 @@ async def get_chapter_script(
 
 @router.put("/{story_id}/chapters/{chapter_number}/script")
 async def update_chapter_script(
-    story_id: int,
+    story_id: str,
     chapter_number: int,
     script: Any = Body(...),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ) -> dict[str, str]:
     """Update the JSON script for a chapter."""
-    story = db.query(Story).filter(Story.id == story_id, Story.user_id == current_user.id).first()
+    story = _get_story_by_identifier(db, story_id, user_id=current_user.id)
 
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")

@@ -35,7 +35,10 @@ from webapp.models.schemas import (
     WorldResponse,
 )
 from webapp.services.auth import get_current_user, get_current_user_optional
+from webapp.services.mnemonic import generate as generate_mnemonic
 from webapp.services.storage import get_storage
+
+from .stories import _get_story_by_identifier, refresh_audio_urls
 
 router = APIRouter(prefix="/api/public", tags=["Public"])
 
@@ -79,7 +82,7 @@ async def list_public_stories(
 
     return [
         PublicStoryListItem(
-            id=s.id,
+            id=s.slug,
             title=s.title,
             description=s.description,
             language=s.language,
@@ -99,19 +102,14 @@ async def list_public_stories(
 
 @router.get("/stories/{story_id}", response_model=PublicStoryResponse)
 async def get_public_story(
-    story_id: int,
+    story_id: str,
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
 ) -> PublicStoryResponse:
     """Get a public, link-only, or followers-visible story with its chapters."""
-    story = (
-        db.query(Story)
-        .filter(
-            Story.id == story_id,
-            Story.visibility.in_(["public", "link_only", "followers"]),
-        )
-        .first()
-    )
+    story = _get_story_by_identifier(db, story_id)
+    if story and story.visibility not in ("public", "link_only", "followers"):
+        story = None
 
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
@@ -146,16 +144,18 @@ async def get_public_story(
     user_vote = None
     is_bookmarked = False
     if current_user:
-        vote = db.query(Vote).filter(Vote.story_id == story_id, Vote.user_id == current_user.id).first()
+        vote = db.query(Vote).filter(Vote.story_id == story.id, Vote.user_id == current_user.id).first()
         if vote:
             user_vote = vote.vote_type
         is_bookmarked = (
-            db.query(Bookmark).filter(Bookmark.story_id == story_id, Bookmark.user_id == current_user.id).first()
+            db.query(Bookmark).filter(Bookmark.story_id == story.id, Bookmark.user_id == current_user.id).first()
             is not None
         )
 
+    refresh_audio_urls(list(story.chapters))
+
     return PublicStoryResponse(
-        id=story.id,
+        id=story.slug,
         title=story.title,
         description=story.description,
         prompt=story.prompt,
@@ -204,8 +204,10 @@ async def get_shared_story(
             is not None
         )
 
+    refresh_audio_urls(list(story.chapters))
+
     return PublicStoryResponse(
-        id=story.id,
+        id=story.slug,
         title=story.title,
         description=story.description,
         prompt=story.prompt,
@@ -226,25 +228,24 @@ async def get_shared_story(
 
 @router.post("/stories/{story_id}/fork", response_model=StoryResponse, status_code=201)
 async def fork_story(
-    story_id: int,
+    story_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> StoryResponse:
     """Fork a public/link-only story into the current user's collection."""
-    source = (
-        db.query(Story)
-        .filter(
-            Story.id == story_id,
-            Story.visibility.in_(["public", "link_only"]),
-        )
-        .first()
-    )
+    source = _get_story_by_identifier(db, story_id)
+    if source and source.visibility not in ("public", "link_only"):
+        source = None
 
     if not source:
         raise HTTPException(status_code=404, detail="Story not found")
 
+    new_public_id, new_slug = generate_mnemonic()
+
     new_story = Story(
         user_id=current_user.id,
+        public_id=new_public_id,
+        slug=new_slug,
         title=f"Copy of {source.title}",
         description=source.description,
         prompt=source.prompt,
@@ -276,7 +277,7 @@ async def fork_story(
     db.refresh(new_story)
 
     return StoryResponse(
-        id=new_story.id,
+        id=new_story.slug,
         title=new_story.title,
         description=new_story.description,
         prompt=new_story.prompt,
@@ -296,21 +297,16 @@ async def fork_story(
 
 @router.get("/stories/{story_id}/chapters/{chapter_number}/script")
 async def get_public_chapter_script(
-    story_id: int,
+    story_id: str,
     chapter_number: int,
     enhanced: bool = True,
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
 ) -> list:
     """Get the JSON script for a chapter of a public/link-only/followers story."""
-    story = (
-        db.query(Story)
-        .filter(
-            Story.id == story_id,
-            Story.visibility.in_(["public", "link_only", "followers"]),
-        )
-        .first()
-    )
+    story = _get_story_by_identifier(db, story_id)
+    if story and story.visibility not in ("public", "link_only", "followers"):
+        story = None
 
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
@@ -443,19 +439,14 @@ async def get_shared_world(
 
 @router.get("/stories/{story_id}/audio/combined")
 async def download_public_combined_audio(
-    story_id: int,
+    story_id: str,
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
 ) -> FileResponse:
     """Download combined audio for a public/link-only/followers story."""
-    story = (
-        db.query(Story)
-        .filter(
-            Story.id == story_id,
-            Story.visibility.in_(["public", "link_only", "followers"]),
-        )
-        .first()
-    )
+    story = _get_story_by_identifier(db, story_id)
+    if story and story.visibility not in ("public", "link_only", "followers"):
+        story = None
 
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
@@ -480,8 +471,10 @@ async def download_public_combined_audio(
     if not chapters_with_audio:
         raise HTTPException(status_code=404, detail="No audio files available")
 
+    # Use internal integer ID for storage keys
+    int_id = story.id
     if len(chapters_with_audio) == 1:
-        key = f"{story_id}/ch{chapters_with_audio[0].chapter_number}.mp3"
+        key = f"{int_id}/ch{chapters_with_audio[0].chapter_number}.mp3"
         with storage.get_path(key) as single:
             if not single:
                 raise HTTPException(status_code=404, detail="Audio file not found")
@@ -497,7 +490,7 @@ async def download_public_combined_audio(
     try:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             for ch in chapters_with_audio:
-                key = f"{story_id}/ch{ch.chapter_number}.mp3"
+                key = f"{int_id}/ch{ch.chapter_number}.mp3"
                 with storage.get_path(key) as ch_path:
                     if ch_path:
                         f.write(f"file '{ch_path}'\n")

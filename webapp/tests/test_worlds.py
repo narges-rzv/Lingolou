@@ -3,6 +3,7 @@
 import json
 
 from webapp.models.database import Chapter, Story
+from webapp.services.mnemonic import generate as generate_mnemonic
 
 
 class TestWorldCRUD:
@@ -204,15 +205,18 @@ class TestWorldAwareStories:
             json={"title": "World Story", "world_id": test_world.id},
             headers=auth_headers,
         )
-        story_id = create_resp.json()["id"]
-        resp = client.get(f"/api/stories/{story_id}", headers=auth_headers)
+        story_slug = create_resp.json()["id"]
+        resp = client.get(f"/api/stories/{story_slug}", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["world_name"] == "Test World"
 
 
 class TestVoiceConfig:
     def _create_story_with_script(self, db, user_id, world_id=None):
-        story = Story(user_id=user_id, title="Voice Test", status="completed", world_id=world_id)
+        _pid, _slug = generate_mnemonic()
+        story = Story(
+            user_id=user_id, title="Voice Test", status="completed", world_id=world_id, public_id=_pid, slug=_slug
+        )
         db.add(story)
         db.commit()
         db.refresh(story)
@@ -230,7 +234,7 @@ class TestVoiceConfig:
 
     def test_voice_config_with_world(self, client, auth_headers, test_user, test_world, db):
         story = self._create_story_with_script(db, test_user.id, world_id=test_world.id)
-        resp = client.get(f"/api/stories/{story.id}/voice-config", headers=auth_headers)
+        resp = client.get(f"/api/stories/{story.slug}/voice-config", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
         assert "NARRATOR" in data["speakers"]
@@ -240,7 +244,7 @@ class TestVoiceConfig:
 
     def test_voice_config_without_world_empty(self, client, auth_headers, test_user, db):
         story = self._create_story_with_script(db, test_user.id)
-        resp = client.get(f"/api/stories/{story.id}/voice-config", headers=auth_headers)
+        resp = client.get(f"/api/stories/{story.slug}/voice-config", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
         # Speakers still extracted from scripts
@@ -252,11 +256,12 @@ class TestVoiceConfig:
         assert resp.status_code == 404
 
     def test_voice_config_no_scripts(self, client, auth_headers, test_user, db):
-        story = Story(user_id=test_user.id, title="Empty", status="created")
+        _pid, _slug = generate_mnemonic()
+        story = Story(user_id=test_user.id, title="Empty", status="created", public_id=_pid, slug=_slug)
         db.add(story)
         db.commit()
         db.refresh(story)
-        resp = client.get(f"/api/stories/{story.id}/voice-config", headers=auth_headers)
+        resp = client.get(f"/api/stories/{story.slug}/voice-config", headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
         assert data["speakers"] == []

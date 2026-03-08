@@ -1,14 +1,18 @@
 """Tests for webapp/api/votes.py"""
 
 from webapp.models.database import Story
+from webapp.services.mnemonic import generate as generate_mnemonic
 
 
 def _create_public_story(db, user):
+    _pid, _slug = generate_mnemonic()
     story = Story(
         user_id=user.id,
         title="Voteable Story",
         status="completed",
         visibility="public",
+        public_id=_pid,
+        slug=_slug,
     )
     db.add(story)
     db.commit()
@@ -20,7 +24,7 @@ def test_upvote(client, db, test_user, other_user, other_auth_headers):
     story = _create_public_story(db, test_user)
 
     resp = client.post(
-        f"/api/votes/stories/{story.id}",
+        f"/api/votes/stories/{story.slug}",
         json={
             "vote_type": "up",
         },
@@ -37,7 +41,7 @@ def test_downvote(client, db, test_user, other_user, other_auth_headers):
     story = _create_public_story(db, test_user)
 
     resp = client.post(
-        f"/api/votes/stories/{story.id}",
+        f"/api/votes/stories/{story.slug}",
         json={
             "vote_type": "down",
         },
@@ -54,7 +58,7 @@ def test_change_vote(client, db, test_user, other_user, other_auth_headers):
 
     # Upvote
     client.post(
-        f"/api/votes/stories/{story.id}",
+        f"/api/votes/stories/{story.slug}",
         json={
             "vote_type": "up",
         },
@@ -63,7 +67,7 @@ def test_change_vote(client, db, test_user, other_user, other_auth_headers):
 
     # Change to downvote
     resp = client.post(
-        f"/api/votes/stories/{story.id}",
+        f"/api/votes/stories/{story.slug}",
         json={
             "vote_type": "down",
         },
@@ -80,7 +84,7 @@ def test_remove_vote(client, db, test_user, other_user, other_auth_headers):
 
     # Upvote first
     client.post(
-        f"/api/votes/stories/{story.id}",
+        f"/api/votes/stories/{story.slug}",
         json={
             "vote_type": "up",
         },
@@ -89,7 +93,7 @@ def test_remove_vote(client, db, test_user, other_user, other_auth_headers):
 
     # Remove vote
     resp = client.post(
-        f"/api/votes/stories/{story.id}",
+        f"/api/votes/stories/{story.slug}",
         json={
             "vote_type": None,
         },
@@ -105,7 +109,7 @@ def test_vote_own_story(client, db, test_user, auth_headers):
     story = _create_public_story(db, test_user)
 
     resp = client.post(
-        f"/api/votes/stories/{story.id}",
+        f"/api/votes/stories/{story.slug}",
         json={
             "vote_type": "up",
         },
@@ -116,18 +120,21 @@ def test_vote_own_story(client, db, test_user, auth_headers):
 
 
 def test_vote_private_story(client, db, test_user, other_user, other_auth_headers):
+    _pid, _slug = generate_mnemonic()
     story = Story(
         user_id=test_user.id,
         title="Private Story",
         status="completed",
         visibility="private",
+        public_id=_pid,
+        slug=_slug,
     )
     db.add(story)
     db.commit()
     db.refresh(story)
 
     resp = client.post(
-        f"/api/votes/stories/{story.id}",
+        f"/api/votes/stories/{story.slug}",
         json={
             "vote_type": "up",
         },
@@ -140,7 +147,7 @@ def test_vote_invalid_type(client, db, test_user, other_user, other_auth_headers
     story = _create_public_story(db, test_user)
 
     resp = client.post(
-        f"/api/votes/stories/{story.id}",
+        f"/api/votes/stories/{story.slug}",
         json={
             "vote_type": "invalid",
         },

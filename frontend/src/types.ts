@@ -31,7 +31,7 @@ export interface TaskStatusResponse {
 }
 
 export interface StoryResponse {
-  id: number;
+  id: string;
   title: string;
   description: string | null;
   prompt: string | null;
@@ -50,7 +50,7 @@ export interface StoryResponse {
 }
 
 export interface StoryListResponse {
-  id: number;
+  id: string;
   title: string;
   description: string | null;
   language: string | null;
@@ -63,7 +63,7 @@ export interface StoryListResponse {
 }
 
 export interface PublicStoryListItem {
-  id: number;
+  id: string;
   title: string;
   description: string | null;
   language: string | null;
@@ -79,7 +79,7 @@ export interface PublicStoryListItem {
 }
 
 export interface PublicStoryResponse {
-  id: number;
+  id: string;
   title: string;
   description: string | null;
   prompt: string | null;
@@ -109,7 +109,7 @@ export interface FollowUserItem {
 }
 
 export interface TimelineStoryItem {
-  id: number;
+  id: string;
   title: string;
   description: string | null;
   language: string | null;
@@ -167,7 +167,7 @@ export interface BookmarkResponse {
 }
 
 export interface BookmarkedStoryListItem {
-  id: number;
+  id: string;
   title: string;
   description: string | null;
   language: string | null;
@@ -298,7 +298,7 @@ export interface StoryCreate {
 }
 
 export interface GenerateAudioRequest {
-  story_id: number;
+  story_id: string;
   chapter_numbers?: number[] | null;
   voice_override?: Record<string, Record<string, unknown>> | null;
 }

@@ -153,6 +153,8 @@ class Story(Base):
     __tablename__ = "stories"
 
     id = Column(Integer, primary_key=True, index=True)
+    public_id = Column(String(36), unique=True, nullable=False, index=True)
+    slug = Column(String(100), unique=True, nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     world_id = Column(Integer, ForeignKey("worlds.id"), nullable=True, index=True)
     title = Column(String(255), nullable=False)

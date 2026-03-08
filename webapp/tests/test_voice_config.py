@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from webapp.models.database import Chapter, Story, World
+from webapp.services.mnemonic import generate as generate_mnemonic
 
 
 def test_voice_config_from_world(client, db, auth_headers, test_user):
@@ -24,7 +25,10 @@ def test_voice_config_from_world(client, db, auth_headers, test_user):
     db.commit()
     db.refresh(world)
 
-    story = Story(user_id=test_user.id, title="VC Test", world_id=world.id, status="completed")
+    _pid, _slug = generate_mnemonic()
+    story = Story(
+        user_id=test_user.id, title="VC Test", world_id=world.id, status="completed", public_id=_pid, slug=_slug
+    )
     db.add(story)
     db.commit()
     db.refresh(story)
@@ -38,7 +42,7 @@ def test_voice_config_from_world(client, db, auth_headers, test_user):
     db.add(ch)
     db.commit()
 
-    resp = client.get(f"/api/stories/{story.id}/voice-config", headers=auth_headers)
+    resp = client.get(f"/api/stories/{story.slug}/voice-config", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["voice_config"]["NARRATOR"]["voice_id"] == "world-voice"
@@ -58,7 +62,10 @@ def test_voice_config_from_disk(client, db, auth_headers, test_user, tmp_path):
     db.commit()
     db.refresh(world)
 
-    story = Story(user_id=test_user.id, title="Disk VC", world_id=world.id, status="completed")
+    _pid, _slug = generate_mnemonic()
+    story = Story(
+        user_id=test_user.id, title="Disk VC", world_id=world.id, status="completed", public_id=_pid, slug=_slug
+    )
     db.add(story)
     db.commit()
     db.refresh(story)
@@ -77,7 +84,7 @@ def test_voice_config_from_disk(client, db, auth_headers, test_user, tmp_path):
     voices_file.write_text(json.dumps({"voices": {"NARRATOR": {"voice_id": "disk-voice"}}}))
 
     with patch.dict(os.environ, {"VOICES_CONFIG_PATH": str(voices_file)}):
-        resp = client.get(f"/api/stories/{story.id}/voice-config", headers=auth_headers)
+        resp = client.get(f"/api/stories/{story.slug}/voice-config", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["voice_config"]["NARRATOR"]["voice_id"] == "disk-voice"
@@ -97,7 +104,10 @@ def test_voice_config_missing_returns_empty(client, db, auth_headers, test_user)
     db.commit()
     db.refresh(world)
 
-    story = Story(user_id=test_user.id, title="No VC", world_id=world.id, status="completed")
+    _pid, _slug = generate_mnemonic()
+    story = Story(
+        user_id=test_user.id, title="No VC", world_id=world.id, status="completed", public_id=_pid, slug=_slug
+    )
     db.add(story)
     db.commit()
     db.refresh(story)
@@ -112,7 +122,7 @@ def test_voice_config_missing_returns_empty(client, db, auth_headers, test_user)
     db.commit()
 
     with patch.dict(os.environ, {"VOICES_CONFIG_PATH": "/nonexistent/voices_config.json"}):
-        resp = client.get(f"/api/stories/{story.id}/voice-config", headers=auth_headers)
+        resp = client.get(f"/api/stories/{story.slug}/voice-config", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["voice_config"] == {}

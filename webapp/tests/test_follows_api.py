@@ -3,6 +3,7 @@
 from datetime import UTC, datetime, timedelta
 
 from webapp.models.database import Block, Chapter, Follow, Story, World
+from webapp.services.mnemonic import generate as generate_mnemonic
 
 
 class TestFollowToggle:
@@ -55,11 +56,14 @@ class TestFollowLists:
 
 class TestTimeline:
     def _create_story(self, db, user, *, visibility="public", status="completed"):
+        _pid, _slug = generate_mnemonic()
         story = Story(
             user_id=user.id,
             title=f"{user.username}'s story",
             status=status,
             visibility=visibility,
+            public_id=_pid,
+            slug=_slug,
         )
         db.add(story)
         db.flush()
@@ -208,11 +212,14 @@ class TestNewFollowers:
 
 class TestFollowersVisibility:
     def _create_story(self, db, user, *, visibility="followers"):
+        _pid, _slug = generate_mnemonic()
         story = Story(
             user_id=user.id,
             title="Followers-only story",
             status="completed",
             visibility=visibility,
+            public_id=_pid,
+            slug=_slug,
         )
         db.add(story)
         db.flush()
@@ -225,7 +232,7 @@ class TestFollowersVisibility:
         db.add(Follow(follower_id=test_user.id, following_id=other_user.id))
         db.commit()
         story = self._create_story(db, other_user)
-        resp = client.get(f"/api/public/stories/{story.id}", headers=auth_headers)
+        resp = client.get(f"/api/public/stories/{story.slug}", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["title"] == "Followers-only story"
 
@@ -233,12 +240,12 @@ class TestFollowersVisibility:
         self, client, db, test_user, other_user, third_user, third_auth_headers
     ):
         story = self._create_story(db, other_user)
-        resp = client.get(f"/api/public/stories/{story.id}", headers=third_auth_headers)
+        resp = client.get(f"/api/public/stories/{story.slug}", headers=third_auth_headers)
         assert resp.status_code == 404
 
     def test_unauthenticated_cannot_access_followers_story(self, client, db, other_user):
         story = self._create_story(db, other_user)
-        resp = client.get(f"/api/public/stories/{story.id}")
+        resp = client.get(f"/api/public/stories/{story.slug}")
         assert resp.status_code == 404
 
     def test_followers_world_visible_to_follower(self, client, db, test_user, other_user, auth_headers):
@@ -263,11 +270,14 @@ class TestFollowersVisibility:
 
 class TestUserStories:
     def _create_story(self, db, user, *, visibility="public", status="completed"):
+        _pid, _slug = generate_mnemonic()
         story = Story(
             user_id=user.id,
             title=f"{visibility} story",
             status=status,
             visibility=visibility,
+            public_id=_pid,
+            slug=_slug,
         )
         db.add(story)
         db.flush()
