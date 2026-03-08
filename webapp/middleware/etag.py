@@ -43,6 +43,7 @@ class ETagMiddleware(BaseHTTPMiddleware):
 
         # Return original response with ETag header added
         headers = dict(response.headers)
+        headers.pop("etag", None)  # remove FileResponse's own ETag to avoid duplicates
         headers["ETag"] = etag
         return Response(
             content=body,
