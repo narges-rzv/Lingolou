@@ -1,9 +1,9 @@
 [project]
 name = "lingolou"
-version = "1.0.8"
+version = "1.0.9"
 
 [tool.bumpversion]
-current_version = "1.0.8"
+current_version = "1.0.9"
 commit = true
 tag = true
 tag_name = "v{new_version}"
