@@ -1,6 +1,6 @@
 ACR_IMAGE ?= lingolou.azurecr.io/lingolou-app:latest
 
-.PHONY: test test-backend test-frontend test-e2e test-all test-install install dev lint format all docker-build docker-run docker-run-prod compose-up compose-down az-login docker-push aca-render aca-create aca-deploy aca-logs aca-url release-patch release-minor release-major
+.PHONY: test test-backend test-frontend test-e2e test-all test-install install dev lint format all docker-build docker-run docker-run-prod compose-up compose-down az-login docker-push aca-render aca-create aca-deploy aca-logs aca-url release-patch release-minor release-major backup restore aca-backup aca-backup-list aca-restore aca-backup-delete
 
 # Install all dependencies (backend + frontend)
 install:
@@ -125,3 +125,31 @@ release-minor:
 release-major:
 	bump-my-version bump major
 	git push && git push --tags
+
+# --- Backup / Restore ---
+
+# Backup local data directory to backup.zip
+backup:
+	zip -r backup.zip data/
+
+# Restore local data directory from backup.zip
+restore:
+	unzip -o backup.zip
+
+# Snapshot Azure Files share before deployment (returns snapshot timestamp)
+aca-backup:
+	az storage share snapshot --account-name lingoloudisk --name lingolou-data --output tsv
+
+# List existing snapshots
+aca-backup-list:
+	az storage share list --account-name lingoloudisk --include-snapshots --query "[?name=='lingolou-data'].snapshot" --output tsv
+
+# Restore from a snapshot (downloads all files to data/, requires SNAPSHOT=<timestamp>)
+aca-restore:
+	@test -n "$(SNAPSHOT)" || (echo "Usage: make aca-restore SNAPSHOT=<timestamp>" && exit 1)
+	az storage file download-batch --account-name lingoloudisk --source lingolou-data --destination ./data --snapshot "$(SNAPSHOT)"
+
+# Delete a specific snapshot (requires SNAPSHOT=<timestamp>)
+aca-backup-delete:
+	@test -n "$(SNAPSHOT)" || (echo "Usage: make aca-backup-delete SNAPSHOT=<timestamp>" && exit 1)
+	az storage share snapshot delete --account-name lingoloudisk --name lingolou-data --snapshot "$(SNAPSHOT)"

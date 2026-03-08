@@ -193,6 +193,26 @@ make all             # lint + test (pre-commit check)
 4. **New dependencies**: Add to `requirements.txt`
 5. **Always run `make all`** before committing (lint + test)
 
+## Testing Database Migrations
+
+Before deploying a migration to production:
+
+1. **Backup locally**: `make backup` — snapshots `data/` into `backup.zip`
+2. **Test migration**: `PYTHONPATH=. alembic upgrade head`
+3. **Verify**: `make dev` — check the app works correctly
+4. **If migration fails**: `make restore` — recovers from `backup.zip`
+5. **Backup prod**: `make aca-backup` — takes Azure Files snapshot (note the timestamp)
+6. **Deploy**: `make release-patch` — CI/CD applies migration automatically via `init_db()`
+7. **If prod fails**: Stop container → restore snapshot → restart:
+   ```bash
+   az containerapp update --name lingolou --resource-group Lingolou --min-replicas 0 --max-replicas 0
+   make aca-backup-list                          # find pre-migration snapshot
+   mkdir -p /tmp/restore
+   az storage file download-batch --account-name lingoloudisk --source lingolou-data --destination /tmp/restore --snapshot "<timestamp>"
+   az storage file upload-batch --account-name lingoloudisk --destination lingolou-data --source /tmp/restore
+   az containerapp update --name lingolou --resource-group Lingolou --min-replicas 0 --max-replicas 1
+   ```
+
 ## Deployment
 
 - **Production** runs on Azure Container Apps at `www.lingolou.app`

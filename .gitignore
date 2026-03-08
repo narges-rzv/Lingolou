@@ -51,5 +51,8 @@ stories/
 # Local data directory (version file, voices config, redis)
 data/
 
+# Backup archive
+backup.zip
+
 # CI-generated version file
 VERSION
