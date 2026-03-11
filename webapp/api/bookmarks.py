@@ -70,7 +70,7 @@ async def list_bookmarked_stories(
             upvotes=bm.story.upvotes,
             downvotes=bm.story.downvotes,
             created_at=bm.story.created_at,
-            owner_name=bm.story.owner.username,
+            owner_name=bm.story.owner.display_name or bm.story.owner.username,
             bookmarked_at=bm.created_at,
         )
         for bm in bookmarks

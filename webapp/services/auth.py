@@ -43,6 +43,7 @@ class UserResponse(BaseModel):
     id: int
     email: str
     username: str
+    display_name: str | None = None
     is_active: bool
     created_at: datetime
 
@@ -113,7 +114,9 @@ def get_user_by_id(db: Session, user_id: int) -> User | None:
 def create_user(db: Session, user: UserCreate) -> User:
     """Create a new user with hashed password."""
     hashed_password = get_password_hash(user.password)
-    db_user = User(email=user.email, username=user.username, hashed_password=hashed_password)
+    db_user = User(
+        email=user.email, username=user.username, display_name=user.username, hashed_password=hashed_password
+    )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)

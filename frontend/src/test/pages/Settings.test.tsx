@@ -80,6 +80,33 @@ describe('Settings', () => {
     expect(screen.getByText(/0 \/ 20/)).toBeInTheDocument()
   })
 
+  it('loads display name from /auth/me', async () => {
+    render(<Settings />)
+
+    await waitFor(() => {
+      const input = screen.getByPlaceholderText('Your display name') as HTMLInputElement
+      expect(input.value).toBe('Test User')
+    })
+  })
+
+  it('saves display name', async () => {
+    const user = userEvent.setup()
+    render(<Settings />)
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Your display name')).toBeInTheDocument()
+    })
+
+    const input = screen.getByPlaceholderText('Your display name')
+    await user.clear(input)
+    await user.type(input, 'New Name')
+    await user.click(screen.getByText('Save Display Name'))
+
+    await waitFor(() => {
+      expect(screen.getByText('Display name saved.')).toBeInTheDocument()
+    })
+  })
+
   it('shows blocked users section', async () => {
     render(<Settings />)
 

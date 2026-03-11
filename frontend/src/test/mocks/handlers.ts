@@ -28,6 +28,7 @@ const mockUser: User = {
   id: 1,
   email: 'test@example.com',
   username: 'testuser',
+  display_name: 'Test User',
   is_active: true,
   created_at: '2024-01-01T00:00:00',
 }
@@ -104,6 +105,11 @@ export const handlers = [
 
   http.get(`${BASE}/auth/api-keys`, () => {
     return HttpResponse.json(mockApiKeysStatus)
+  }),
+
+  http.put(`${BASE}/auth/profile`, async ({ request }) => {
+    const body = await request.json() as Record<string, unknown>
+    return HttpResponse.json({ ...mockUser, display_name: body['display_name'] as string })
   }),
 
   http.put(`${BASE}/auth/api-keys`, async () => {
@@ -263,13 +269,13 @@ export const handlers = [
 
   http.get(`${BASE}/follows/following`, () => {
     return HttpResponse.json([
-      { id: 2, username: 'otheruser', story_count: 3, is_following: true },
+      { id: 2, username: 'otheruser', display_name: null, story_count: 3, is_following: true },
     ] satisfies FollowUserItem[])
   }),
 
   http.get(`${BASE}/follows/followers`, () => {
     return HttpResponse.json([
-      { id: 3, username: 'followeruser', story_count: 1, is_following: false },
+      { id: 3, username: 'followeruser', display_name: null, story_count: 1, is_following: false },
     ] satisfies FollowUserItem[])
   }),
 
@@ -312,6 +318,7 @@ export const handlers = [
     return HttpResponse.json({
       id: Number(params['id']),
       username: 'otheruser',
+      display_name: 'Other User',
       story_count: 5,
       world_count: 2,
       follower_count: 10,
@@ -324,13 +331,13 @@ export const handlers = [
 
   http.get(`${BASE}/follows/users/:id/followers`, () => {
     return HttpResponse.json([
-      { id: 3, username: 'followeruser', story_count: 1, is_following: false },
+      { id: 3, username: 'followeruser', display_name: null, story_count: 1, is_following: false },
     ] satisfies FollowUserItem[])
   }),
 
   http.get(`${BASE}/follows/users/:id/following`, () => {
     return HttpResponse.json([
-      { id: 4, username: 'followinguser', story_count: 2, is_following: true },
+      { id: 4, username: 'followinguser', display_name: null, story_count: 2, is_following: true },
     ] satisfies FollowUserItem[])
   }),
 
@@ -374,8 +381,8 @@ export const handlers = [
     return HttpResponse.json({
       count: 2,
       followers: [
-        { id: 5, username: 'newfollower1', story_count: 1, is_following: false },
-        { id: 6, username: 'newfollower2', story_count: 0, is_following: false },
+        { id: 5, username: 'newfollower1', display_name: null, story_count: 1, is_following: false },
+        { id: 6, username: 'newfollower2', display_name: null, story_count: 0, is_following: false },
       ],
     } satisfies NewFollowersResponse)
   }),

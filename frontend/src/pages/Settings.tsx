@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiFetch } from '../api';
-import type { ApiKeysStatus, ApiKeysUpdate, BlockedUserItem, BlockResponse } from '../types';
+import type { ApiKeysStatus, ApiKeysUpdate, BlockedUserItem, BlockResponse, User } from '../types';
 
 export default function Settings() {
   const [openaiKey, setOpenaiKey] = useState('');
@@ -11,8 +11,14 @@ export default function Settings() {
   const [message, setMessage] = useState<string | null>(null);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUserItem[]>([]);
   const [blockedLoading, setBlockedLoading] = useState(true);
+  const [displayName, setDisplayName] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileMessage, setProfileMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    apiFetch<User>('/auth/me')
+      .then((me) => setDisplayName(me.display_name || me.username))
+      .catch(() => {});
     apiFetch('/auth/api-keys')
       .then(setStatus)
       .catch(() => {})
@@ -22,6 +28,23 @@ export default function Settings() {
       .catch(() => {})
       .finally(() => setBlockedLoading(false));
   }, []);
+
+  const handleSaveProfile = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSavingProfile(true);
+    setProfileMessage(null);
+    try {
+      await apiFetch('/auth/profile', {
+        method: 'PUT',
+        json: { display_name: displayName },
+      });
+      setProfileMessage('Display name saved.');
+    } catch (err) {
+      setProfileMessage(`Error: ${(err as Error).message}`);
+    } finally {
+      setSavingProfile(false);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -82,6 +105,38 @@ export default function Settings() {
   return (
     <div className="page-card settings-page">
       <h1>Settings</h1>
+
+      <section className="settings-section">
+        <h2>Display Name</h2>
+        <p className="settings-description">
+          This name is shown publicly on your stories, profile, and comments.
+        </p>
+
+        {profileMessage && (
+          <div className={profileMessage.startsWith('Error') ? 'error-message' : 'success-message'}>
+            {profileMessage}
+          </div>
+        )}
+
+        <form onSubmit={handleSaveProfile}>
+          <div className="api-key-field">
+            <label>Display Name</label>
+            <input
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Your display name"
+              maxLength={50}
+            />
+            <span className="field-hint">1–50 characters. This replaces your username in public views.</span>
+          </div>
+          <div className="form-actions">
+            <button className="btn btn-primary" type="submit" disabled={savingProfile || !displayName.trim()}>
+              {savingProfile ? 'Saving...' : 'Save Display Name'}
+            </button>
+          </div>
+        </form>
+      </section>
 
       <section className="settings-section">
         <h2>API Keys</h2>

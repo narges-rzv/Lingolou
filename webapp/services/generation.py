@@ -64,13 +64,20 @@ def generate_story(
                 if world.valid_speakers_json:
                     config["valid_speakers"] = json.loads(world.valid_speakers_json)
 
+        # Inject language level from story model
+        config["language_level"] = story.language_level or 3
+
+        # Ensure target_language is set from story.language
+        if story.language and "target_language" not in config:
+            config["target_language"] = {"name": story.language}
+
         if story.config_json:
             override = json.loads(story.config_json)
             config.update(override)
 
         client = OpenAI(api_key=openai_api_key) if openai_api_key else OpenAI()
         settings = config.get("generation_settings", {})
-        model = settings.get("default_model", "gpt-4o")
+        model = settings.get("default_model", "gpt-5")
 
         previous_summary = ""
         total_steps = num_chapters * (2 if enhance else 1)

@@ -89,4 +89,30 @@ describe('NewStory', () => {
       expect(screen.getByText(/free tier/i)).toBeInTheDocument()
     })
   })
+
+  it('renders language level selector with default value 3', async () => {
+    render(<NewStory />)
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Language Level')).toBeInTheDocument()
+    })
+
+    const select = screen.getByLabelText('Language Level') as HTMLSelectElement
+    expect(select.value).toBe('3')
+    expect(screen.getByText('Level 1 — Minimal (~10%)')).toBeInTheDocument()
+    expect(screen.getByText('Level 10 — Full immersion (~100%)')).toBeInTheDocument()
+  })
+
+  it('allows changing language level', async () => {
+    const user = userEvent.setup()
+    render(<NewStory />)
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Language Level')).toBeInTheDocument()
+    })
+
+    const select = screen.getByLabelText('Language Level')
+    await user.selectOptions(select, '7')
+    expect((select as HTMLSelectElement).value).toBe('7')
+  })
 })

@@ -32,6 +32,44 @@ def load_config(config_path: str | None = None) -> dict:
         return json.load(f)
 
 
+def _build_language_level_instruction(config: dict) -> str:
+    """Build the language-level sandwiching instruction for the system prompt."""
+    level = config.get("language_level", 3)
+    target_language = config.get("target_language", {})
+    if isinstance(target_language, dict):
+        lang_name = target_language.get("name", "the target language")
+    else:
+        lang_name = str(target_language)
+    pct = level * 10
+
+    instruction = (
+        f"\n\nLANGUAGE TEACHING APPROACH:\n"
+        f'This is a language-learning audiobook using the "sandwiching" technique:\n'
+        f"1. A character says a word or short phrase in {lang_name}\n"
+        f"2. Pause briefly so the listener can repeat\n"
+        f"3. Another character repeats or explains the meaning in English\n"
+        f"4. The {lang_name} phrase is said once more for reinforcement\n"
+        f"\n"
+        f"LANGUAGE LEVEL: {level}/10\n"
+        f"Approximately {pct}% of all dialogue should be in {lang_name}."
+    )
+
+    if level <= 5:
+        instruction += (
+            f"\n\nBEGINNER LEVEL: Another character must explicitly translate or explain "
+            f"each {lang_name} word/phrase in English. Keep target language to short words "
+            f"and simple phrases (1-4 words). Use lots of repetition."
+        )
+    else:
+        instruction += (
+            f"\n\nADVANCED LEVEL: Characters may use longer {lang_name} sentences. "
+            f"English explanation is optional — context, gestures, and repetition should "
+            f"suffice. Dialogue can flow more naturally between languages."
+        )
+
+    return instruction
+
+
 def build_story_system_prompt(config: dict) -> str:
     """Build the system prompt for story generation, incorporating config."""
     base_prompt = config.get("story_system_prompt", "")
@@ -46,6 +84,9 @@ def build_story_system_prompt(config: dict) -> str:
     speakers = config.get("valid_speakers", [])
     if speakers:
         base_prompt += f"\n\nValid speakers: {', '.join(speakers)}"
+
+    # Add language level / sandwiching instructions
+    base_prompt += _build_language_level_instruction(config)
 
     return base_prompt
 
@@ -91,7 +132,7 @@ def generate_chapter(
 ) -> list:
     """Generate a single chapter using OpenAI."""
     settings = config.get("generation_settings", {})
-    model = model or settings.get("default_model", "gpt-4o")
+    model = model or settings.get("default_model", "gpt-5")
 
     system_prompt = build_story_system_prompt(config)
     chapter_prompt = build_chapter_prompt(config, user_prompt, chapter_num, total_chapters, previous_summary)
@@ -116,7 +157,7 @@ def generate_chapter(
 def summarize_chapter(client: OpenAI, config: dict, chapter: list, model: str | None = None) -> str:
     """Generate a brief summary of a chapter for continuity."""
     settings = config.get("generation_settings", {})
-    model = model or settings.get("default_model", "gpt-4o")
+    model = model or settings.get("default_model", "gpt-5")
 
     # Extract dialogue for context
     lines = [e.get("text", "") for e in chapter if e.get("type") == "line"]
@@ -136,7 +177,7 @@ def summarize_chapter(client: OpenAI, config: dict, chapter: list, model: str | 
 def enhance_chapter(client: OpenAI, config: dict, chapter: list, model: str | None = None) -> list:
     """Add emotion tags to a chapter using OpenAI."""
     settings = config.get("generation_settings", {})
-    model = model or settings.get("default_model", "gpt-4o")
+    model = model or settings.get("default_model", "gpt-5")
 
     enhance_prompt = config.get("enhance_system_prompt", "Add emotion tags to dialogue.")
 
@@ -185,7 +226,7 @@ def generate_story(
     settings = config.get("generation_settings", {})
 
     num_chapters = num_chapters or settings.get("default_chapters", 3)
-    model = model or settings.get("default_model", "gpt-4o")
+    model = model or settings.get("default_model", "gpt-5")
 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)

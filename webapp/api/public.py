@@ -86,6 +86,7 @@ async def list_public_stories(
             title=s.title,
             description=s.description,
             language=s.language,
+            language_level=s.language_level or 3,
             world_id=s.world_id,
             world_name=s.world.name if s.world else None,
             status=s.status,
@@ -93,7 +94,7 @@ async def list_public_stories(
             upvotes=s.upvotes,
             downvotes=s.downvotes,
             created_at=s.created_at,
-            owner_name=s.owner.username,
+            owner_name=s.owner.display_name or s.owner.username,
             owner_id=s.user_id,
         )
         for s in stories
@@ -160,6 +161,7 @@ async def get_public_story(
         description=story.description,
         prompt=story.prompt,
         language=story.language,
+        language_level=story.language_level or 3,
         status=story.status,
         visibility=story.visibility,
         share_code=story.share_code,
@@ -169,7 +171,7 @@ async def get_public_story(
         is_bookmarked=is_bookmarked,
         created_at=story.created_at,
         chapters=story.chapters,
-        owner_name=story.owner.username,
+        owner_name=story.owner.display_name or story.owner.username,
         owner_id=story.user_id,
     )
 
@@ -212,6 +214,7 @@ async def get_shared_story(
         description=story.description,
         prompt=story.prompt,
         language=story.language,
+        language_level=story.language_level or 3,
         status=story.status,
         visibility=story.visibility,
         share_code=story.share_code,
@@ -221,7 +224,7 @@ async def get_shared_story(
         is_bookmarked=is_bookmarked,
         created_at=story.created_at,
         chapters=story.chapters,
-        owner_name=story.owner.username,
+        owner_name=story.owner.display_name or story.owner.username,
         owner_id=story.user_id,
     )
 
@@ -250,6 +253,7 @@ async def fork_story(
         description=source.description,
         prompt=source.prompt,
         language=source.language,
+        language_level=source.language_level,
         world_id=source.world_id,
         config_json=source.config_json,
         status="completed",
@@ -282,6 +286,7 @@ async def fork_story(
         description=new_story.description,
         prompt=new_story.prompt,
         language=new_story.language,
+        language_level=new_story.language_level or 3,
         world_id=new_story.world_id,
         world_name=new_story.world.name if new_story.world else None,
         status=new_story.status,
@@ -359,7 +364,7 @@ async def list_public_worlds(
             is_builtin=w.is_builtin,
             visibility=w.visibility,
             story_count=len(w.stories),
-            owner_name=w.owner.username if w.owner else None,
+            owner_name=(w.owner.display_name or w.owner.username) if w.owner else None,
             created_at=w.created_at,
         )
         for w in worlds

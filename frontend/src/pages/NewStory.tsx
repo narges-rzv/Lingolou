@@ -25,12 +25,38 @@ const DEFAULT_TEMPLATE =
   'The plot is: {plot}. Keep the story in {num_chapters} chapters. ' +
   'Each chapter should be around 1000 words.';
 
-function interpolateTemplate(template: string, language: string, themeText: string, plot: string, numChapters: number): string {
-  return template
+function buildLanguageLevelNote(language: string, level: number): string {
+  const pct = level * 10;
+  let note =
+    `\n\nLanguage level: ${level}/10. ` +
+    `Approximately ${pct}% of dialogue should be in ${language}. ` +
+    `Use the "sandwiching" technique: say a word/phrase in ${language}, ` +
+    `pause briefly, explain or repeat in English, then say the ${language} phrase again.`;
+
+  if (level <= 5) {
+    note +=
+      ` (Beginner: explicitly translate each ${language} word/phrase in English. ` +
+      'Keep target language to short words and simple phrases.)';
+  } else {
+    note +=
+      ` (Advanced: characters may use longer ${language} sentences. ` +
+      'English explanation is optional — context and repetition should suffice.)';
+  }
+
+  return note;
+}
+
+function interpolateTemplate(
+  template: string, language: string, themeText: string, plot: string,
+  numChapters: number, languageLevel: number,
+): string {
+  const base = template
     .replace(/\{language\}/g, language)
     .replace(/\{theme\}/g, themeText)
     .replace(/\{plot\}/g, plot)
     .replace(/\{num_chapters\}/g, String(numChapters));
+
+  return base + buildLanguageLevelNote(language, languageLevel);
 }
 
 export default function NewStory() {
@@ -39,11 +65,12 @@ export default function NewStory() {
   const { language: globalLanguage } = useLanguage();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [language, setLanguage] = useState(globalLanguage);
+  const [language, setLanguage] = useState(globalLanguage || LANGUAGES[0]);
   const [themeKey, setThemeKey] = useState('greetings');
   const [customTheme, setCustomTheme] = useState('');
   const [plot, setPlot] = useState('saving a lost baby penguin, and reuniting her with her parents');
   const [numChapters, setNumChapters] = useState(3);
+  const [languageLevel, setLanguageLevel] = useState(3);
   const [promptEdited, setPromptEdited] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [voices, setVoices] = useState<VoiceListItem[] | null>(null);
@@ -88,8 +115,8 @@ export default function NewStory() {
 
   // Auto-generate prompt when inputs change (unless user manually edited it)
   const generatedPrompt = useMemo(
-    () => interpolateTemplate(promptTemplate, language, themeText, plot, numChapters),
-    [promptTemplate, language, themeText, plot, numChapters]
+    () => interpolateTemplate(promptTemplate, language, themeText, plot, numChapters, languageLevel),
+    [promptTemplate, language, themeText, plot, numChapters, languageLevel]
   );
 
   useEffect(() => {
@@ -144,6 +171,7 @@ export default function NewStory() {
           prompt,
           num_chapters: numChapters,
           language,
+          language_level: languageLevel,
           world_id: selectedWorldId ? Number(selectedWorldId) : null,
           config_override: {
             target_language: { name: language, code: language.slice(0, 2).toLowerCase() },
@@ -254,6 +282,29 @@ export default function NewStory() {
               ))}
             </select>
           </div>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="languageLevel">Language Level</label>
+          <select
+            id="languageLevel"
+            value={languageLevel}
+            onChange={(e) => { setLanguageLevel(Number(e.target.value)); setPromptEdited(false); }}
+          >
+            <option value={1}>Level 1 — Minimal (~10%)</option>
+            <option value={2}>Level 2 — Very light (~20%)</option>
+            <option value={3}>Level 3 — Beginner (~30%)</option>
+            <option value={4}>Level 4 — Elementary (~40%)</option>
+            <option value={5}>Level 5 — Intermediate (~50%)</option>
+            <option value={6}>Level 6 — Upper intermediate (~60%)</option>
+            <option value={7}>Level 7 — Advanced (~70%)</option>
+            <option value={8}>Level 8 — High advanced (~80%)</option>
+            <option value={9}>Level 9 — Near immersion (~90%)</option>
+            <option value={10}>Level 10 — Full immersion (~100%)</option>
+          </select>
+          <span className="field-hint">
+            Controls how much of the dialogue is in the target language.
+          </span>
         </div>
 
         <div className="form-group">

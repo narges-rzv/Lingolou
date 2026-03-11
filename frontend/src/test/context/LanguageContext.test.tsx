@@ -14,7 +14,7 @@ describe('LanguageContext', () => {
 
   it('defaults to DEFAULT_LANGUAGE', () => {
     const { result } = renderHook(() => useLanguage(), { wrapper })
-    expect(result.current.language).toBe('Chinese (Mandarin)')
+    expect(result.current.language).toBe('')
   })
 
   it('setLanguage updates state and localStorage', () => {

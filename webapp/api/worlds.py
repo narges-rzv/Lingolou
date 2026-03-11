@@ -33,7 +33,7 @@ def _world_to_response(world: World) -> WorldResponse:
         visibility=world.visibility,
         share_code=world.share_code,
         story_count=len(world.stories),
-        owner_name=world.owner.username if world.owner else None,
+        owner_name=(world.owner.display_name or world.owner.username) if world.owner else None,
         created_at=world.created_at,
         updated_at=world.updated_at,
     )
@@ -48,7 +48,7 @@ def _world_to_list_item(world: World) -> WorldListItem:
         is_builtin=world.is_builtin,
         visibility=world.visibility,
         story_count=len(world.stories),
-        owner_name=world.owner.username if world.owner else None,
+        owner_name=(world.owner.display_name or world.owner.username) if world.owner else None,
         created_at=world.created_at,
     )
 

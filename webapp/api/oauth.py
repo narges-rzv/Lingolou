@@ -49,6 +49,8 @@ def _get_or_create_oauth_user(
     if user:
         user.oauth_provider = provider
         user.oauth_id = oauth_id
+        if not user.display_name and name:
+            user.display_name = name
         db.commit()
         return user
 
@@ -64,6 +66,7 @@ def _get_or_create_oauth_user(
     user = User(
         email=email,
         username=username,
+        display_name=name or username,
         hashed_password=None,
         oauth_provider=provider,
         oauth_id=oauth_id,

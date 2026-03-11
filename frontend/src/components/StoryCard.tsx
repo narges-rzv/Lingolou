@@ -28,6 +28,7 @@ export default function StoryCard({ story }: StoryCardProps) {
         <span className={statusClass(story.status)}>{story.status}</span>
         <span>
           {story.world_name && `${story.world_name} \u00b7 `}
+          {story.language_level != null && `Lvl ${story.language_level} \u00b7 `}
           {story.chapter_count} chapter{story.chapter_count !== 1 ? 's' : ''}
           {' \u00b7 '}
           {formatDate(story.created_at)}

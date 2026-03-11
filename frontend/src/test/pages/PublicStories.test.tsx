@@ -76,6 +76,6 @@ describe('PublicStories', () => {
     })
 
     const select = screen.getByRole('combobox')
-    expect((select as HTMLSelectElement).value).toBe('Chinese (Mandarin)')
+    expect((select as HTMLSelectElement).value).toBe('')
   })
 })

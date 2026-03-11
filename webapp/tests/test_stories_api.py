@@ -465,3 +465,61 @@ def test_duplicate_story_chapters_copied(client, auth_headers, db):
         assert ch.script_json is not None
         assert ch.enhanced_json is not None
         assert ch.audio_path is None
+
+
+def test_create_story_with_language_level(client, auth_headers):
+    """Story creation with explicit language_level stores it correctly."""
+    resp = _create_story(client, auth_headers, language_level=7)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["language_level"] == 7
+
+
+def test_create_story_default_language_level(client, auth_headers):
+    """Story creation without language_level defaults to 3."""
+    resp = _create_story(client, auth_headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["language_level"] == 3
+
+
+def test_language_level_in_story_list(client, auth_headers):
+    """language_level appears in story list responses."""
+    _create_story(client, auth_headers, language_level=5)
+    resp = client.get("/api/stories/", headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data[0]["language_level"] == 5
+
+
+def test_language_level_in_get_story(client, auth_headers):
+    """language_level appears in single story response."""
+    create_resp = _create_story(client, auth_headers, language_level=8)
+    story_id = create_resp.json()["id"]
+    resp = client.get(f"/api/stories/{story_id}", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json()["language_level"] == 8
+
+
+def test_language_level_prompt_beginner():
+    """Beginner level (<=5) includes BEGINNER LEVEL in system prompt."""
+    from generate_story import _build_language_level_instruction
+
+    config = {"language_level": 2, "target_language": {"name": "French"}}
+    instruction = _build_language_level_instruction(config)
+    assert "LANGUAGE LEVEL: 2/10" in instruction
+    assert "20%" in instruction
+    assert "BEGINNER LEVEL" in instruction
+    assert "French" in instruction
+
+
+def test_language_level_prompt_advanced():
+    """Advanced level (>5) includes ADVANCED LEVEL in system prompt."""
+    from generate_story import _build_language_level_instruction
+
+    config = {"language_level": 7, "target_language": {"name": "Spanish"}}
+    instruction = _build_language_level_instruction(config)
+    assert "LANGUAGE LEVEL: 7/10" in instruction
+    assert "70%" in instruction
+    assert "ADVANCED LEVEL" in instruction
+    assert "Spanish" in instruction

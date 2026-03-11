@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
-import { LANGUAGES } from '../languages';
+import { LANGUAGES, ALL_LANGUAGES } from '../languages';
 import { apiFetch } from '../api';
 import type { NewFollowersResponse } from '../types';
 
@@ -44,6 +44,7 @@ export default function Navbar() {
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
           >
+            <option value={ALL_LANGUAGES}>Any</option>
             {LANGUAGES.map((lang) => (
               <option key={lang} value={lang}>{lang}</option>
             ))}
@@ -86,7 +87,7 @@ export default function Navbar() {
                   </span>
                 )}
               </button>
-              <span className="navbar-user">{user?.username}</span>
+              <span className="navbar-user">{user?.display_name || user?.username}</span>
               <button className="btn btn-ghost btn-sm" onClick={logout}>
                 Log out
               </button>

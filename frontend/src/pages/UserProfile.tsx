@@ -100,7 +100,7 @@ export default function UserProfile() {
     <div>
       {/* Profile header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
-        <h1 style={{ margin: 0 }}>{profile.username}</h1>
+        <h1 style={{ margin: 0 }}>{profile.display_name || profile.username}</h1>
         {!isOwnProfile && !profile.is_blocked && (
           <FollowButton
             userId={profile.id}
@@ -128,6 +128,12 @@ export default function UserProfile() {
           </button>
         )}
       </div>
+
+      {profile.display_name && (
+        <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem', margin: '0.25rem 0 0' }}>
+          @{profile.username}
+        </p>
+      )}
 
       <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
         {profile.story_count} stories &middot; {profile.world_count} worlds

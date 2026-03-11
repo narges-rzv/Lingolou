@@ -4,6 +4,7 @@ export interface User {
   id: number;
   email: string;
   username: string;
+  display_name: string | null;
   is_active: boolean;
   created_at: string;
 }
@@ -36,6 +37,7 @@ export interface StoryResponse {
   description: string | null;
   prompt: string | null;
   language: string | null;
+  language_level: number;
   world_id: number | null;
   world_name: string | null;
   status: string;
@@ -54,6 +56,7 @@ export interface StoryListResponse {
   title: string;
   description: string | null;
   language: string | null;
+  language_level: number;
   world_id: number | null;
   world_name: string | null;
   status: string;
@@ -67,6 +70,7 @@ export interface PublicStoryListItem {
   title: string;
   description: string | null;
   language: string | null;
+  language_level: number;
   world_id: number | null;
   world_name: string | null;
   status: string;
@@ -84,6 +88,7 @@ export interface PublicStoryResponse {
   description: string | null;
   prompt: string | null;
   language: string | null;
+  language_level: number;
   status: string;
   visibility: string;
   share_code: string | null;
@@ -104,6 +109,7 @@ export interface FollowResponse {
 export interface FollowUserItem {
   id: number;
   username: string;
+  display_name: string | null;
   story_count: number;
   is_following: boolean;
 }
@@ -113,6 +119,7 @@ export interface TimelineStoryItem {
   title: string;
   description: string | null;
   language: string | null;
+  language_level: number;
   world_id: number | null;
   world_name: string | null;
   status: string;
@@ -138,6 +145,7 @@ export interface TimelineWorldItem {
 export interface UserProfileResponse {
   id: number;
   username: string;
+  display_name: string | null;
   story_count: number;
   world_count: number;
   follower_count: number;
@@ -293,6 +301,7 @@ export interface StoryCreate {
   prompt?: string | null;
   num_chapters?: number;
   language?: string | null;
+  language_level?: number;
   world_id?: number | null;
   config_override?: Record<string, unknown> | null;
 }

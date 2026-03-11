@@ -9,6 +9,13 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 
+# Profile schemas
+class ProfileUpdate(BaseModel):
+    """Request schema for updating user profile."""
+
+    display_name: str
+
+
 # Story schemas
 class StoryCreate(BaseModel):
     """Request schema for creating a new story."""
@@ -18,6 +25,7 @@ class StoryCreate(BaseModel):
     prompt: str | None = None
     num_chapters: int = 3
     language: str | None = None
+    language_level: int = 3
     world_id: int | None = None
     config_override: dict | None = None  # Override default config
 
@@ -54,6 +62,7 @@ class StoryResponse(BaseModel):
     description: str | None
     prompt: str | None = None
     language: str | None = None
+    language_level: int = 3
     world_id: int | None = None
     world_name: str | None = None
     status: str
@@ -76,6 +85,7 @@ class StoryListResponse(BaseModel):
     title: str
     description: str | None
     language: str | None = None
+    language_level: int = 3
     world_id: int | None = None
     world_name: str | None = None
     status: str
@@ -93,6 +103,7 @@ class PublicStoryListItem(BaseModel):
     title: str
     description: str | None
     language: str | None = None
+    language_level: int = 3
     world_id: int | None = None
     world_name: str | None = None
     status: str
@@ -114,6 +125,7 @@ class PublicStoryResponse(BaseModel):
     description: str | None
     prompt: str | None = None
     language: str | None = None
+    language_level: int = 3
     status: str
     visibility: str
     share_code: str | None = None
@@ -141,6 +153,7 @@ class FollowUserItem(BaseModel):
 
     id: int
     username: str
+    display_name: str | None = None
     story_count: int = 0
     is_following: bool = False
 
@@ -152,6 +165,7 @@ class TimelineStoryItem(BaseModel):
     title: str
     description: str | None = None
     language: str | None = None
+    language_level: int = 3
     world_id: int | None = None
     world_name: str | None = None
     status: str
@@ -181,6 +195,7 @@ class UserProfileResponse(BaseModel):
 
     id: int
     username: str
+    display_name: str | None = None
     story_count: int = 0
     world_count: int = 0
     follower_count: int = 0

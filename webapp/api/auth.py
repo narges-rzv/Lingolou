@@ -9,7 +9,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from webapp.models.database import FREE_AUDIO_PER_USER, FREE_STORIES_PER_USER, User, get_db
-from webapp.models.schemas import ApiKeysStatus, ApiKeysUpdate
+from webapp.models.schemas import ApiKeysStatus, ApiKeysUpdate, ProfileUpdate
 from webapp.services.auth import (
     Token,
     UserCreate,
@@ -63,6 +63,25 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(current_user: User = Depends(get_current_active_user)) -> User:
     """Get current user information."""
+    return current_user
+
+
+@router.put("/profile", response_model=UserResponse)
+async def update_profile(
+    body: ProfileUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+) -> User:
+    """Update the current user's profile (display name)."""
+    name = body.display_name.strip()
+    if not name or len(name) > 50:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Display name must be between 1 and 50 characters",
+        )
+    current_user.display_name = name
+    db.commit()
+    db.refresh(current_user)
     return current_user
 
 

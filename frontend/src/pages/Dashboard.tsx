@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { apiFetch, publicApiFetch } from '../api';
-import { LANGUAGES } from '../languages';
+import { LANGUAGES, ALL_LANGUAGES } from '../languages';
 import BudgetBanner from '../components/BudgetBanner';
 import StoryCard from '../components/StoryCard';
 import PublicStoryCard from '../components/PublicStoryCard';
@@ -29,7 +29,9 @@ export default function Dashboard() {
 
   useEffect(() => {
     setLoadingPublic(true);
-    const url = `/public/stories?language=${encodeURIComponent(language)}`;
+    const url = language === ALL_LANGUAGES
+      ? '/public/stories'
+      : `/public/stories?language=${encodeURIComponent(language)}`;
     publicApiFetch(url)
       .then(setPublicStories)
       .catch(() => setPublicStories([]))
@@ -51,6 +53,7 @@ export default function Dashboard() {
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
           >
+            <option value={ALL_LANGUAGES}>Any</option>
             {LANGUAGES.map((lang) => (
               <option key={lang} value={lang}>{lang}</option>
             ))}
@@ -67,13 +70,13 @@ export default function Dashboard() {
         {/* Left: Public Stories */}
         <div className="home-column">
           <div className="column-header">
-            <h2>Public Stories — {language}</h2>
+            <h2>Public Stories — {language || 'All Languages'}</h2>
           </div>
           {loadingPublic ? (
             <p className="column-loading">Loading stories...</p>
           ) : publicStories.length === 0 ? (
             <div className="empty-state">
-              <p>No public stories yet for {language}.</p>
+              <p>{language ? `No public stories yet for ${language}.` : 'No public stories yet.'}</p>
             </div>
           ) : (
             <div className="column-story-list">

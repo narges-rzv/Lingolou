@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { LANGUAGE_COLORS } from '../languages';
 import type { PublicStoryListItem } from '../types';
 
 interface PublicStoryCardProps {
@@ -14,8 +15,10 @@ function formatDate(dateStr: string): string {
 }
 
 export default function PublicStoryCard({ story }: PublicStoryCardProps) {
+  const accentColor = LANGUAGE_COLORS[story.language] || 'var(--color-primary)';
+
   return (
-    <Link to={`/public/stories/${story.id}`} className="story-card">
+    <Link to={`/public/stories/${story.id}`} className="story-card" style={{ borderLeft: `3px solid ${accentColor}` }}>
       <h3>{story.title}</h3>
       {story.description && (
         <p className="description">{story.description}</p>
@@ -29,7 +32,7 @@ export default function PublicStoryCard({ story }: PublicStoryCardProps) {
         </span>
       </div>
       <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem', display: 'flex', justifyContent: 'space-between' }}>
-        <span>by {story.owner_name}{story.world_name ? ` \u00b7 ${story.world_name}` : ''}</span>
+        <span>by {story.owner_name}{story.language ? ` \u00b7 ${story.language}` : ''}{story.language_level != null ? ` \u00b7 Lvl ${story.language_level}` : ''}{story.world_name ? ` \u00b7 ${story.world_name}` : ''}</span>
         <span className="vote-score-inline">
           &#9650; {(story.upvotes || 0) - (story.downvotes || 0)}
         </span>

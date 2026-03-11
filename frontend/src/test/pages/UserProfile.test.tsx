@@ -22,7 +22,7 @@ describe('UserProfile', () => {
     render(<UserProfile />)
 
     await waitFor(() => {
-      expect(screen.getByText('otheruser')).toBeInTheDocument()
+      expect(screen.getByText('Other User')).toBeInTheDocument()
     })
 
     expect(screen.getByText(/5 stories/)).toBeInTheDocument()
@@ -76,7 +76,7 @@ describe('UserProfile', () => {
     render(<UserProfile />)
 
     await waitFor(() => {
-      expect(screen.getByText('otheruser')).toBeInTheDocument()
+      expect(screen.getByText('Other User')).toBeInTheDocument()
     })
 
     await user.click(screen.getByRole('button', { name: 'Worlds' }))

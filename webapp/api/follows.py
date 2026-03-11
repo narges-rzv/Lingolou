@@ -117,7 +117,7 @@ async def list_following(
             result.append(
                 FollowUserItem(
                     id=user.id,
-                    username=user.username,
+                    username=user.display_name or user.username,
                     story_count=story_count,
                     is_following=True,
                 )
@@ -153,7 +153,7 @@ async def list_followers(
             result.append(
                 FollowUserItem(
                     id=user.id,
-                    username=user.username,
+                    username=user.display_name or user.username,
                     story_count=story_count,
                     is_following=is_following(db, current_user.id, user.id),
                 )
@@ -197,7 +197,7 @@ async def list_user_followers(
             result.append(
                 FollowUserItem(
                     id=user.id,
-                    username=user.username,
+                    username=user.display_name or user.username,
                     story_count=story_count,
                     is_following=is_following(db, current_user.id, user.id),
                 )
@@ -241,7 +241,7 @@ async def list_user_following(
             result.append(
                 FollowUserItem(
                     id=user.id,
-                    username=user.username,
+                    username=user.display_name or user.username,
                     story_count=story_count,
                     is_following=is_following(db, current_user.id, user.id),
                 )
@@ -272,7 +272,7 @@ async def get_new_followers(
             result.append(
                 FollowUserItem(
                     id=user.id,
-                    username=user.username,
+                    username=user.display_name or user.username,
                     story_count=story_count,
                     is_following=is_following(db, current_user.id, user.id),
                 )
@@ -329,6 +329,7 @@ async def get_timeline(
             title=s.title,
             description=s.description,
             language=s.language,
+            language_level=s.language_level or 3,
             world_id=s.world_id,
             world_name=s.world.name if s.world else None,
             status=s.status,
@@ -336,7 +337,7 @@ async def get_timeline(
             upvotes=s.upvotes,
             downvotes=s.downvotes,
             created_at=s.created_at,
-            owner_name=s.owner.username,
+            owner_name=s.owner.display_name or s.owner.username,
             owner_id=s.user_id,
         )
         for s in stories
@@ -380,7 +381,7 @@ async def get_timeline_worlds(
             description=w.description,
             visibility=w.visibility,
             story_count=len(w.stories),
-            owner_name=w.owner.username if w.owner else "Unknown",
+            owner_name=(w.owner.display_name or w.owner.username) if w.owner else "Unknown",
             owner_id=w.user_id or 0,
             created_at=w.created_at,
         )
@@ -432,7 +433,7 @@ async def list_user_stories(
             upvotes=s.upvotes,
             downvotes=s.downvotes,
             created_at=s.created_at,
-            owner_name=s.owner.username,
+            owner_name=s.owner.display_name or s.owner.username,
             owner_id=s.user_id,
         )
         for s in stories
@@ -475,7 +476,7 @@ async def list_user_worlds(
             is_builtin=w.is_builtin,
             visibility=w.visibility,
             story_count=len(w.stories),
-            owner_name=w.owner.username if w.owner else None,
+            owner_name=(w.owner.display_name or w.owner.username) if w.owner else None,
             created_at=w.created_at,
         )
         for w in worlds
@@ -514,6 +515,7 @@ async def get_user_profile(
     return UserProfileResponse(
         id=user.id,
         username=user.username,
+        display_name=user.display_name,
         story_count=story_count,
         world_count=world_count,
         follower_count=follower_count,

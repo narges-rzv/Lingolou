@@ -25,7 +25,7 @@ describe('Navbar', () => {
     render(<Navbar />)
 
     await waitFor(() => {
-      expect(screen.getByText('testuser')).toBeInTheDocument()
+      expect(screen.getByText('Test User')).toBeInTheDocument()
     })
 
     expect(screen.getByText('My Stories')).toBeInTheDocument()

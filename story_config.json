@@ -42,7 +42,7 @@
   },
 
   "generation_settings": {
-    "default_model": "gpt-4o",
+    "default_model": "gpt-5",
     "default_chapters": 3,
     "story_temperature": 0.8,
     "story_max_tokens": 4000,
