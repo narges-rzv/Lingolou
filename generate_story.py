@@ -15,8 +15,15 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
 from openai import OpenAI
+from openai.types.chat import ChatCompletionChunk
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from openai import Stream
 
 DEFAULT_CONFIG_PATH = Path(__file__).parent / "story_config.json"
 
@@ -121,6 +128,55 @@ def build_chapter_prompt(
     return prompt
 
 
+def _stream_openai_response(
+    client: OpenAI,
+    messages: list[dict[str, str]],
+    model: str,
+    max_tokens: int,
+    on_progress: Callable[[int], None] | None = None,
+    progress_interval: int = 500,
+) -> str:
+    """
+    Stream an OpenAI chat completion, calling on_progress with word count periodically.
+
+    Args:
+        client: OpenAI client instance.
+        messages: Chat messages to send.
+        model: Model name.
+        max_tokens: Max completion tokens.
+        on_progress: Optional callback receiving word count so far.
+        progress_interval: Call on_progress every N chars of accumulated content.
+
+    Returns:
+        The full response content string.
+    """
+    raw_stream = client.chat.completions.create(
+        model=model,
+        messages=messages,  # type: ignore[arg-type]
+        max_completion_tokens=max_tokens,
+        stream=True,
+    )
+    stream = cast("Stream[ChatCompletionChunk]", raw_stream)
+
+    content = ""
+    last_reported_len = 0
+
+    for chunk in stream:
+        delta = chunk.choices[0].delta if chunk.choices else None
+        if delta and delta.content:
+            content += delta.content
+            if on_progress and (len(content) - last_reported_len) >= progress_interval:
+                last_reported_len = len(content)
+                word_count = len(content.split())
+                on_progress(word_count)
+
+    # Final progress report
+    if on_progress:
+        on_progress(len(content.split()))
+
+    return content.strip()
+
+
 def generate_chapter(
     client: OpenAI,
     config: dict,
@@ -129,22 +185,25 @@ def generate_chapter(
     total_chapters: int,
     previous_summary: str = "",
     model: str | None = None,
+    on_progress: Callable[[int], None] | None = None,
 ) -> list:
     """Generate a single chapter using OpenAI."""
     settings = config.get("generation_settings", {})
-    model = model or settings.get("default_model", "gpt-5")
+    model = model or settings.get("default_model", "gpt-4.1")
 
     system_prompt = build_story_system_prompt(config)
     chapter_prompt = build_chapter_prompt(config, user_prompt, chapter_num, total_chapters, previous_summary)
 
-    response = client.chat.completions.create(
-        model=model,
+    content = _stream_openai_response(
+        client=client,
         messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": chapter_prompt}],
-        temperature=settings.get("story_temperature", 0.8),
-        max_tokens=settings.get("story_max_tokens", 4000),
+        model=model,
+        max_tokens=settings.get("story_max_tokens", 16000),
+        on_progress=on_progress,
     )
 
-    content = (response.choices[0].message.content or "").strip()
+    if not content:
+        raise ValueError("Empty response from model")
 
     # Remove markdown code blocks if present
     if content.startswith("```"):
@@ -157,40 +216,48 @@ def generate_chapter(
 def summarize_chapter(client: OpenAI, config: dict, chapter: list, model: str | None = None) -> str:
     """Generate a brief summary of a chapter for continuity."""
     settings = config.get("generation_settings", {})
-    model = model or settings.get("default_model", "gpt-5")
+    model = model or settings.get("default_model", "gpt-4.1")
 
     # Extract dialogue for context
     lines = [e.get("text", "") for e in chapter if e.get("type") == "line"]
     text_sample = " ".join(lines[:20])
 
     summary_system_msg = "Summarize this story chapter in 2-3 sentences for continuity with the next chapter."
-    response = client.chat.completions.create(
-        model=model,
+
+    return _stream_openai_response(
+        client=client,
         messages=[{"role": "system", "content": summary_system_msg}, {"role": "user", "content": text_sample}],
-        temperature=settings.get("summary_temperature", 0.3),
+        model=model,
         max_tokens=settings.get("summary_max_tokens", 200),
     )
 
-    return (response.choices[0].message.content or "").strip()
 
-
-def enhance_chapter(client: OpenAI, config: dict, chapter: list, model: str | None = None) -> list:
+def enhance_chapter(
+    client: OpenAI,
+    config: dict,
+    chapter: list,
+    model: str | None = None,
+    on_progress: Callable[[int], None] | None = None,
+) -> list:
     """Add emotion tags to a chapter using OpenAI."""
     settings = config.get("generation_settings", {})
-    model = model or settings.get("default_model", "gpt-5")
+    model = model or settings.get("default_model", "gpt-4.1")
 
     enhance_prompt = config.get("enhance_system_prompt", "Add emotion tags to dialogue.")
 
     chapter_json = json.dumps(chapter, ensure_ascii=False, indent=2)
     user_content = f"Add emotion tags to this story script:\n\n{chapter_json}"
-    response = client.chat.completions.create(
-        model=model,
+
+    content = _stream_openai_response(
+        client=client,
         messages=[{"role": "system", "content": enhance_prompt}, {"role": "user", "content": user_content}],
-        temperature=settings.get("enhance_temperature", 0.4),
-        max_tokens=settings.get("enhance_max_tokens", 8000),
+        model=model,
+        max_tokens=settings.get("enhance_max_tokens", 16000),
+        on_progress=on_progress,
     )
 
-    content = (response.choices[0].message.content or "").strip()
+    if not content:
+        raise ValueError("Empty enhance response from model")
 
     # Remove markdown code blocks if present
     if content.startswith("```"):
@@ -226,7 +293,7 @@ def generate_story(
     settings = config.get("generation_settings", {})
 
     num_chapters = num_chapters or settings.get("default_chapters", 3)
-    model = model or settings.get("default_model", "gpt-5")
+    model = model or settings.get("default_model", "gpt-4.1")
 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)

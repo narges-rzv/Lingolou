@@ -42,13 +42,10 @@
   },
 
   "generation_settings": {
-    "default_model": "gpt-5",
+    "default_model": "gpt-4.1",
     "default_chapters": 3,
-    "story_temperature": 0.8,
-    "story_max_tokens": 4000,
-    "enhance_temperature": 0.4,
-    "enhance_max_tokens": 8000,
-    "summary_temperature": 0.3,
-    "summary_max_tokens": 200
+    "story_max_tokens": 16000,
+    "enhance_max_tokens": 16000,
+    "summary_max_tokens": 1000
   }
 }

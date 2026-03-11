@@ -65,7 +65,9 @@ export default function NewStory() {
   const { language: globalLanguage } = useLanguage();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [language, setLanguage] = useState(globalLanguage || LANGUAGES[0]);
+  const [language, setLanguage] = useState(
+    localStorage.getItem('lastStoryLanguage') || globalLanguage || LANGUAGES[0]
+  );
   const [themeKey, setThemeKey] = useState('greetings');
   const [customTheme, setCustomTheme] = useState('');
   const [plot, setPlot] = useState('saving a lost baby penguin, and reuniting her with her parents');
@@ -178,6 +180,7 @@ export default function NewStory() {
           },
         },
       }) as { id: number };
+      localStorage.setItem('lastStoryLanguage', language);
       navigate(`/stories/${story.id}`);
     } catch (err) {
       setError((err as Error).message);

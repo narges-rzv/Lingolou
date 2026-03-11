@@ -77,7 +77,7 @@ def generate_story(
 
         client = OpenAI(api_key=openai_api_key) if openai_api_key else OpenAI()
         settings = config.get("generation_settings", {})
-        model = settings.get("default_model", "gpt-5")
+        model = settings.get("default_model", "gpt-4.1")
 
         previous_summary = ""
         total_steps = num_chapters * (2 if enhance else 1)
@@ -113,6 +113,21 @@ def generate_story(
                 estimated_total_words=estimated_total_words,
             )
 
+            # Build streaming progress callback for generate_chapter
+            def _make_gen_cb(step: int, ch: int, base_words: int) -> Callable[[int], None]:
+                def _cb(stream_words: int) -> None:
+                    pct = ((step + 0.5) / total_steps) * 100
+                    get_task_backend().update(
+                        task_id,
+                        "running",
+                        pct,
+                        f"Generating chapter {ch}... ({stream_words} words)",
+                        words_generated=base_words + stream_words,
+                        estimated_total_words=estimated_total_words,
+                    )
+
+                return _cb
+
             # Generate chapter
             chapter_data = generate_chapter(
                 client=client,
@@ -122,6 +137,7 @@ def generate_story(
                 total_chapters=num_chapters,
                 previous_summary=previous_summary,
                 model=model,
+                on_progress=_make_gen_cb(current_step, ch_num, words_generated),
             )
 
             chapter.script_json = json.dumps(chapter_data, ensure_ascii=False)
@@ -148,7 +164,28 @@ def generate_story(
                     estimated_total_words=estimated_total_words,
                 )
 
-                enhanced_data = enhance_chapter(client, config, chapter_data, model)
+                # Build streaming progress callback for enhance_chapter
+                def _make_enh_cb(step: int, ch: int, w: int) -> Callable[[int], None]:
+                    def _cb(_stream_words: int) -> None:
+                        pct = ((step + 0.5) / total_steps) * 100
+                        get_task_backend().update(
+                            task_id,
+                            "running",
+                            pct,
+                            f"Enhancing chapter {ch}...",
+                            words_generated=w,
+                            estimated_total_words=estimated_total_words,
+                        )
+
+                    return _cb
+
+                enhanced_data = enhance_chapter(
+                    client,
+                    config,
+                    chapter_data,
+                    model,
+                    on_progress=_make_enh_cb(current_step, ch_num, words_generated),
+                )
                 chapter.enhanced_json = json.dumps(enhanced_data, ensure_ascii=False)
                 db.commit()
                 current_step += 1
