@@ -94,10 +94,10 @@ def test_get_story_generating_lost_task(client, auth_headers, db):
     story.status = "generating"
     db.commit()
 
-    # No active task in memory → should mark as failed
+    # No active task in memory → stays generating (resume will pick it up)
     resp = client.get(f"/api/stories/{story_id}", headers=auth_headers)
     assert resp.status_code == 200
-    assert resp.json()["status"] == "failed"
+    assert resp.json()["status"] == "generating"
 
 
 def test_update_story_title(client, auth_headers):

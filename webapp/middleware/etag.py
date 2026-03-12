@@ -23,6 +23,10 @@ class ETagMiddleware(BaseHTTPMiddleware):
         if request.method != "GET":
             return await call_next(request)
 
+        # Task status endpoints need fresh responses every poll
+        if "/tasks/" in request.url.path:
+            return await call_next(request)
+
         response = await call_next(request)
 
         if response.status_code != 200:

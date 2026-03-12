@@ -261,8 +261,6 @@ async def get_story(
     if not story:
         raise HTTPException(status_code=404, detail="Story not found")
 
-    refresh_audio_urls(list(story.chapters))
-
     response = StoryResponse(
         id=story.slug,
         title=story.title,
@@ -287,11 +285,6 @@ async def get_story(
         active = get_task_backend().find_active_for_story(story.id)
         if active:
             response.active_task = TaskStatusResponse(**active)
-        else:
-            # Task lost (e.g. server restart) — mark as failed so user can retry
-            story.status = "failed"
-            db.commit()
-            response.status = "failed"
 
     return response
 
@@ -675,6 +668,26 @@ async def download_combined_audio(
     finally:
         if concat_list_path:
             os.unlink(concat_list_path)
+
+
+@router.get("/{story_id}/chapters/{chapter_number}/audio")
+async def get_chapter_audio(
+    story_id: str,
+    chapter_number: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    """Get a signed URL for a chapter's audio file."""
+    story = _get_story_by_identifier(db, story_id, user_id=current_user.id)
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    chapter = next((c for c in story.chapters if c.chapter_number == chapter_number), None)
+    if not chapter or not chapter.audio_path:
+        raise HTTPException(status_code=404, detail="Audio not found")
+
+    url = get_storage().get_url(chapter.audio_path)
+    return {"url": url}
 
 
 @router.get("/{story_id}/chapters/{chapter_number}", response_model=ChapterResponse)

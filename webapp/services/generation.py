@@ -7,18 +7,60 @@ Uses pluggable task store (in-memory or Redis) with FastAPI BackgroundTasks.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import subprocess
 import tempfile
+import threading
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+import urllib.request
+
 from webapp.models.database import Chapter, SessionLocal, Story, UsageLog, World
 from webapp.services.storage import get_storage
 from webapp.services.task_store import get_task_backend
+
+logger = logging.getLogger(__name__)
+
+# Keep-alive: prevent KEDA scale-to-zero during background tasks
+_keepalive_lock = threading.Lock()
+_keepalive_active = 0
+
+
+def _keepalive_loop() -> None:
+    """Ping /health every 60s while any background task is running."""
+    port = os.environ.get("PORT", "8000")
+    url = f"http://localhost:{port}/health"
+    while True:
+        with _keepalive_lock:
+            if _keepalive_active <= 0:
+                return
+        try:
+            urllib.request.urlopen(url, timeout=5)  # noqa: S310 — localhost only
+        except Exception:  # noqa: S110 — best-effort keepalive ping, nothing to log
+            pass
+        time.sleep(60)
+
+
+def _start_keepalive() -> None:
+    """Increment active task count and start keepalive thread if needed."""
+    global _keepalive_active  # noqa: PLW0603 — module-level counter
+    with _keepalive_lock:
+        _keepalive_active += 1
+        if _keepalive_active == 1:
+            threading.Thread(target=_keepalive_loop, daemon=True).start()
+
+
+def _stop_keepalive() -> None:
+    """Decrement active task count (thread exits when count reaches 0)."""
+    global _keepalive_active  # noqa: PLW0603 — module-level counter
+    with _keepalive_lock:
+        _keepalive_active = max(0, _keepalive_active - 1)
 
 
 def generate_story(
@@ -42,6 +84,7 @@ def generate_story(
     from generate_story import enhance_chapter, generate_chapter, load_config, summarize_chapter
 
     db = SessionLocal()
+    _start_keepalive()
 
     try:
         get_task_backend().update(task_id, "running", 0, "Starting story generation...")
@@ -99,6 +142,19 @@ def generate_story(
                 chapter = Chapter(story_id=story_id, chapter_number=ch_num, status="generating_script")
                 db.add(chapter)
                 db.commit()
+
+            # Skip already-completed chapters (resume after restart)
+            if chapter.script_json and chapter.status == "completed":
+                chapter_data = json.loads(chapter.script_json)
+                for entry in chapter_data:
+                    if entry.get("type") == "line":
+                        words_generated += len(entry.get("text", "").split())
+                current_step += 1
+                if enhance and chapter.enhanced_json:
+                    current_step += 1
+                if ch_num < num_chapters:
+                    previous_summary = summarize_chapter(client, config, chapter_data, model)
+                continue
 
             chapter.status = "generating_script"
             db.commit()
@@ -233,7 +289,8 @@ def generate_story(
         get_task_backend().update(task_id, "failed", 0, str(e))
 
     finally:
-        db.close()  # generate_story cleanup
+        _stop_keepalive()
+        db.close()
 
 
 def generate_audio(
@@ -262,6 +319,7 @@ def generate_audio(
         )
 
     db = SessionLocal()
+    _start_keepalive()
 
     try:
         get_task_backend().update(task_id, "running", 0, "Starting audio generation...")
@@ -449,4 +507,64 @@ def generate_audio(
         import shutil
 
         shutil.rmtree(output_dir, ignore_errors=True)
+        _stop_keepalive()
+        db.close()
+
+
+def resume_incomplete_stories() -> None:
+    """Resume story generation for stories stuck in 'generating' status after a restart."""
+    from webapp.services.crypto import decrypt_key
+
+    db = SessionLocal()
+    try:
+        stories = db.query(Story).filter(Story.status == "generating").all()
+        if not stories:
+            return
+
+        logger.info("Found %d stories in 'generating' status to resume", len(stories))
+
+        for story in stories:
+            try:
+                chapters = sorted(story.chapters, key=lambda c: c.chapter_number)
+                num_chapters = len(chapters)
+                if num_chapters == 0:
+                    story.status = "failed"
+                    db.commit()
+                    continue
+
+                # Determine if enhancement was used
+                enhance = any(ch.enhanced_json for ch in chapters if ch.status == "completed")
+
+                # Resolve API key
+                openai_api_key = None
+                user = story.owner
+                if user and user.openai_api_key:
+                    openai_api_key = decrypt_key(user.openai_api_key)
+
+                task_id = f"story_{story.id}_{int(time.time())}"
+                get_task_backend().update(task_id, "pending", 0, "Resuming story generation...")
+
+                threading.Thread(
+                    target=generate_story,
+                    kwargs={
+                        "task_id": task_id,
+                        "story_id": story.id,
+                        "user_id": story.user_id,
+                        "prompt": story.prompt or "",
+                        "num_chapters": num_chapters,
+                        "enhance": enhance,
+                        "openai_api_key": openai_api_key,
+                        "use_platform_key": False,
+                    },
+                    daemon=True,
+                ).start()
+
+                logger.info("Resumed story %d (task %s)", story.id, task_id)
+
+            except Exception:
+                logger.exception("Failed to resume story %d", story.id)
+                story.status = "failed"
+                db.commit()
+
+    finally:
         db.close()

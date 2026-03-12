@@ -38,7 +38,7 @@ from webapp.services.auth import get_current_user, get_current_user_optional
 from webapp.services.mnemonic import generate as generate_mnemonic
 from webapp.services.storage import get_storage
 
-from .stories import _get_story_by_identifier, refresh_audio_urls
+from .stories import _get_story_by_identifier
 
 router = APIRouter(prefix="/api/public", tags=["Public"])
 
@@ -153,8 +153,6 @@ async def get_public_story(
             is not None
         )
 
-    refresh_audio_urls(list(story.chapters))
-
     return PublicStoryResponse(
         id=story.slug,
         title=story.title,
@@ -205,8 +203,6 @@ async def get_shared_story(
             db.query(Bookmark).filter(Bookmark.story_id == story.id, Bookmark.user_id == current_user.id).first()
             is not None
         )
-
-    refresh_audio_urls(list(story.chapters))
 
     return PublicStoryResponse(
         id=story.slug,
@@ -440,6 +436,40 @@ async def get_shared_world(
         created_at=world.created_at,
         updated_at=world.updated_at,
     )
+
+
+@router.get("/stories/{story_id}/chapters/{chapter_number}/audio")
+async def get_public_chapter_audio(
+    story_id: str,
+    chapter_number: int,
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
+) -> dict[str, str]:
+    """Get a signed URL for a chapter's audio file (public/link-only/followers stories)."""
+    story = _get_story_by_identifier(db, story_id)
+    if story and story.visibility not in ("public", "link_only", "followers"):
+        story = None
+
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    if story.visibility == "followers" and (
+        not current_user
+        or (
+            current_user.id != story.user_id
+            and not db.query(Follow)
+            .filter(Follow.follower_id == current_user.id, Follow.following_id == story.user_id)
+            .first()
+        )
+    ):
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    chapter = next((c for c in story.chapters if c.chapter_number == chapter_number), None)
+    if not chapter or not chapter.audio_path:
+        raise HTTPException(status_code=404, detail="Audio not found")
+
+    url = get_storage().get_url(chapter.audio_path)
+    return {"url": url}
 
 
 @router.get("/stories/{story_id}/audio/combined")

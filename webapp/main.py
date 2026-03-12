@@ -37,6 +37,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     import threading
 
+    from webapp.services.generation import resume_incomplete_stories
     from webapp.services.voices_cache import warm_cache
 
     # Start Up
@@ -44,6 +45,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Warm the voices cache in a daemon thread (non-blocking startup)
     threading.Thread(target=warm_cache, daemon=True).start()
+
+    # Resume any stories stuck in 'generating' from a previous shutdown
+    threading.Thread(target=resume_incomplete_stories, daemon=True).start()
 
     # Server
     yield

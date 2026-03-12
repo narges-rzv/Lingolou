@@ -277,7 +277,7 @@ export default function StoryDetail() {
                 Ch {ch.chapter_number}: {ch.title || `Chapter ${ch.chapter_number}`}
               </span>
               <AudioPlayer
-                src={ch.audio_path as string}
+                storyId={story.id}
                 chapterNumber={ch.chapter_number}
                 duration={ch.audio_duration}
               />

@@ -1,6 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { apiFetch } from '../api';
 import { TaskStatusResponse } from '../types';
+
+const TASK_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 
 interface TaskProgressProps {
   taskId: string | null;
@@ -12,6 +14,23 @@ export default function TaskProgress({ taskId, onComplete, onError }: TaskProgre
   const [status, setStatus] = useState<TaskStatusResponse | null>(null);
   const [pollCount, setPollCount] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onCompleteRef = useRef(onComplete);
+  const onErrorRef = useRef(onError);
+
+  onCompleteRef.current = onComplete;
+  onErrorRef.current = onError;
+
+  const cleanup = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     if (!taskId) return;
@@ -23,37 +42,39 @@ export default function TaskProgress({ taskId, onComplete, onError }: TaskProgre
         setPollCount((c) => c + 1);
 
         if (data.status === 'completed') {
-          clearInterval(intervalRef.current!);
-          // Check if the task "completed" but the result indicates failure
+          cleanup();
           const result = data.result as Record<string, unknown> | null;
           if (result?.status === 'failed') {
-            onError?.((result.error as string) || 'Task failed');
+            onErrorRef.current?.((result.error as string) || 'Task failed');
           } else {
-            onComplete?.(result ?? {});
+            onCompleteRef.current?.(result ?? {});
           }
         } else if (data.status === 'failed') {
-          clearInterval(intervalRef.current!);
-          onError?.(data.message ?? 'Task failed');
+          cleanup();
+          onErrorRef.current?.(data.message ?? 'Task failed');
         }
       } catch (err) {
-        clearInterval(intervalRef.current!);
-        onError?.((err as Error).message);
+        cleanup();
+        onErrorRef.current?.((err as Error).message);
       }
     };
 
     poll();
     intervalRef.current = setInterval(poll, 2000);
 
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [taskId]);
+    timeoutRef.current = setTimeout(() => {
+      cleanup();
+      onErrorRef.current?.('Task timed out after 15 minutes');
+    }, TASK_TIMEOUT_MS);
+
+    return cleanup;
+  }, [taskId, cleanup]);
 
   const handleCancel = async () => {
     try {
       await apiFetch(`/stories/tasks/${taskId}`, { method: 'DELETE' });
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      onError?.('Task cancelled');
+      cleanup();
+      onErrorRef.current?.('Task cancelled');
     } catch {
       // ignore cancel errors
     }
