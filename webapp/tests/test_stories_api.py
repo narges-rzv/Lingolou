@@ -1,8 +1,8 @@
 """Tests for webapp/api/stories.py"""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
-from webapp.models.database import PlatformBudget, Story
+from webapp.models.database import Chapter, PlatformBudget, Story
 from webapp.services.crypto import encrypt_key
 
 
@@ -457,7 +457,6 @@ def test_duplicate_story_chapters_copied(client, auth_headers, db):
         assert ch["audio_path"] is None
 
     # Verify scripts were copied in the DB (not in API response schema)
-    from webapp.models.database import Chapter
 
     new_story = _get_story_by_slug(db, data["id"])
     new_chapters = db.query(Chapter).filter(Chapter.story_id == new_story.id).all()
@@ -511,6 +510,49 @@ def test_language_level_prompt_beginner():
     assert "20%" in instruction
     assert "BEGINNER LEVEL" in instruction
     assert "French" in instruction
+
+
+@patch("webapp.api.stories.get_storage")
+def test_get_chapter_audio(mock_get_storage, client, auth_headers, db):
+    create_resp = _create_story(client, auth_headers)
+    story_id = create_resp.json()["id"]
+
+    story = _get_story_by_slug(db, story_id)
+    story.chapters[0].audio_path = "1/ch1.mp3"
+    db.commit()
+
+    mock_storage = MagicMock()
+    mock_storage.get_url.return_value = "https://storage.example.com/1/ch1.mp3"
+    mock_get_storage.return_value = mock_storage
+
+    resp = client.get(f"/api/stories/{story_id}/chapters/1/audio", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json()["url"] == "https://storage.example.com/1/ch1.mp3"
+
+
+def test_get_chapter_audio_not_found(client, auth_headers):
+    resp = client.get("/api/stories/nonexistent/chapters/1/audio", headers=auth_headers)
+    assert resp.status_code == 404
+
+
+def test_get_chapter_audio_no_audio(client, auth_headers, db):
+    create_resp = _create_story(client, auth_headers)
+    story_id = create_resp.json()["id"]
+
+    resp = client.get(f"/api/stories/{story_id}/chapters/1/audio", headers=auth_headers)
+    assert resp.status_code == 404
+
+
+def test_get_chapter_audio_other_user(client, auth_headers, other_auth_headers, db):
+    create_resp = _create_story(client, other_auth_headers)
+    story_id = create_resp.json()["id"]
+
+    story = _get_story_by_slug(db, story_id)
+    story.chapters[0].audio_path = "1/ch1.mp3"
+    db.commit()
+
+    resp = client.get(f"/api/stories/{story_id}/chapters/1/audio", headers=auth_headers)
+    assert resp.status_code == 404
 
 
 def test_language_level_prompt_advanced():

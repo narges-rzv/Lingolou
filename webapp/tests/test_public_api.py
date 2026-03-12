@@ -1,6 +1,8 @@
 """Tests for webapp/api/public.py"""
 
-from webapp.models.database import Chapter, Story, Vote
+from unittest.mock import MagicMock, patch
+
+from webapp.models.database import Chapter, Follow, Story, Vote
 from webapp.services.mnemonic import generate as generate_mnemonic
 
 
@@ -182,3 +184,58 @@ def test_fork_story_no_chapters(client, db, test_user, other_auth_headers):
     data = resp.json()
     assert data["title"] == "Copy of Empty Story"
     assert len(data["chapters"]) == 0
+
+
+@patch("webapp.api.public.get_storage")
+def test_get_public_chapter_audio(mock_get_storage, client, db, test_user):
+    story = _create_public_story(db, test_user)
+    ch = db.query(Chapter).filter(Chapter.story_id == story.id).first()
+    ch.audio_path = f"{story.id}/ch1.mp3"
+    db.commit()
+
+    mock_storage = MagicMock()
+    mock_storage.get_url.return_value = "https://storage.example.com/audio.mp3"
+    mock_get_storage.return_value = mock_storage
+
+    resp = client.get(f"/api/public/stories/{story.slug}/chapters/1/audio")
+    assert resp.status_code == 200
+    assert resp.json()["url"] == "https://storage.example.com/audio.mp3"
+
+
+def test_get_public_chapter_audio_private_story(client, db, test_user):
+    story = _create_public_story(db, test_user, visibility="private")
+
+    resp = client.get(f"/api/public/stories/{story.slug}/chapters/1/audio")
+    assert resp.status_code == 404
+
+
+@patch("webapp.api.public.get_storage")
+def test_get_public_chapter_audio_followers_only(
+    mock_get_storage, client, db, test_user, other_user, other_auth_headers
+):
+    story = _create_public_story(db, test_user, visibility="followers")
+    ch = db.query(Chapter).filter(Chapter.story_id == story.id).first()
+    ch.audio_path = f"{story.id}/ch1.mp3"
+    db.commit()
+
+    # Without follow relationship → 404
+    resp = client.get(f"/api/public/stories/{story.slug}/chapters/1/audio", headers=other_auth_headers)
+    assert resp.status_code == 404
+
+    # Add follow relationship
+    db.add(Follow(follower_id=other_user.id, following_id=test_user.id))
+    db.commit()
+
+    mock_storage = MagicMock()
+    mock_storage.get_url.return_value = "https://storage.example.com/audio.mp3"
+    mock_get_storage.return_value = mock_storage
+
+    resp = client.get(f"/api/public/stories/{story.slug}/chapters/1/audio", headers=other_auth_headers)
+    assert resp.status_code == 200
+
+
+def test_get_public_chapter_audio_no_audio(client, db, test_user):
+    story = _create_public_story(db, test_user)
+
+    resp = client.get(f"/api/public/stories/{story.slug}/chapters/1/audio")
+    assert resp.status_code == 404

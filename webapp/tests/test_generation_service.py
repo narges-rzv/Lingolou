@@ -1,5 +1,7 @@
 """Tests for task store integration via generation module."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from webapp.services.task_store import InMemoryTaskBackend, get_task_backend, reset_task_backend
@@ -97,3 +99,85 @@ def test_cancel_completed_task():
 
 def test_cancel_nonexistent_task():
     assert get_task_backend().cancel("nope") is False
+
+
+# --- resume_incomplete_stories tests ---
+
+
+@patch("webapp.services.generation.generate_story")
+@patch("webapp.services.generation.threading.Thread")
+def test_resume_incomplete_stories(mock_thread, mock_gen, db, test_user):
+    from webapp.models.database import Chapter, Story
+    from webapp.services.generation import resume_incomplete_stories
+    from webapp.services.mnemonic import generate as gen_mnemonic
+
+    _pid, _slug = gen_mnemonic()
+    user = test_user
+    story = Story(
+        user_id=user.id,
+        title="Stuck Story",
+        status="generating",
+        prompt="test prompt",
+        public_id=_pid,
+        slug=_slug,
+    )
+    db.add(story)
+    db.commit()
+    db.refresh(story)
+
+    ch1 = Chapter(story_id=story.id, chapter_number=1, status="completed", script_json='[{"type":"line","text":"hi"}]')
+    ch2 = Chapter(story_id=story.id, chapter_number=2, status="generating_script")
+    db.add_all([ch1, ch2])
+    db.commit()
+
+    mock_thread_instance = MagicMock()
+    mock_thread.return_value = mock_thread_instance
+
+    with (
+        patch("webapp.services.generation.SessionLocal", return_value=db),
+        patch.object(db, "close"),
+    ):  # prevent resume from closing our test session
+        resume_incomplete_stories()
+
+    mock_thread.assert_called_once()
+    mock_thread_instance.start.assert_called_once()
+    call_kwargs = mock_thread.call_args[1]["kwargs"]
+    assert call_kwargs["story_id"] == story.id
+    assert call_kwargs["num_chapters"] == 2
+
+
+@patch("webapp.services.generation.threading.Thread")
+def test_resume_incomplete_stories_no_chapters_marks_failed(mock_thread, db, test_user):
+    from webapp.models.database import Story
+    from webapp.services.generation import resume_incomplete_stories
+    from webapp.services.mnemonic import generate as gen_mnemonic
+
+    _pid, _slug = gen_mnemonic()
+    user = test_user
+    story = Story(
+        user_id=user.id,
+        title="Empty Story",
+        status="generating",
+        public_id=_pid,
+        slug=_slug,
+    )
+    db.add(story)
+    db.commit()
+    db.refresh(story)
+
+    with (
+        patch("webapp.services.generation.SessionLocal", return_value=db),
+        patch.object(db, "close"),
+    ):  # prevent resume_incomplete_stories from closing our test session
+        resume_incomplete_stories()
+
+    db.refresh(story)
+    assert story.status == "failed"
+    mock_thread.assert_not_called()
+
+
+def test_resume_incomplete_stories_noop_when_none(db):
+    from webapp.services.generation import resume_incomplete_stories
+
+    with patch("webapp.services.generation.SessionLocal", return_value=db), patch.object(db, "close"):
+        resume_incomplete_stories()  # should not raise

@@ -192,6 +192,7 @@ make all             # lint + test (pre-commit check)
 3. **Frontend changes**: Files in `frontend/src/`, hot-reloads with Vite, add tests in `frontend/src/test/`
 4. **New dependencies**: Add to `requirements.txt`
 5. **Always run `make all`** before committing (lint + test)
+6. **Every new endpoint, function, or behavior change MUST include tests in the same commit.** Do not commit new code without corresponding test coverage.
 
 ## Testing Database Migrations
 

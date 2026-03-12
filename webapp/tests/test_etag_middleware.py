@@ -49,3 +49,13 @@ def test_non_200_response_not_affected(client, auth_headers):
     resp = client.get("/api/stories/99999", headers=auth_headers)
     assert resp.status_code == 404
     assert "etag" not in resp.headers
+
+
+def test_task_endpoint_skips_etag(client, auth_headers):
+    from webapp.services.task_store import get_task_backend
+
+    get_task_backend().update("etag_test_task", "running", 50, "In progress")
+
+    resp = client.get("/api/stories/tasks/etag_test_task", headers=auth_headers)
+    assert resp.status_code == 200
+    assert "etag" not in resp.headers

@@ -81,4 +81,22 @@ describe('TaskProgress', () => {
     const { container } = render(<TaskProgress taskId={null} />)
     expect(container.querySelector('.task-progress')).not.toBeInTheDocument()
   })
+
+  it('times out after 15 minutes', async () => {
+    const onError = vi.fn()
+
+    render(<TaskProgress taskId="slow-task" onError={onError} />)
+
+    // Wait for initial poll to establish status
+    await waitFor(() => {
+      expect(screen.getByText('Generating chapter 1...')).toBeInTheDocument()
+    })
+
+    // Advance past the 15-minute timeout
+    vi.advanceTimersByTime(15 * 60 * 1000 + 100)
+
+    await waitFor(() => {
+      expect(onError).toHaveBeenCalledWith('Task timed out after 15 minutes')
+    })
+  })
 })
