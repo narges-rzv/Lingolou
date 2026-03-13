@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -18,17 +18,61 @@ export default function PublicStories() {
   const [loadingPublic, setLoadingPublic] = useState(true);
   const [loadingUser, setLoadingUser] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [skip, setSkip] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const PAGE_SIZE = 20;
 
   useEffect(() => {
     setLoadingPublic(true);
-    const url = language === ALL_LANGUAGES
-      ? '/public/stories'
-      : `/public/stories?language=${encodeURIComponent(language)}`;
-    publicApiFetch(url)
-      .then(setPublicStories)
+    setSkip(0);
+    setHasMore(true);
+    const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
+    if (language !== ALL_LANGUAGES) {
+      params.set('language', language);
+    }
+    publicApiFetch<PublicStoryListItem[]>(`/public/stories?${params.toString()}`)
+      .then((results) => {
+        setPublicStories(results);
+        setSkip(results.length);
+        setHasMore(results.length === PAGE_SIZE);
+      })
       .catch((err: unknown) => setError((err as Error).message))
       .finally(() => setLoadingPublic(false));
   }, [language]);
+
+  const loadMore = useCallback(() => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const params = new URLSearchParams({ skip: String(skip), limit: String(PAGE_SIZE) });
+    if (language !== ALL_LANGUAGES) {
+      params.set('language', language);
+    }
+    publicApiFetch<PublicStoryListItem[]>(`/public/stories?${params.toString()}`)
+      .then((results) => {
+        setPublicStories((prev) => [...prev, ...results]);
+        setSkip((prev) => prev + results.length);
+        setHasMore(results.length === PAGE_SIZE);
+      })
+      .catch((err: unknown) => setError((err as Error).message))
+      .finally(() => setLoadingMore(false));
+  }, [loadingMore, hasMore, skip, language]);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(sentinel);
+    return () => { observer.disconnect(); };
+  }, [loadMore]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -89,6 +133,8 @@ export default function PublicStories() {
               {publicStories.map((story) => (
                 <PublicStoryCard key={story.id} story={story} />
               ))}
+              {hasMore && <div ref={sentinelRef} className="scroll-sentinel" />}
+              {loadingMore && <p className="column-loading">Loading more stories...</p>}
             </div>
           )}
         </div>
