@@ -104,7 +104,9 @@ export default function PublicScriptViewer({ storyId, chapterNumber }: PublicScr
   useEffect(() => {
     setLoading(true);
     setError(null);
-    publicApiFetch(`/public/stories/${storyId}/chapters/${chapterNumber}/script?enhanced=true`)
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    publicApiFetch(`/public/stories/${storyId}/chapters/${chapterNumber}/script?enhanced=true`, { headers })
       .then((data: Record<string, unknown>) => {
         const arr = Array.isArray(data)
           ? data

@@ -29,7 +29,9 @@ export default function AudioPlayer({ storyId, chapterNumber, duration, showDown
       : `/stories/${storyId}/chapters/${chapterNumber}/audio`;
 
     const fetcher = isPublic ? publicApiFetch : apiFetch;
-    fetcher<{ url: string }>(path)
+    const token = localStorage.getItem('token');
+    const opts = isPublic && token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+    fetcher<{ url: string }>(path, opts)
       .then((data) => setAudioUrl(data.url))
       .catch(() => setAudioUrl(null));
   }, [storyId, chapterNumber, isPublic]);

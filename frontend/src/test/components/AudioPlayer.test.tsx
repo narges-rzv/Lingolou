@@ -48,6 +48,25 @@ describe('AudioPlayer', () => {
     })
   })
 
+  it('forwards auth token in public mode for followers-only stories', async () => {
+    let receivedAuth: string | null = null
+    server.use(
+      http.get(`${BASE}/public/stories/:storyId/chapters/:num/audio`, ({ request }) => {
+        receivedAuth = request.headers.get('Authorization')
+        return HttpResponse.json({ url: 'https://example.com/followers-audio.mp3' })
+      })
+    )
+
+    const { container } = render(
+      <AudioPlayer storyId="test-story" chapterNumber={1} isPublic />
+    )
+
+    await waitFor(() => {
+      expect(container.querySelector('audio')).toBeInTheDocument()
+    })
+    expect(receivedAuth).toBe('Bearer valid-token')
+  })
+
   it('renders nothing while loading', () => {
     server.use(
       http.get(`${BASE}/stories/:storyId/chapters/:num/audio`, () => {

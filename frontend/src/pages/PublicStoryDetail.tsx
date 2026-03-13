@@ -100,7 +100,9 @@ export default function PublicStoryDetail({ preloadedStory }: PublicStoryDetailP
     setDownloading(true);
     setError(null);
     try {
-      const resp = await fetch(`/api/public/stories/${story.id}/audio/combined`);
+      const token = localStorage.getItem('token');
+      const dlHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+      const resp = await fetch(`/api/public/stories/${story.id}/audio/combined`, { headers: dlHeaders });
       if (!resp.ok) {
         const text = await resp.text();
         let msg = `Download failed (${resp.status})`;
