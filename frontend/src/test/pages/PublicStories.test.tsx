@@ -124,8 +124,11 @@ describe('PublicStories', () => {
 
     render(<PublicStories />)
 
+    // Wait for stories to render AND the observer to be set up
     await waitFor(() => {
       expect(screen.getByText('Story 0')).toBeInTheDocument()
+      expect(mockObserve).toHaveBeenCalled()
+      expect(observerCallback).not.toBeNull()
     })
 
     // Simulate sentinel becoming visible
