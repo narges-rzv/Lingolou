@@ -226,7 +226,7 @@ export default function Worlds() {
                   onChange={(e) => {
                     const key = char.name.trim().toUpperCase();
                     if (e.target.value) {
-                      setVoiceConfig({ ...voiceConfig, [key]: { voice_id: e.target.value, stability: 0.5, similarity_boost: 0.75, style: 0.3, use_speaker_boost: true } });
+                      setVoiceConfig({ ...voiceConfig, [key]: { voice_id: e.target.value, stability: 1.0, similarity_boost: 1.0, style: 0.3, use_speaker_boost: true } });
                     } else {
                       const updated = { ...voiceConfig };
                       delete updated[key];

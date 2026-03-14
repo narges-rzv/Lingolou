@@ -236,9 +236,9 @@ export const handlers = [
   // Voices list
   http.get(`${BASE}/stories/voices`, () => {
     return HttpResponse.json([
-      { voice_id: 'abc123', name: 'Alice', category: 'premade', labels: {}, preview_url: '' },
-      { voice_id: 'def456', name: 'Bob', category: 'premade', labels: {}, preview_url: '' },
-      { voice_id: 'ghi789', name: 'Charlie', category: 'premade', labels: {}, preview_url: '' },
+      { voice_id: 'abc123', name: 'Alice', category: 'premade', labels: {}, preview_url: 'https://example.com/alice.mp3' },
+      { voice_id: 'def456', name: 'Bob', category: 'premade', labels: {}, preview_url: 'https://example.com/bob.mp3' },
+      { voice_id: 'ghi789', name: 'Charlie', category: 'premade', labels: {}, preview_url: 'https://example.com/charlie.mp3' },
     ] satisfies VoiceListItem[])
   }),
 

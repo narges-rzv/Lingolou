@@ -33,7 +33,7 @@ class VoiceConfig:
 
     voice_id: str
     stability: float = 1.0
-    similarity_boost: float = 0.95
+    similarity_boost: float = 1.0
     style: float = 0.0  # 0-1, higher = more expressive
     use_speaker_boost: bool = True
 
@@ -457,6 +457,7 @@ class AudiobookGenerator:
         output_path: str,
         include_scene_markers: bool = True,
         progress_callback: Callable[[int, int], None] | None = None,
+        segment_callback: Callable[[int, bytes], None] | None = None,
     ) -> str:
         """
         Generate audio for an entire chapter.
@@ -466,6 +467,7 @@ class AudiobookGenerator:
             output_path: Path for output audio file
             include_scene_markers: Whether to include scene transition pauses
             progress_callback: Optional callable(entries_done, total_entries) called after each entry
+            segment_callback: Optional callable(entry_index, audio_bytes) called after each line TTS
 
         Returns:
             Path to generated audio file
@@ -493,6 +495,8 @@ class AudiobookGenerator:
                     segment_path = os.path.join(temp_dir, f"segment_{segment_index:04d}.mp3")
                     audio_path = self._process_line(entry, prev_entry, next_entry, segment_path, temp_dir)
                     if audio_path:
+                        if segment_callback:
+                            segment_callback(i, Path(audio_path).read_bytes())
                         segment_index += 1
                         # Add small pause after each line
                         pause_path = os.path.join(temp_dir, f"segment_{segment_index:04d}.mp3")
@@ -575,7 +579,7 @@ def create_voice_map(voice_config_path: str | None = None) -> dict[str, VoiceCon
             speaker: VoiceConfig(
                 voice_id=vc["voice_id"],
                 stability=vc.get("stability", 1.0),
-                similarity_boost=vc.get("similarity_boost", 0.95),
+                similarity_boost=vc.get("similarity_boost", 1.0),
                 style=vc.get("style", 0.0),
                 use_speaker_boost=vc.get("use_speaker_boost", True),
             )

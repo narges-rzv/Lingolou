@@ -120,7 +120,7 @@ export default function ChapterList({ chapters, storyId, autoExpand, onRefresh }
                   </button>
                 )}
                 {hasScript && (
-                  <ScriptViewer storyId={storyId} chapterNumber={ch.chapter_number} />
+                  <ScriptViewer storyId={storyId} chapterNumber={ch.chapter_number} hasLineAudio={ch.has_line_audio} />
                 )}
                 {!hasScript && !hasAudio && (
                   <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem', padding: '0.5rem 0' }}>

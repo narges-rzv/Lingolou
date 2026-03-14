@@ -65,6 +65,22 @@ describe('VoiceAssignmentModal', () => {
     expect(onCancel).toHaveBeenCalledOnce()
   })
 
+  it('shows preview play buttons for assigned voices', async () => {
+    render(
+      <VoiceAssignmentModal storyId={1} onConfirm={() => {}} onCancel={() => {}} />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('NARRATOR')).toBeInTheDocument()
+    })
+
+    // Both speakers have voice assignments with preview URLs, so preview buttons appear
+    const previewBtns = document.querySelectorAll('.btn-line-audio')
+    expect(previewBtns.length).toBe(2)
+    // Buttons show play icon
+    expect(previewBtns[0].textContent).toBe('\u25B6')
+  })
+
   it('calls onConfirm with voice override on confirm', async () => {
     const onConfirm = vi.fn()
     const user = userEvent.setup()

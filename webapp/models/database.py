@@ -194,10 +194,16 @@ class Chapter(Base):
     enhanced_json = Column(Text, nullable=True)  # With emotion tags
     audio_path = Column(String(500), nullable=True)
     audio_duration = Column(Float, nullable=True)  # Duration in seconds
+    line_audio_json = Column(Text, nullable=True)  # JSON: {"0": "42/ch1/line_0.mp3", ...}
     status = Column(String(50), default="pending")  # pending, generating_script, generating_audio, completed, failed
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @property
+    def has_line_audio(self) -> bool:
+        """Whether per-line audio segments are available."""
+        return self.line_audio_json is not None
 
     # Relationships
     story = relationship("Story", back_populates="chapters")
@@ -589,21 +595,21 @@ def _seed_elara_and_arion_world(db: Session) -> None:
         "NARRATOR": {
             "voice_id": "8Es4wFxsDlHBmFWAOWRS",
             "stability": 0.5,
-            "similarity_boost": 0.75,
+            "similarity_boost": 1.0,
             "style": 0.3,
             "use_speaker_boost": True,
         },
         "ELARA": {
             "voice_id": "BrSJSyxXUlQmFzftrXCz",
             "stability": 0.5,
-            "similarity_boost": 0.75,
+            "similarity_boost": 1.0,
             "style": 0.3,
             "use_speaker_boost": True,
         },
         "ARION": {
             "voice_id": "mHX7OoPk2G45VMAuinIt",
             "stability": 0.5,
-            "similarity_boost": 0.75,
+            "similarity_boost": 1.0,
             "style": 0.3,
             "use_speaker_boost": True,
         },

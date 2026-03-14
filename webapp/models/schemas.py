@@ -47,6 +47,7 @@ class ChapterResponse(BaseModel):
     status: str
     audio_path: str | None
     audio_duration: float | None
+    has_line_audio: bool = False
     error_message: str | None
     created_at: datetime
     updated_at: datetime

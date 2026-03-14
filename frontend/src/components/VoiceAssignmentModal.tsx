@@ -15,6 +15,8 @@ export default function VoiceAssignmentModal({ storyId, onConfirm, onCancel }: V
   const [assignments, setAssignments] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [previewSpeaker, setPreviewSpeaker] = useState<string | null>(null);
+  const [previewAudio, setPreviewAudio] = useState<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,6 +54,39 @@ export default function VoiceAssignmentModal({ storyId, onConfirm, onCancel }: V
 
   const handleVoiceChange = (speaker: string, voiceId: string) => {
     setAssignments((prev) => ({ ...prev, [speaker]: voiceId }));
+  };
+
+  const handlePreview = (speaker: string) => {
+    // Stop current preview
+    if (previewAudio) {
+      previewAudio.pause();
+      previewAudio.currentTime = 0;
+    }
+    // Toggle off if same speaker
+    if (previewSpeaker === speaker) {
+      setPreviewSpeaker(null);
+      setPreviewAudio(null);
+      return;
+    }
+    const voiceId = assignments[speaker];
+    const voice = availableVoices.find((v) => v.voice_id === voiceId);
+    if (!voice?.preview_url) return;
+
+    const audio = new Audio(voice.preview_url);
+    audio.onended = () => {
+      setPreviewSpeaker(null);
+      setPreviewAudio(null);
+    };
+    audio.onerror = () => {
+      setPreviewSpeaker(null);
+      setPreviewAudio(null);
+    };
+    setPreviewSpeaker(speaker);
+    setPreviewAudio(audio);
+    audio.play().catch(() => {
+      setPreviewSpeaker(null);
+      setPreviewAudio(null);
+    });
   };
 
   const handleConfirm = () => {
@@ -97,6 +132,7 @@ export default function VoiceAssignmentModal({ storyId, onConfirm, onCancel }: V
                   <th style={{ textAlign: 'left', padding: '0.5rem', borderBottom: '1px solid var(--glass-border)' }}>
                     Voice
                   </th>
+                  <th style={{ width: '40px', padding: '0.5rem', borderBottom: '1px solid var(--glass-border)' }} />
                 </tr>
               </thead>
               <tbody>
@@ -125,6 +161,17 @@ export default function VoiceAssignmentModal({ storyId, onConfirm, onCancel }: V
                           onChange={(e) => handleVoiceChange(speaker, e.target.value)}
                           style={{ width: '100%' }}
                         />
+                      )}
+                    </td>
+                    <td style={{ padding: '0.5rem', textAlign: 'center' }}>
+                      {assignments[speaker] && availableVoices.find((v) => v.voice_id === assignments[speaker])?.preview_url && (
+                        <button
+                          className={`btn-line-audio ${previewSpeaker === speaker ? 'playing' : ''}`}
+                          onClick={() => handlePreview(speaker)}
+                          title={previewSpeaker === speaker ? 'Stop preview' : 'Preview voice'}
+                        >
+                          {previewSpeaker === speaker ? '\u25A0' : '\u25B6'}
+                        </button>
                       )}
                     </td>
                   </tr>

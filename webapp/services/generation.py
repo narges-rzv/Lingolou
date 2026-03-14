@@ -19,6 +19,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from sqlalchemy.orm import Session
+
 import urllib.request
 
 from webapp.models.database import Chapter, SessionLocal, Story, UsageLog, World
@@ -313,7 +315,7 @@ def generate_audio(
         return VoiceConfig(
             voice_id=d["voice_id"],
             stability=d.get("stability", 1.0),
-            similarity_boost=d.get("similarity_boost", 0.95),
+            similarity_boost=d.get("similarity_boost", 1.0),
             style=d.get("style", 0.0),
             use_speaker_boost=d.get("use_speaker_boost", True),
         )
@@ -443,7 +445,22 @@ def generate_audio(
             try:
                 local_output = output_dir / f"ch{chapter.chapter_number}.mp3"
                 cb = make_callback(chapter.chapter_number, entries_done)
-                generator.generate_chapter(temp_script_path, str(local_output), progress_callback=cb)
+
+                # Per-line segment callback — saves each line's audio individually
+                line_audio_map: dict[str, str] = {}
+
+                def _make_segment_cb(sid: int, ch_num: int, lam: dict[str, str]) -> Callable[[int, bytes], None]:
+                    def _seg_cb(entry_index: int, audio_bytes: bytes) -> None:
+                        seg_key = f"{sid}/ch{ch_num}/line_{entry_index}.mp3"
+                        storage.save(seg_key, audio_bytes)
+                        lam[str(entry_index)] = seg_key
+
+                    return _seg_cb
+
+                seg_cb = _make_segment_cb(story_id, chapter.chapter_number, line_audio_map)
+                generator.generate_chapter(
+                    temp_script_path, str(local_output), progress_callback=cb, segment_callback=seg_cb
+                )
 
                 # Get audio duration
                 result = subprocess.run(  # noqa: S603
@@ -469,6 +486,8 @@ def generate_audio(
 
                 chapter.audio_path = storage_key
                 chapter.audio_duration = duration
+                if line_audio_map:
+                    chapter.line_audio_json = json.dumps(line_audio_map)
                 chapter.status = "completed"
                 db.commit()
 
@@ -507,6 +526,287 @@ def generate_audio(
         import shutil
 
         shutil.rmtree(output_dir, ignore_errors=True)
+        _stop_keepalive()
+        db.close()
+
+
+def rebuild_chapter_audio(story_id: int, chapter: Chapter, db: Session) -> None:
+    """Rebuild the combined chapter MP3 from per-line audio segments.
+
+    Reads line_audio_json to find individual line MP3s, then concatenates
+    them with appropriate silence gaps for non-line entries.
+    """
+    storage = get_storage()
+
+    script_json = chapter.enhanced_json or chapter.script_json
+    if not script_json or not chapter.line_audio_json:
+        return
+
+    script = json.loads(script_json)
+    line_map: dict[str, str] = json.loads(chapter.line_audio_json)
+
+    temp_dir = Path(tempfile.mkdtemp(prefix="rebuild_"))
+    audio_files: list[str] = []
+    seg_idx = 0
+
+    try:
+        for i, entry in enumerate(script):
+            entry_type = entry.get("type", "")
+
+            if entry_type == "line" and str(i) in line_map:
+                seg_key = line_map[str(i)]
+                with storage.get_path(seg_key) as local_path:
+                    if local_path:
+                        dest = temp_dir / f"seg_{seg_idx:04d}.mp3"
+                        import shutil as _shutil
+
+                        _shutil.copy2(str(local_path), str(dest))
+                        audio_files.append(str(dest))
+                        seg_idx += 1
+                        # 0.2s silence gap after line
+                        gap = temp_dir / f"seg_{seg_idx:04d}.mp3"
+                        _generate_silence(0.2, str(gap))
+                        audio_files.append(str(gap))
+                        seg_idx += 1
+
+            elif entry_type == "pause":
+                seconds = entry.get("seconds", 0.5)
+                p = temp_dir / f"seg_{seg_idx:04d}.mp3"
+                _generate_silence(seconds, str(p))
+                audio_files.append(str(p))
+                seg_idx += 1
+
+            elif entry_type == "scene":
+                p = temp_dir / f"seg_{seg_idx:04d}.mp3"
+                _generate_silence(1.0, str(p))
+                audio_files.append(str(p))
+                seg_idx += 1
+
+            elif entry_type == "sfx":
+                p = temp_dir / f"seg_{seg_idx:04d}.mp3"
+                _generate_silence(0.3, str(p))
+                audio_files.append(str(p))
+                seg_idx += 1
+
+            elif entry_type == "performance":
+                p = temp_dir / f"seg_{seg_idx:04d}.mp3"
+                _generate_silence(0.5, str(p))
+                audio_files.append(str(p))
+                seg_idx += 1
+
+        if not audio_files:
+            return
+
+        # Concatenate
+        output_path = temp_dir / "combined.mp3"
+        concat_list = temp_dir / "concat.txt"
+        with open(concat_list, "w") as f:
+            for af in audio_files:
+                escaped = af.replace("'", "'\\''")
+                f.write(f"file '{escaped}'\n")
+
+        result = subprocess.run(  # noqa: S603
+            [
+                "ffmpeg",
+                "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(concat_list),
+                "-c:a",
+                "libmp3lame",
+                "-b:a",
+                "192k",
+                str(output_path),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            logger.error("ffmpeg concat failed: %s", result.stderr)
+            return
+
+        # Get duration
+        probe = subprocess.run(  # noqa: S603
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(output_path),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        duration = float(probe.stdout.strip()) if probe.stdout.strip() else None
+
+        # Save combined MP3 to storage
+        storage_key = f"{story_id}/ch{chapter.chapter_number}.mp3"
+        storage.save(storage_key, output_path.read_bytes())
+
+        chapter.audio_path = storage_key
+        chapter.audio_duration = duration
+        db.commit()
+
+    finally:
+        import shutil as _shutil
+
+        _shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def _generate_silence(duration_seconds: float, output_path: str) -> None:
+    """Generate a silence MP3 file using ffmpeg."""
+    subprocess.run(  # noqa: S603
+        [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            f"anullsrc=r=44100:cl=mono",
+            "-t",
+            str(duration_seconds),
+            "-c:a",
+            "libmp3lame",
+            "-b:a",
+            "128k",
+            output_path,
+        ],
+        capture_output=True,
+        check=True,
+    )
+
+
+def regenerate_single_line(
+    task_id: str,
+    story_id: int,
+    chapter_id: int,
+    line_index: int,
+    elevenlabs_api_key: str,
+    voice_override: dict | None = None,
+) -> None:
+    """Regenerate a single line's audio and rebuild the combined chapter MP3.
+
+    Runs as a background task.
+    """
+    from generate_audiobook import AudiobookGenerator, VoiceConfig, create_voice_map
+
+    def _dict_to_vc(d: dict) -> VoiceConfig:
+        return VoiceConfig(
+            voice_id=d["voice_id"],
+            stability=d.get("stability", 1.0),
+            similarity_boost=d.get("similarity_boost", 1.0),
+            style=d.get("style", 0.0),
+            use_speaker_boost=d.get("use_speaker_boost", True),
+        )
+
+    db = SessionLocal()
+    _start_keepalive()
+    try:
+        get_task_backend().update(task_id, "running", 0, "Regenerating line audio...")
+
+        # --- Validate chapter, script, entry, and story ---
+        chapter = db.query(Chapter).filter(Chapter.id == chapter_id).first()
+        story = db.query(Story).filter(Story.id == story_id).first()
+        script_json = (chapter.enhanced_json or chapter.script_json) if chapter else None
+        script = json.loads(script_json) if script_json else None
+
+        fail_reason: str | None = None
+        if not chapter or not chapter.line_audio_json:
+            fail_reason = "Chapter or line audio not found"
+        elif not script:
+            fail_reason = "No script available"
+        elif line_index < 0 or line_index >= len(script):
+            fail_reason = "Line index out of range"
+        elif script[line_index].get("type") != "line":
+            fail_reason = "Entry is not a line"
+        elif not story:
+            fail_reason = "Story not found"
+
+        if fail_reason:
+            get_task_backend().update(task_id, "failed", 0, fail_reason)
+            return
+
+        assert script is not None  # for type narrowing
+        assert story is not None
+        assert chapter is not None
+        entry = script[line_index]
+
+        voice_map: dict[str, VoiceConfig] = {}
+        if story.world_id:
+            world = db.query(World).filter(World.id == story.world_id).first()
+            if world and world.voice_config_json:
+                wvc = json.loads(world.voice_config_json)
+                voice_map = {s: _dict_to_vc(v) for s, v in wvc.items() if isinstance(v, dict) and "voice_id" in v}
+
+        if not voice_map:
+            voices_path = Path(os.environ.get("VOICES_CONFIG_PATH", "./data/voices_config.json"))
+            if voices_path.exists():
+                voice_map = create_voice_map(str(voices_path))
+
+        if voice_override:
+            for speaker, settings in voice_override.items():
+                if isinstance(settings, dict) and "voice_id" in settings:
+                    voice_map[speaker] = _dict_to_vc(settings)
+
+        if not voice_map:
+            get_task_backend().update(task_id, "failed", 0, "No voices configured")
+            return
+
+        get_task_backend().update(task_id, "running", 30, "Generating TTS for line...")
+
+        generator = AudiobookGenerator(api_key=elevenlabs_api_key, voice_map=voice_map, model_id="eleven_v3")
+
+        # Generate audio for this single line
+        temp_dir = tempfile.mkdtemp(prefix="regen_line_")
+        try:
+            seg_path = os.path.join(temp_dir, "line.mp3")
+            prev_entry = script[line_index - 1] if line_index > 0 else None
+            next_entry = script[line_index + 1] if line_index < len(script) - 1 else None
+            result_path = generator._process_line(entry, prev_entry, next_entry, seg_path, temp_dir)  # noqa: SLF001
+
+            if not result_path:
+                get_task_backend().update(task_id, "failed", 0, "Line produced no audio")
+                return
+
+            audio_bytes = Path(result_path).read_bytes()
+        finally:
+            import shutil as _shutil
+
+            _shutil.rmtree(temp_dir, ignore_errors=True)
+
+        # Save segment to storage
+        storage = get_storage()
+        seg_key = f"{story_id}/ch{chapter.chapter_number}/line_{line_index}.mp3"
+        storage.save(seg_key, audio_bytes)
+
+        # Update line_audio_json map
+        line_map: dict[str, str] = json.loads(chapter.line_audio_json)
+        line_map[str(line_index)] = seg_key
+        chapter.line_audio_json = json.dumps(line_map)
+        db.commit()
+
+        get_task_backend().update(task_id, "running", 60, "Rebuilding combined chapter audio...")
+
+        # Rebuild combined chapter MP3
+        rebuild_chapter_audio(story_id, chapter, db)
+
+        get_task_backend().update(
+            task_id,
+            "completed",
+            100,
+            "Line regenerated",
+            result={"story_id": story_id, "chapter_id": chapter_id, "line_index": line_index},
+        )
+
+    except Exception as e:
+        get_task_backend().update(task_id, "failed", 0, str(e))
+    finally:
         _stop_keepalive()
         db.close()
 

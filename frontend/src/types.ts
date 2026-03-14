@@ -16,6 +16,7 @@ export interface ChapterResponse {
   status: string;
   audio_path: string | null;
   audio_duration: number | null;
+  has_line_audio: boolean;
   error_message: string | null;
   created_at: string;
   updated_at: string;

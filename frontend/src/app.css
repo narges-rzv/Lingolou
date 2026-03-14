@@ -869,6 +869,39 @@ a:hover {
   margin-left: 0.35rem;
 }
 
+.line-audio-controls {
+  display: inline-flex;
+  gap: 0.15rem;
+  margin-right: 0.35rem;
+  vertical-align: middle;
+}
+
+.btn-line-audio {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.3rem;
+  color: var(--color-text-secondary);
+  line-height: 1;
+}
+
+.btn-line-audio:hover {
+  background: var(--color-bg-secondary);
+  color: var(--color-text);
+}
+
+.btn-line-audio.playing {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.btn-line-audio:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Speaker colors — brighter for dark bg */
 .speaker-0 { color: #818cf8; }
 .speaker-1 { color: #34d399; }

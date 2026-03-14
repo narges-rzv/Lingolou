@@ -119,9 +119,14 @@ interface ScriptEntryComponentProps {
   editing: boolean;
   onUpdate: (index: number, entry: ScriptEntry) => void;
   onDelete: (index: number) => void;
+  hasLineAudio?: boolean;
+  playingLine?: number | null;
+  regeneratingLine?: number | null;
+  onPlayLine?: (index: number) => void;
+  onRegenerateLine?: (index: number) => void;
 }
 
-function ScriptEntryComponent({ entry, index, editing, onUpdate, onDelete }: ScriptEntryComponentProps) {
+function ScriptEntryComponent({ entry, index, editing, onUpdate, onDelete, hasLineAudio, playingLine, regeneratingLine, onPlayLine, onRegenerateLine }: ScriptEntryComponentProps) {
   const type = entry.type || '';
 
   const update = (field: string, value: string | number) => {
@@ -172,6 +177,25 @@ function ScriptEntryComponent({ entry, index, editing, onUpdate, onDelete }: Scr
 
     return (
       <div className="script-entry script-dialogue">
+        {hasLineAudio && onPlayLine && onRegenerateLine && (
+          <span className="line-audio-controls">
+            <button
+              className={`btn-line-audio ${playingLine === index ? 'playing' : ''}`}
+              onClick={() => onPlayLine(index)}
+              title={playingLine === index ? 'Stop' : 'Play line'}
+            >
+              {playingLine === index ? '\u25A0' : '\u25B6'}
+            </button>
+            <button
+              className="btn-line-audio btn-line-regen"
+              onClick={() => onRegenerateLine(index)}
+              disabled={regeneratingLine === index}
+              title="Regenerate line audio"
+            >
+              {regeneratingLine === index ? '\u23F3' : '\u21BB'}
+            </button>
+          </span>
+        )}
         <span className={`speaker ${getSpeakerClass(entry.speaker)}`}>
           {entry.speaker}
         </span>
@@ -284,9 +308,10 @@ function ScriptEntryComponent({ entry, index, editing, onUpdate, onDelete }: Scr
 interface ScriptViewerProps {
   storyId: string;
   chapterNumber: number;
+  hasLineAudio?: boolean;
 }
 
-export default function ScriptViewer({ storyId, chapterNumber }: ScriptViewerProps) {
+export default function ScriptViewer({ storyId, chapterNumber, hasLineAudio }: ScriptViewerProps) {
   const [script, setScript] = useState<unknown>(null);
   const [entries, setEntries] = useState<ScriptEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -294,6 +319,61 @@ export default function ScriptViewer({ storyId, chapterNumber }: ScriptViewerPro
   const [editing, setEditing] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [playingLine, setPlayingLine] = useState<number | null>(null);
+  const [regeneratingLine, setRegeneratingLine] = useState<number | null>(null);
+  const [lineAudioRef] = useState<{ current: HTMLAudioElement | null }>({ current: null });
+
+  const handlePlayLine = async (index: number) => {
+    // Stop currently playing line
+    if (lineAudioRef.current) {
+      lineAudioRef.current.pause();
+      lineAudioRef.current = null;
+    }
+    if (playingLine === index) {
+      setPlayingLine(null);
+      return;
+    }
+    try {
+      const data = await apiFetch<{ url: string }>(
+        `/stories/${storyId}/chapters/${chapterNumber}/lines/${index}/audio`
+      );
+      const audio = new Audio(data.url);
+      lineAudioRef.current = audio;
+      setPlayingLine(index);
+      audio.onended = () => {
+        setPlayingLine(null);
+        lineAudioRef.current = null;
+      };
+      audio.onerror = () => {
+        setPlayingLine(null);
+        lineAudioRef.current = null;
+      };
+      await audio.play();
+    } catch {
+      setPlayingLine(null);
+    }
+  };
+
+  const handleRegenerateLine = async (index: number) => {
+    setRegeneratingLine(index);
+    try {
+      const task = await apiFetch<{ task_id: string; status: string }>(
+        `/stories/${storyId}/chapters/${chapterNumber}/lines/${index}/regenerate`,
+        { method: 'POST', json: null }
+      );
+      // Poll for completion
+      let status = task.status;
+      while (status === 'pending' || status === 'running') {
+        await new Promise((r) => setTimeout(r, 1500));
+        const poll = await apiFetch<{ status: string }>(`/stories/tasks/${task.task_id}`);
+        status = poll.status;
+      }
+    } catch {
+      // ignore — UI will reset
+    } finally {
+      setRegeneratingLine(null);
+    }
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -487,6 +567,11 @@ export default function ScriptViewer({ storyId, chapterNumber }: ScriptViewerPro
             editing={editing}
             onUpdate={handleUpdate}
             onDelete={handleDelete}
+            hasLineAudio={hasLineAudio}
+            playingLine={playingLine}
+            regeneratingLine={regeneratingLine}
+            onPlayLine={handlePlayLine}
+            onRegenerateLine={handleRegenerateLine}
           />
           {editing && <InsertBar onInsert={(type) => handleInsert(idx, type)} />}
         </div>

@@ -475,6 +475,7 @@ async def generate_story_content(
             ch.enhanced_json = None
             ch.audio_path = None
             ch.audio_duration = None
+            ch.line_audio_json = None
             ch.status = "pending"
         else:
             db.delete(ch)
@@ -766,3 +767,93 @@ async def update_chapter_script(
     db.commit()
 
     return {"message": "Script updated"}
+
+
+@router.get("/{story_id}/chapters/{chapter_number}/lines/{line_index}/audio")
+async def get_line_audio(
+    story_id: str,
+    chapter_number: int,
+    line_index: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    """Get a URL for an individual line's audio segment."""
+    story = _get_story_by_identifier(db, story_id, user_id=current_user.id)
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    chapter = next((c for c in story.chapters if c.chapter_number == chapter_number), None)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="Chapter not found")
+
+    if not chapter.line_audio_json:
+        raise HTTPException(status_code=404, detail="No per-line audio available")
+
+    line_map: dict[str, str] = json.loads(chapter.line_audio_json)
+    seg_key = line_map.get(str(line_index))
+    if not seg_key:
+        raise HTTPException(status_code=404, detail="Line audio not found for this index")
+
+    return {"url": get_storage().get_url(seg_key)}
+
+
+@router.post("/{story_id}/chapters/{chapter_number}/lines/{line_index}/regenerate", response_model=TaskStatusResponse)
+async def regenerate_line_audio(
+    story_id: str,
+    chapter_number: int,
+    line_index: int,
+    background_tasks: BackgroundTasks,
+    voice_override: dict[str, dict] | None = Body(None),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+) -> TaskStatusResponse:
+    """Regenerate audio for a single script line and rebuild the combined chapter MP3."""
+    from webapp.services.generation import regenerate_single_line
+
+    story = _get_story_by_identifier(db, story_id, user_id=current_user.id)
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    chapter = next((c for c in story.chapters if c.chapter_number == chapter_number), None)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="Chapter not found")
+
+    if not chapter.line_audio_json:
+        raise HTTPException(status_code=400, detail="Chapter has no per-line audio segments")
+
+    # Validate the entry is a line
+    script_json = chapter.enhanced_json or chapter.script_json
+    if not script_json:
+        raise HTTPException(status_code=400, detail="Chapter has no script")
+
+    script = json.loads(script_json)
+    if line_index < 0 or line_index >= len(script):
+        raise HTTPException(status_code=400, detail="Line index out of range")
+    if script[line_index].get("type") != "line":
+        raise HTTPException(status_code=400, detail="Entry at this index is not a dialogue line")
+
+    # Resolve ElevenLabs API key
+    elevenlabs_api_key = None
+    if current_user.elevenlabs_api_key:
+        elevenlabs_api_key = decrypt_key(current_user.elevenlabs_api_key)
+    elif os.environ.get("ELEVENLABS_API_KEY"):
+        elevenlabs_api_key = os.environ["ELEVENLABS_API_KEY"]
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="ElevenLabs API key required to regenerate audio.",
+        )
+
+    task_id = f"regen_{story.id}_{chapter.chapter_number}_{line_index}_{int(time.time())}"
+    get_task_backend().update(task_id, "pending", 0, "Queued line regeneration...")
+    background_tasks.add_task(
+        regenerate_single_line,
+        task_id=task_id,
+        story_id=story.id,
+        chapter_id=chapter.id,
+        line_index=line_index,
+        elevenlabs_api_key=elevenlabs_api_key,
+        voice_override=voice_override,
+    )
+
+    return TaskStatusResponse(task_id=task_id, status="pending", message="Line regeneration started")
