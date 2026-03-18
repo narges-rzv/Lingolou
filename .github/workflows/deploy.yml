@@ -1,4 +1,4 @@
-name: Build and Deploy to Azure Container Apps
+name: Build and Deploy to AKS
 
 on:
   push:
@@ -9,7 +9,7 @@ env:
   ACR_REGISTRY: lingolou.azurecr.io
   IMAGE_NAME: lingolou-app
   RESOURCE_GROUP: Lingolou
-  CONTAINER_APP_NAME: lingolou
+  AKS_CLUSTER: lingolou-aks
 
 jobs:
   build-and-deploy:
@@ -59,12 +59,18 @@ jobs:
             -t ${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
             --push .
 
-      - name: Deploy to Container Apps
-        uses: azure/container-apps-deploy-action@v2
+      - name: Set AKS context
+        uses: azure/aks-set-context@v4
         with:
-          resourceGroup: ${{ env.RESOURCE_GROUP }}
-          containerAppName: ${{ env.CONTAINER_APP_NAME }}
-          imageToDeploy: ${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }}
+          resource-group: ${{ env.RESOURCE_GROUP }}
+          cluster-name: ${{ env.AKS_CLUSTER }}
+
+      - name: Deploy to AKS
+        run: |
+          kubectl set image deployment/lingolou \
+            lingolou-app=${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }} \
+            -n lingolou
+          kubectl rollout status deployment/lingolou -n lingolou --timeout=120s
 
       - name: Purge old ACR images
         run: |

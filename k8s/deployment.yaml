@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lingolou
+  namespace: lingolou
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lingolou
+  template:
+    metadata:
+      labels:
+        app: lingolou
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: lingolou-sa
+      containers:
+        - name: lingolou-app
+          image: lingolou.azurecr.io/lingolou-app:latest
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: lingolou-secrets
+          env:
+            - name: DATABASE_URL
+              value: "sqlite:////app/data/lingolou.db"
+            - name: REDIS_URL
+              value: "redis://localhost:6379"
+            - name: STORAGE_BACKEND
+              value: "azure_blob"
+            - name: AZURE_STORAGE_ACCOUNT_NAME
+              value: "lingoloudisk"
+            - name: AZURE_STORAGE_CONTAINER
+              value: "audio"
+            - name: FRONTEND_URL
+              value: "https://www.lingolou.app"
+            - name: VOICES_CONFIG_PATH
+              value: "/app/data/voices_config.json"
+            - name: VERSION_FILE_PATH
+              value: "/app/data/.version"
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 10
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 5
+            failureThreshold: 10
+
+        - name: redis
+          image: redis:7-alpine
+          args: ["--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru", "--save", "60 1"]
+          ports:
+            - containerPort: 6379
+          volumeMounts:
+            - name: data
+              mountPath: /data
+              subPath: redis
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: lingolou-data
