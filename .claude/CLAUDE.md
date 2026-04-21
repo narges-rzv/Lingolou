@@ -193,6 +193,9 @@ make all             # lint + test (pre-commit check)
 4. **New dependencies**: Add to `requirements.txt`
 5. **Always run `make all`** before committing (lint + test)
 6. **Every new endpoint, function, or behavior change MUST include tests in the same commit.** Do not commit new code without corresponding test coverage.
+7. **Always update documentation after making changes** — update `README.md` for any user-facing or deployment changes, and update `CLAUDE.md` for any architectural or workflow changes. Keep both files accurate and current.
+8. **Add or update tests for every change** — new features need new tests, changed behavior needs updated tests. Tests must cover the happy path and key failure modes. `make test` must pass before committing.
+9. **Deferred work goes in `plans/`** — if a task is identified but not immediately actioned, write a plan file to `plans/` so it can be picked up in a future session. Current plans: `plans/performance-optimizations.md`.
 
 ## Testing Database Migrations
 
@@ -211,7 +214,7 @@ Before deploying a migration to production:
    mkdir -p /tmp/restore
    az storage file download-batch --account-name lingoloudisk --source lingolou-data --destination /tmp/restore --snapshot "<timestamp>"
    az storage file upload-batch --account-name lingoloudisk --destination lingolou-data --source /tmp/restore
-   az containerapp update --name lingolou --resource-group Lingolou --min-replicas 0 --max-replicas 1
+   az containerapp update --name lingolou --resource-group Lingolou --min-replicas 1 --max-replicas 1
    ```
 
 ## Deployment

@@ -187,7 +187,9 @@ make release-minor
 make release-major
 ```
 
-The pipeline runs `make all` (format + lint + test) before building and deploying.
+The pipeline runs `make all` (format + lint + test) before building and deploying, then enforces scale settings (`minReplicas: 1`, `maxReplicas: 1`) so scale-to-zero is always disabled after every release.
+
+> **Note:** Changes to `containerapp.yml` (scale, resources, env vars, etc.) are **not** applied automatically by CI/CD — only the Docker image is updated. To apply infrastructure config changes, run `make aca-create` manually after updating `containerapp.yml`.
 
 ## Environment Variables
 
