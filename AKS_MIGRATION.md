@@ -19,7 +19,9 @@
 
 4. **`Makefile` updated** — added `aks-context`, `aks-deploy`, `aks-logs`, `aks-status`, `aks-restart` targets
 
-5. **Azure provider registered** — `Microsoft.ContainerService` is registered
+5. **Scale-to-zero disabled** — `k8s/deployment.yaml` sets `replicas: 1` (equivalent to the `containerapp.yml` minReplicas fix on main; handled at the k8s level, not Container Apps)
+
+6. **Azure provider registered** — `Microsoft.ContainerService` is registered
 
 ### What's Blocking
 
