@@ -2,7 +2,7 @@
 
 > Focus: what we tried, what failed, why, and what finally worked.
 > Final state: https://www.lingolou.app live, TLS issued, audio working.
-> Pending: decommission Container App, merge to main.
+> Pending: Container Apps env deletion in progress (`ScheduledForDelete`), merge `feature/aks-migration` to main.
 
 ---
 
@@ -28,11 +28,15 @@ Everything that bit us, in one place. Details in the session log below.
 
 9. **The AKS CCM doesn't always reconcile all service annotations to the LB.** In our cluster version, the probe path and protocol annotations were picked up, but the probe port annotation was silently ignored. When annotations don't take effect after a few minutes, patch the Azure LB directly with `az network lb probe update`.
 
-10. **cert-manager does not auto-retry from `invalid` Order state.** Once an ACME order goes invalid (e.g. because port 80 was unreachable), you must manually delete the CertificateRequest (`kubectl delete certificaterequest --all -n <ns>`). The Order is garbage-collected automatically. Then annotate the Certificate to trigger re-issuance.
+10. **The direct `az network lb probe update` patch may revert after AKS cluster upgrades.** The CCM reconciles LB state during node pool upgrades and cluster version bumps. If port 80 goes unreachable again after an upgrade, re-run the probe patch (see session 2). Check with `az network lb probe list -g MC_Lingolou_lingolou-aks_eastus --lb-name kubernetes -o table` — if the port column is back to a nodePort (30000+ range) instead of 10254, the CCM overwrote it.
 
-11. **DNS: GoDaddy won't let you change a CNAME to an A record in-place.** Delete the CNAME first, then add the A record. Verify immediately against the authoritative nameserver (`dig @ns35.domaincontrol.com`) to bypass local TTL cache.
+11. **The 443 probe also changed to `/healthz` as a side effect of the Helm annotations.** The `azure-load-balancer-health-probe-request-path` annotation applies to all probes on the service, not just port 80. The 443 probe went from `Https /` to `Https /healthz`. This is fine — nginx serves `/healthz` on port 10254 regardless of TLS — but be aware if you're debugging the 443 probe separately.
 
-12. **RBAC propagation takes ~1 minute after `az role assignment create`.** Don't restart the pod and immediately test — wait for propagation first. Poll with a `until` loop rather than a blind sleep.
+12. **cert-manager does not auto-retry from `invalid` Order state.** Once an ACME order goes invalid (e.g. because port 80 was unreachable), you must manually delete the CertificateRequest (`kubectl delete certificaterequest --all -n <ns>`). The Order is garbage-collected automatically. Then annotate the Certificate to trigger re-issuance.
+
+13. **DNS: GoDaddy won't let you change a CNAME to an A record in-place.** Delete the CNAME first, then add the A record. Verify immediately against the authoritative nameserver (`dig @ns35.domaincontrol.com`) to bypass local TTL cache.
+
+14. **RBAC propagation takes ~1 minute after `az role assignment create`.** Don't restart the pod and immediately test — wait for propagation first. Poll with a `until` loop rather than a blind sleep.
 
 ---
 
