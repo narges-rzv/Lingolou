@@ -56,3 +56,6 @@ backup.zip
 
 # CI-generated version file
 VERSION
+
+# Claude
+.claude/scheduled_tasks.lock

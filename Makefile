@@ -1,6 +1,6 @@
 ACR_IMAGE ?= lingolou.azurecr.io/lingolou-app:latest
 
-.PHONY: test test-backend test-frontend test-e2e test-all test-install install dev lint format all docker-build docker-run docker-run-prod compose-up compose-down az-login docker-push aca-render aca-create aca-deploy aca-logs aca-url release-patch release-minor release-major backup restore aca-backup aca-backup-list aca-restore aca-backup-delete
+.PHONY: test test-backend test-frontend test-e2e test-all test-install install dev lint format all docker-build docker-run docker-run-prod compose-up compose-down az-login docker-push aca-render aca-create aca-deploy aca-logs aca-url aks-context aks-deploy aks-logs aks-status aks-restart release-patch release-minor release-major backup restore aca-backup aca-backup-list aca-restore aca-backup-delete
 
 # Install all dependencies (backend + frontend)
 install:
@@ -110,6 +110,28 @@ aca-logs:
 # Print the Container App FQDN
 aca-url:
 	@az containerapp show --name lingolou --resource-group Lingolou --query properties.configuration.ingress.fqdn -o tsv
+
+# --- AKS (Kubernetes) ---
+
+# Get AKS credentials
+aks-context:
+	az aks get-credentials -g Lingolou -n lingolou-aks
+
+# Apply all Kubernetes manifests
+aks-deploy:
+	kubectl apply -f k8s/
+
+# Tail app container logs
+aks-logs:
+	kubectl logs -n lingolou deployment/lingolou -c lingolou-app -f
+
+# Show pod status
+aks-status:
+	kubectl get pods -n lingolou
+
+# Rolling restart
+aks-restart:
+	kubectl rollout restart deployment/lingolou -n lingolou
 
 # --- Release (recommended for production) ---
 # Bumps version, pushes tag → triggers CI/CD pipeline (lint, test, build, deploy)
