@@ -165,6 +165,11 @@ dist/
 coverage/
 ```
 
+**TypeScript rules** — `tsconfig.json` already sets `strict: true`. Additionally:
+- Never use `any` — use `unknown` with proper narrowing instead
+- All props and state must be explicitly typed (`useState<Type>`, interface for every prop object)
+- Suppressing tsc errors: use `// @ts-expect-error — reason` (not `// @ts-ignore`)
+
 #### Python (FastAPI + pytest)
 
 **`pyproject.toml`** — version field is kept in sync with git tags by `bump-my-version`:
@@ -192,8 +197,50 @@ replace = 'version = "{new_version}"'
 addopts = "--cov=app --cov-report=term-missing"
 
 [tool.ruff]
+target-version = "py312"
 line-length = 100
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "D100",   # Missing docstring in public module
+    "D104",   # Missing docstring in public package
+    "D203",   # conflicts with D211
+    "D213",   # conflicts with D212
+    "ANN101", # self annotation
+    "ANN102", # cls annotation
+    "COM812", # conflicts with formatter
+    "ISC001", # conflicts with formatter
+]
+
+[tool.ruff.lint.per-file-ignores]
+"app/test_*.py" = ["D", "ANN"]
+
+[tool.mypy]
+python_version = "3.12"
+check_untyped_defs = true
+ignore_missing_imports = false
 ```
+
+Add `mypy` to `requirements.txt`:
+```
+mypy>=1.9.0
+ruff>=0.4.0
+bump-my-version>=0.24.0
+```
+
+**Rule suppression** — always use a specific code and a reason; never bare `# noqa` or bare `# type: ignore`:
+```python
+# Correct:
+value: Any = body_param  # noqa: ANN401 — framework requires Any here
+result = untyped_lib.call()  # type: ignore[no-untyped-call] — library lacks stubs
+
+# Wrong:
+value = body_param  # noqa
+result = untyped_lib.call()  # type: ignore
+```
+
+All public functions and classes outside test files must have docstrings and type-annotated signatures.
 
 **`requirements.txt`**
 ```
@@ -777,6 +824,104 @@ Common causes: DNS not yet propagated; port 80 LB probe issue (see pitfall #7 in
 
 ---
 
+---
+
+## Conventions (carry these into the new repo)
+
+### When making changes
+
+1. **Every new endpoint or function requires tests in the same commit** — do not commit new code without test coverage.
+2. **Tests must cover the happy path and key failure modes** (invalid input, missing auth, bad params).
+3. **Coverage must not decrease** — `make test` must pass before committing.
+4. **Always run `make all`** (lint + test) before committing.
+5. **Update `README.md`** for any user-facing or deployment changes.
+6. **Update `CLAUDE.md`** for any architectural or workflow changes.
+7. **Deferred work goes in `plans/`** — write a plan file rather than leaving TODOs in code.
+8. **New dependencies**: add to `requirements.txt` (Python) or `package.json` (TypeScript) and commit the lockfile.
+
+### Secrets
+
+- Never write secrets to disk (no `.env` files committed, no plaintext in manifests).
+- Secrets are stored in Kubernetes: `kubectl create secret` with values passed via CLI subshell.
+- GitHub Actions secrets (`AZURE_CREDENTIALS`, `ACR_USERNAME`, `ACR_PASSWORD`) are set in the repo UI — never in workflow YAML.
+
+### Comments
+
+Only add a comment when the **why** is non-obvious: a hidden constraint, a subtle invariant, a workaround for a specific bug. Never explain what the code does — well-named identifiers do that. One short line max; no multi-paragraph docstrings.
+
+### CORS
+
+`allow_origins=["*"]` is acceptable during development. Restrict to the actual frontend origin in production by setting a `FRONTEND_URL` env var and passing it to the CORS middleware.
+
+---
+
+## Step 10 — Create `.claude/CLAUDE.md` in the new repo
+
+Create `.claude/CLAUDE.md` at `REPO_PATH` so Claude Code understands the project in future sessions. Tailor to the actual stack chosen.
+
+```markdown
+# CLAUDE.md
+
+## Project Summary
+
+<!-- One sentence describing what this app does. -->
+
+## Tech Stack
+
+- **Backend**: <!-- FastAPI (Python 3.12+) or Express (TypeScript) -->
+- **Deployment**: AKS namespace `APP_NAME` on `lingolou-aks`, domain `DOMAIN`
+- **CI/CD**: GitHub Actions — CI on all branches, deploy on `v*` tags
+
+## Common Commands
+
+\`\`\`bash
+make install   # install dependencies
+make dev       # start dev server
+make test      # run tests with coverage
+make lint      # lint + type-check
+make all       # lint then test (run before committing)
+
+make release-patch   # bump patch version, push tag → triggers deploy
+make release-minor   # bump minor version
+make release-major   # bump major version
+
+make aks-status      # kubectl get pods -n APP_NAME
+make aks-logs        # tail app logs
+make aks-restart     # rolling restart
+\`\`\`
+
+## Code Quality
+
+<!-- Python: -->
+Ruff (`ALL` rules, see `pyproject.toml` ignore list) + mypy (strict). Tests exempt from `D` and `ANN` rules.
+Always suppress with a specific rule code and a reason: `# noqa: ANN401 — reason`, `# type: ignore[code] — reason`.
+
+<!-- TypeScript: -->
+`strict: true` in tsconfig. No `any` — use `unknown` with narrowing. Suppress with `// @ts-expect-error — reason`.
+
+## Testing
+
+- Tests in `app/test_*.py` (Python) or `src/*.test.ts` (TypeScript)
+- Every new feature needs tests — happy path and key failure modes
+- Coverage must not decrease; `make test` must pass before committing
+
+## When Making Changes
+
+1. Write tests in the same commit as the code
+2. Run `make all` before committing
+3. Update this file for architectural changes; update `README.md` for user-facing changes
+4. Deferred work goes in `plans/`
+
+## Deployment
+
+- **Release**: `make release-patch` — bumps version, pushes tag, CI/CD deploys automatically
+- **Manual**: `make aks-deploy` (apply manifests), `make aks-restart` (rolling restart)
+- **Secrets**: in Kubernetes (`kubectl create secret`) — never in files
+- **Infra**: shared ingress at `57.151.44.179`, cert-manager issues TLS automatically
+```
+
+---
+
 ## Checklist
 
 - [ ] App scaffolded, tests pass locally (`make test`)
@@ -793,3 +938,4 @@ Common causes: DNS not yet propagated; port 80 LB probe issue (see pitfall #7 in
 - [ ] DNS A record `DOMAIN → 57.151.44.179` added and verified
 - [ ] `kubectl get certificate -n APP_NAME` shows `READY: True`
 - [ ] `curl https://DOMAIN/health` returns `{"status":"ok","version":"..."}`
+- [ ] `.claude/CLAUDE.md` created in the new repo
