@@ -1,6 +1,6 @@
 # AKS Migration — Progress & Resume Guide
 
-## Status: Paused — Waiting for ARM VM quota approval
+## Status: DNS cutover pending — cluster running at 57.151.44.179
 
 ### What's Done
 
@@ -23,38 +23,21 @@
 
 6. **Azure provider registered** — `Microsoft.ContainerService` is registered
 
-### What's Blocking
+### Cluster Details
 
-**ARM VM quota**: Your subscription has 0 cores for `standardBPSv2Family` (ARM B-series v2) in East US.
+- **Node VM**: `Standard_D2s_v4` (x86, East US) — ARM quota was unavailable, switched to x86
+- **Ingress IP**: `57.151.44.179` — update DNS A record for `www.lingolou.app`
+- **k8s version**: 1.34.7
 
-**To request quota increase:**
-1. Go to Azure Portal → Subscriptions → Usage + quotas
-2. Search for `standardBPSv2` or `Standard BPSv2 Family`
-3. Request increase to **2 cores** for **East US**
-4. Approval is usually within minutes for small requests
+### Remaining Steps
 
-**Alternative**: Use `Standard_D2s_v4` (x86, ~$70/mo) which has quota available — no Docker build changes needed. You can resize to ARM later.
+#### ~~Step 1: Create AKS Cluster~~ ✅ Done
+#### ~~Step 2: Install Helm Charts~~ ✅ Done (nginx-ingress + cert-manager)
+#### ~~Step 3: Set Up Workload Identity~~ ✅ Done (identity: `lingolou-aks-identity`, client-id: `466d6d0d-0a96-4763-b51e-709314087c8a`)
+#### ~~Step 4: Create Kubernetes Secrets~~ ✅ Done
+#### ~~Step 5: Deploy~~ ✅ Done — pod running 2/2
 
-### Remaining Steps (after quota approval)
-
-#### Step 1: Create AKS Cluster
-```bash
-# If using ARM (after quota approval):
-az aks create -g Lingolou -n lingolou-aks \
-  --node-count 1 --node-vm-size Standard_B2pls_v2 \
-  --enable-oidc-issuer --enable-workload-identity \
-  --tier free --generate-ssh-keys
-
-# If using x86 (no quota needed):
-az aks create -g Lingolou -n lingolou-aks \
-  --node-count 1 --node-vm-size Standard_D2s_v4 \
-  --enable-oidc-issuer --enable-workload-identity \
-  --tier free --generate-ssh-keys
-
-az aks get-credentials -g Lingolou -n lingolou-aks
-```
-
-#### Step 2: Install Helm Charts
+#### Step 6: Update Docker Build (ARM only)
 ```bash
 # nginx-ingress
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
@@ -120,8 +103,7 @@ kubectl create secret generic lingolou-secrets -n lingolou \
 kubectl apply -f k8s/
 ```
 
-#### Step 6: Update Docker Build (ARM only)
-If using ARM node, update `.github/workflows/deploy.yml` to build `linux/arm64` instead of `linux/amd64`.
+#### ~~Step 6: Update Docker Build~~ ✅ N/A — using x86, `linux/amd64` already correct
 
 #### Step 7: DNS Cutover
 ```bash
