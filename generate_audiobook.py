@@ -344,13 +344,26 @@ class AudiobookGenerator:
             print(f"FFmpeg mix error: {result.stderr}")
             raise Exception(f"FFmpeg mixing failed: {result.stderr}")
 
+    # Common group-speaker name patterns (case-insensitive prefix/exact match)
+    _GROUP_PREFIXES = ("ALL",)
+    _GROUP_EXACT = frozenset({"EVERYONE", "TOGETHER", "ALL_CHARACTERS", "EVERYONE_TOGETHER"})
+
     def _is_group_speaker(self, speaker: str) -> bool:
         """Check if speaker is a group (multiple voices speaking together)."""
-        return speaker in self.GROUP_SPEAKERS
+        if speaker in self.GROUP_SPEAKERS:
+            return True
+        upper = speaker.upper()
+        return upper in self._GROUP_EXACT or any(upper.startswith(p) for p in self._GROUP_PREFIXES)
 
     def _get_group_members(self, speaker: str) -> list[str]:
-        """Get list of individual speakers in a group."""
-        return self.GROUP_SPEAKERS.get(speaker, [])
+        """Get list of individual speakers in a group.
+
+        Returns the hardcoded list when defined, otherwise all configured
+        speakers except NARRATOR so any world works without manual mapping.
+        """
+        if speaker in self.GROUP_SPEAKERS:
+            return self.GROUP_SPEAKERS[speaker]
+        return [s for s in self.voice_map if s.upper() != "NARRATOR"]
 
     def _process_line(
         self,

@@ -72,6 +72,14 @@ jobs:
             -n lingolou
           kubectl rollout status deployment/lingolou -n lingolou --timeout=120s
 
+      - name: Enforce scale settings (no scale-to-zero)
+        run: |
+          az containerapp update \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --min-replicas 1 \
+            --max-replicas 1
+
       - name: Purge old ACR images
         run: |
           az acr run \

@@ -32,8 +32,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const token = localStorage.getItem('token');
     if (token) {
-      apiFetch<User>('/auth/me')
-        .then(setUser)
+      // Use plain fetch so an expired token silently clears rather than
+      // hard-redirecting to /login (apiFetch does window.location on 401).
+      fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+        .then((res) => {
+          if (res.ok) return res.json() as Promise<User>;
+          localStorage.removeItem('token');
+          return null;
+        })
+        .then((user) => { if (user) setUser(user); })
         .catch(() => localStorage.removeItem('token'))
         .finally(() => setLoading(false));
     } else {
