@@ -152,10 +152,9 @@ Optional:
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 FRONTEND_URL=http://localhost:5173
-REDIS_URL=                            # redis://localhost:6379 in production (embedded)
+REDIS_URL=                            # redis://localhost:6379 in production (k8s sidecar)
 VOICES_CONFIG_PATH=                   # default: ./data/voices_config.json
 VERSION_FILE_PATH=                    # default: ./data/.version
-REDIS_DATA_DIR=                       # default: ./data/redis
 ```
 
 ## Testing
@@ -205,24 +204,26 @@ Before deploying a migration to production:
 2. **Test migration**: `PYTHONPATH=. alembic upgrade head`
 3. **Verify**: `make dev` — check the app works correctly
 4. **If migration fails**: `make restore` — recovers from `backup.zip`
-5. **Backup prod**: `make aca-backup` — takes Azure Files snapshot (note the timestamp)
+5. **Backup prod**: `make aks-backup` — takes Azure Files snapshot (note the timestamp)
 6. **Deploy**: `make release-patch` — CI/CD applies migration automatically via `init_db()`
-7. **If prod fails**: Stop container → restore snapshot → restart:
+7. **If prod fails**: Scale down → restore snapshot → redeploy:
    ```bash
-   az containerapp update --name lingolou --resource-group Lingolou --min-replicas 0 --max-replicas 0
-   make aca-backup-list                          # find pre-migration snapshot
+   kubectl scale deployment/lingolou -n lingolou --replicas=0
+   make aks-backup-list                          # find pre-migration snapshot
    mkdir -p /tmp/restore
    az storage file download-batch --account-name lingoloudisk --source lingolou-data --destination /tmp/restore --snapshot "<timestamp>"
    az storage file upload-batch --account-name lingoloudisk --destination lingolou-data --source /tmp/restore
-   az containerapp update --name lingolou --resource-group Lingolou --min-replicas 1 --max-replicas 1
+   kubectl scale deployment/lingolou -n lingolou --replicas=1
    ```
 
 ## Deployment
 
-- **Production** runs on Azure Container Apps at `www.lingolou.app`
-- **CI/CD**: Auto-deployed via GitHub Actions on `v*` tag push (lint → test → build → deploy → ACR cleanup)
+- **Production** runs on AKS (`lingolou-aks`, resource group `Lingolou`) at `www.lingolou.app`
+- **CI/CD**: Auto-deployed via GitHub Actions on `v*` tag push (lint → test → build → `kubectl set image` → ACR cleanup)
 - **Release**: `make release-patch` / `release-minor` / `release-major` bumps version, pushes tag, triggers pipeline
-- **Manual targets**: `make az-login`, `make docker-push`, `make aca-create`, `make aca-deploy`, `make aca-logs`, `make aca-url`
-- **Infrastructure**: ACR registry `lingolou.azurecr.io`, Container App `lingolou` in resource group `Lingolou`
-- **Database**: SQLite on Azure Files (SMB) with `unix-none` VFS, single replica
-- **Migrations**: Applied automatically on startup via `init_db()` → `alembic upgrade head`. First deploy on existing DB auto-stamps `head`
+- **Manual targets**: `make az-login`, `make docker-push`, `make aks-context`, `make aks-deploy`, `make aks-logs`, `make aks-status`, `make aks-restart`
+- **Infrastructure**: ACR registry `lingolou.azurecr.io`, AKS cluster `lingolou-aks`, ingress IP `57.151.44.179`, manifests in `k8s/`
+- **Database**: SQLite on Azure Files (SMB) mounted as a PVC — single replica, `ReadWriteMany`
+- **Redis**: Sidecar container in the same pod (not embedded in the app image)
+- **Secrets**: Stored in Kubernetes (`kubectl create secret`) — never in files or env vars on disk
+- **Migrations**: Applied automatically on startup via `init_db()` → `alembic upgrade head`

@@ -134,47 +134,31 @@ docker run -p 8000:8000 \
   lingolou
 ```
 
-## Azure Container Apps Deployment
+## Azure Kubernetes Service (AKS) Deployment
 
-The production deployment runs on Azure Container Apps with Azure Blob Storage for audio files, Azure Files for the SQLite database, and a managed TLS certificate.
+Production runs on AKS with Azure Blob Storage for audio files and Azure Files (SMB) for the SQLite database. The app and a Redis sidecar run as a single pod. TLS is managed by cert-manager with Let's Encrypt.
 
 ### Prerequisites
 
-- Azure CLI (`az`) logged in
-- Azure Container Registry (ACR) with the app image
-- Resource group with storage account
+- Azure CLI (`az`) logged in (`az login`)
+- `kubectl` and `helm` installed
+- AKS cluster `lingolou-aks` in resource group `Lingolou`
 
-### 1. Push the image
+### Deploying manually
 
 ```bash
-make az-login      # az login + az acr login
-make docker-push   # Build linux/amd64 and push to ACR
+make az-login         # az login + az acr login
+make docker-push      # Build linux/amd64 and push to ACR
+make aks-context      # Set kubectl context to lingolou-aks
+make aks-deploy       # kubectl apply -f k8s/
 ```
 
-### 2. Create `.env.azure`
+### Useful commands
 
 ```bash
-GOOGLE_CLIENT_ID="your-google-client-id"
-GOOGLE_CLIENT_SECRET="your-google-client-secret"
-ELEVENLABS_API_KEY="your-elevenlabs-key"
-OPENAI_API_KEY="your-openai-key"
-STORAGE_BACKEND="azure_blob"
-AZURE_SUBSCRIPTION_ID="your-subscription-id"
-SESSION_SECRET_KEY="a-random-string-at-least-32-chars"
-FRONTEND_URL="https://www.your-domain.com"
-CORS_ORIGINS="https://www.your-domain.com"
-ACR_PASSWORD="your-acr-password"
-```
-
-> `.env.azure` is in `.gitignore` — never commit secrets.
-
-### 3. Deploy
-
-```bash
-make aca-create    # Render containerapp.yml with secrets and deploy
-make aca-deploy    # Update to latest image
-make aca-logs      # Tail container logs
-make aca-url       # Print the app FQDN
+make aks-logs         # Tail app container logs
+make aks-status       # kubectl get pods/svc/ingress -n lingolou
+make aks-restart      # kubectl rollout restart deployment/lingolou -n lingolou
 ```
 
 ### CI/CD
@@ -182,14 +166,28 @@ make aca-url       # Print the app FQDN
 Pushing a version tag triggers the GitHub Actions pipeline (`.github/workflows/deploy.yml`):
 
 ```bash
-make release-patch   # Bumps version, pushes tag → lint + test + build + deploy
+make release-patch   # Bumps version, pushes tag → lint + test + build + AKS deploy
 make release-minor
 make release-major
 ```
 
-The pipeline runs `make all` (format + lint + test) before building and deploying, then enforces scale settings (`minReplicas: 1`, `maxReplicas: 1`) so scale-to-zero is always disabled after every release.
+The pipeline runs `make all` (lint + test) before building, pushes the image to ACR, then runs `kubectl set image` + `kubectl rollout status` to deploy.
 
-> **Note:** Changes to `containerapp.yml` (scale, resources, env vars, etc.) are **not** applied automatically by CI/CD — only the Docker image is updated. To apply infrastructure config changes, run `make aca-create` manually after updating `containerapp.yml`.
+### Secrets
+
+All secrets live in Kubernetes — nothing in files or environment. Created once via:
+
+```bash
+kubectl create secret generic lingolou-secrets -n lingolou \
+  --from-literal=SESSION_SECRET_KEY="..." \
+  --from-literal=OPENAI_API_KEY="..." \
+  --from-literal=ELEVENLABS_API_KEY="..." \
+  --from-literal=GOOGLE_CLIENT_ID="..." \
+  --from-literal=GOOGLE_CLIENT_SECRET="..." \
+  --from-literal=CORS_ORIGINS="https://www.lingolou.app"
+```
+
+See `AKS_MIGRATION.md` for the full initial setup procedure (cluster creation, Helm charts, workload identity, PVC).
 
 ## Environment Variables
 
@@ -213,10 +211,9 @@ The pipeline runs `make all` (format + lint + test) before building and deployin
 | `GOOGLE_CLIENT_ID` | No | - | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | No | - | Google OAuth client secret |
 | `VITE_CONTACT_EMAIL` | No | `lingolou@lingolou.app` | Contact email shown in footer (build-time) |
-| `REDIS_URL` | No | _(empty = in-memory)_ | Redis connection URL. Set to `redis://localhost:6379` in production (embedded redis-server) |
+| `REDIS_URL` | No | _(empty = in-memory)_ | Redis connection URL. Set to `redis://localhost:6379` in production (Redis sidecar in k8s) |
 | `VOICES_CONFIG_PATH` | No | `./data/voices_config.json` | Path to ElevenLabs voice config JSON. Auto-copied from bundled default on first startup |
 | `VERSION_FILE_PATH` | No | `./data/.version` | Path to version stamp file for fast startup optimisation |
-| `REDIS_DATA_DIR` | No | `./data/redis` | Directory for Redis RDB persistence |
 
 ## Code Quality
 
