@@ -5,7 +5,7 @@ description: Scaffold a new TypeScript or Python hello-world web app with tests 
 
 # New AKS App
 
-Scaffolds a new web app (TypeScript/Python) with tests, Dockerfile, Kubernetes manifests, and GitHub Actions CI/CD, then deploys it to the shared `lingolou-aks` cluster in an isolated namespace.
+Scaffolds a new web app (TypeScript/Python) with tests, Dockerfile, Makefile, Kubernetes manifests, and GitHub Actions CI/CD, then deploys it to the shared `lingolou-aks` cluster in an isolated namespace.
 
 ## Shared infrastructure (do not recreate)
 
@@ -33,17 +33,15 @@ Ask the user for these values before doing anything else:
 | `REPO_PATH` | Absolute path to the target git repository | `/Users/narges/git/myapp` |
 | `DOMAIN` | Fully-qualified domain for this app | `myapp.example.com` |
 
-Confirm values with the user before writing any files.
+Confirm values with the user before writing any files. If `REPO_PATH` is not a git repo, run `git init` first.
 
 ---
 
 ### Step 2 — Scaffold the app in `REPO_PATH`
 
-Work entirely inside `REPO_PATH`. If it is not a git repo, run `git init` first.
-
 #### TypeScript (Express + Vitest)
 
-**`package.json`**
+**`package.json`** — version starts at `0.1.0`; `bump-my-version` keeps it in sync with git tags:
 ```json
 {
   "name": "APP_NAME",
@@ -92,11 +90,22 @@ Work entirely inside `REPO_PATH`. If it is not a git repo, run `git init` first.
 **`src/app.ts`** — exported separately so tests import it without binding a port:
 ```typescript
 import express from "express";
+import { readFileSync } from "fs";
+import { join } from "path";
 
 export const app = express();
 
+function getVersion(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8")) as { version: string };
+    return pkg.version;
+  } catch {
+    return "unknown";
+  }
+}
+
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok" });
+  res.json({ status: "ok", version: getVersion() });
 });
 
 app.get("/", (_req, res) => {
@@ -121,10 +130,11 @@ import request from "supertest";
 import { app } from "./app";
 
 describe("GET /health", () => {
-  it("returns ok", async () => {
+  it("returns ok with version", async () => {
     const res = await request(app).get("/health");
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("ok");
+    expect(typeof res.body.version).toBe("string");
   });
 });
 
@@ -157,6 +167,34 @@ coverage/
 
 #### Python (FastAPI + pytest)
 
+**`pyproject.toml`** — version field is kept in sync with git tags by `bump-my-version`:
+```toml
+[project]
+version = "0.1.0"
+
+[tool.bumpversion]
+current_version = "0.1.0"
+commit = true
+tag = true
+tag_name = "v{new_version}"
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'current_version = "{current_version}"'
+replace = 'current_version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[tool.pytest.ini_options]
+addopts = "--cov=app --cov-report=term-missing"
+
+[tool.ruff]
+line-length = 100
+```
+
 **`requirements.txt`**
 ```
 fastapi>=0.110.0
@@ -169,15 +207,25 @@ pytest-cov>=5.0.0
 **`app/main.py`**
 ```python
 """Hello world FastAPI application."""
+import tomllib
+from pathlib import Path
+
 from fastapi import FastAPI
 
-app = FastAPI()
+def _get_version() -> str:
+    try:
+        with open(Path(__file__).parent.parent / "pyproject.toml", "rb") as f:
+            return tomllib.load(f)["project"]["version"]
+    except Exception:
+        return "unknown"
+
+app = FastAPI(title="APP_NAME", version=_get_version())
 
 
 @app.get("/health")
 def health() -> dict[str, str]:
     """Health check endpoint."""
-    return {"status": "ok"}
+    return {"status": "ok", "version": app.version}
 
 
 @app.get("/")
@@ -196,10 +244,11 @@ client = TestClient(app)
 
 
 def test_health() -> None:
-    """Health check returns ok."""
+    """Health check returns ok with version."""
     resp = client.get("/health")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ok"}
+    assert resp.json()["status"] == "ok"
+    assert isinstance(resp.json()["version"], str)
 
 
 def test_root() -> None:
@@ -207,15 +256,6 @@ def test_root() -> None:
     resp = client.get("/")
     assert resp.status_code == 200
     assert resp.json()["message"] == "Hello, world!"
-```
-
-**`pyproject.toml`**
-```toml
-[tool.pytest.ini_options]
-addopts = "--cov=app --cov-report=term-missing"
-
-[tool.ruff]
-line-length = 100
 ```
 
 **`.gitignore`**
@@ -237,11 +277,150 @@ pip install -r requirements.txt && pytest
 
 ---
 
-### Step 3 — Dockerfile
+### Step 3 — Makefile
+
+Create a `Makefile` at repo root. Adapt the language-specific targets to the chosen stack.
+
+#### TypeScript
+```makefile
+.PHONY: install dev build test lint all docker-build docker-push aks-context aks-deploy aks-logs aks-status aks-restart release-patch release-minor release-major
+
+ACR_IMAGE ?= lingolou.azurecr.io/APP_NAME:latest
+
+install:
+	npm ci
+
+dev:
+	npm run dev
+
+build:
+	npm run build
+
+lint:
+	npm run lint
+
+test:
+	npm test
+
+all: lint test
+
+docker-build:
+	docker build -t lingolou.azurecr.io/APP_NAME:latest .
+
+docker-push:
+	docker buildx build --platform linux/amd64 -t $(ACR_IMAGE) --push .
+
+aks-context:
+	az aks get-credentials -g Lingolou -n lingolou-aks
+
+aks-deploy:
+	kubectl apply -f k8s/
+
+aks-logs:
+	kubectl logs -n APP_NAME deployment/APP_NAME -f
+
+aks-status:
+	kubectl get pods -n APP_NAME
+
+aks-restart:
+	kubectl rollout restart deployment/APP_NAME -n APP_NAME
+
+release-patch:
+	bump-my-version bump patch
+	git push && git push --tags
+
+release-minor:
+	bump-my-version bump minor
+	git push && git push --tags
+
+release-major:
+	bump-my-version bump major
+	git push && git push --tags
+```
+
+#### Python
+```makefile
+.PHONY: install dev test lint format all docker-build docker-push aks-context aks-deploy aks-logs aks-status aks-restart release-patch release-minor release-major
+
+ACR_IMAGE ?= lingolou.azurecr.io/APP_NAME:latest
+
+install:
+	pip install -r requirements.txt
+
+dev:
+	uvicorn app.main:app --reload --port 8000
+
+lint:
+	ruff check . && ruff format --check .
+
+format:
+	ruff format . && ruff check --fix .
+
+test:
+	pytest
+
+all: format lint test
+
+docker-build:
+	docker build -t lingolou.azurecr.io/APP_NAME:latest .
+
+docker-push:
+	docker buildx build --platform linux/amd64 -t $(ACR_IMAGE) --push .
+
+aks-context:
+	az aks get-credentials -g Lingolou -n lingolou-aks
+
+aks-deploy:
+	kubectl apply -f k8s/
+
+aks-logs:
+	kubectl logs -n APP_NAME deployment/APP_NAME -f
+
+aks-status:
+	kubectl get pods -n APP_NAME
+
+aks-restart:
+	kubectl rollout restart deployment/APP_NAME -n APP_NAME
+
+release-patch:
+	bump-my-version bump patch
+	git push && git push --tags
+
+release-minor:
+	bump-my-version bump minor
+	git push && git push --tags
+
+release-major:
+	bump-my-version bump major
+	git push && git push --tags
+```
+
+Install `bump-my-version` once (global):
+```bash
+pip install bump-my-version
+```
+
+For TypeScript, add a `[[tool.bumpversion.files]]` entry in a `pyproject.toml` (or `.bumpversion.toml`) at the repo root targeting `package.json`:
+```toml
+[tool.bumpversion]
+current_version = "0.1.0"
+commit = true
+tag = true
+tag_name = "v{new_version}"
+
+[[tool.bumpversion.files]]
+filename = "package.json"
+search = '"version": "{current_version}"'
+replace = '"version": "{new_version}"'
+```
+
+---
+
+### Step 4 — Dockerfile
 
 Multi-stage, `linux/amd64`, non-root user. Create at repo root.
 
-#### TypeScript
+#### TypeScript (port 3000)
 ```dockerfile
 FROM node:20-alpine AS builder
 WORKDIR /app
@@ -261,24 +440,24 @@ EXPOSE 3000
 CMD ["node", "dist/index.js"]
 ```
 
-#### Python
+#### Python (port 8000)
 ```dockerfile
 FROM python:3.12-slim AS runtime
 WORKDIR /app
 RUN useradd -m app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY app/ ./app/
+COPY . .
 USER app
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-Container port is **3000** (TypeScript) or **8000** (Python). Use the correct value in every manifest below.
+Use the correct `PORT` (3000 or 8000) in every k8s manifest below.
 
 ---
 
-### Step 4 — Kubernetes manifests in `k8s/`
+### Step 5 — Kubernetes manifests in `k8s/`
 
 Substitute real values for `APP_NAME`, `DOMAIN`, and `PORT` — do not leave placeholders.
 
@@ -344,7 +523,7 @@ spec:
       targetPort: PORT
 ```
 
-**`k8s/ingress.yaml`** — cert-manager creates the TLS secret automatically from the annotation:
+**`k8s/ingress.yaml`**
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -375,111 +554,180 @@ spec:
 
 ---
 
-### Step 5 — GitHub Actions CI/CD
+### Step 6 — GitHub Actions
 
-**`.github/workflows/deploy.yml`** — fires on `v*` tags:
+Two workflows: CI runs on every push (except tags); deploy runs only on `v*` tags.
+
+**`.github/workflows/ci.yml`**
 ```yaml
-name: Deploy
+name: CI
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: ["**"]
+    tags-ignore: ["v*"]
+  pull_request:
 
 jobs:
-  deploy:
+  lint-and-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       # TypeScript:
-      - name: Test
-        run: npm ci && npm test
-      # Python — replace the step above with:
-      # - name: Test
-      #   run: pip install -r requirements.txt && pytest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: make install
+      - run: make all
 
-      - name: Azure login
+      # Python — replace the three steps above with:
+      # - uses: actions/setup-python@v5
+      #   with:
+      #     python-version: "3.12"
+      # - run: make install
+      # - run: make all
+```
+
+**`.github/workflows/deploy.yml`**
+```yaml
+name: Build and Deploy to AKS
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  ACR_REGISTRY: lingolou.azurecr.io
+  IMAGE_NAME: APP_NAME
+  RESOURCE_GROUP: Lingolou
+  AKS_CLUSTER: lingolou-aks
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # TypeScript:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Lint and test
+        run: make install && make all
+
+      # Python — replace the two steps above with:
+      # - uses: actions/setup-python@v5
+      #   with:
+      #     python-version: "3.12"
+      # - name: Lint and test
+      #   run: make install && make all
+
+      - name: Extract version from tag
+        id: version
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Write VERSION file
+        run: echo "${{ steps.version.outputs.tag }}" > VERSION
+
+      - name: Log in to Azure
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Build and push image
+      - name: Log in to ACR
+        uses: azure/docker-login@v2
+        with:
+          login-server: ${{ env.ACR_REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and push Docker image
         run: |
-          az acr login -n lingolou
           docker buildx build --platform linux/amd64 \
-            -t lingolou.azurecr.io/APP_NAME:${{ github.ref_name }} \
-            -t lingolou.azurecr.io/APP_NAME:latest --push .
+            -t ${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }} \
+            -t ${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            --push .
 
-      - name: Set kubectl context
-        run: az aks get-credentials -g Lingolou -n lingolou-aks --overwrite-existing
+      - name: Set AKS context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ env.RESOURCE_GROUP }}
+          cluster-name: ${{ env.AKS_CLUSTER }}
 
-      - name: Deploy
+      - name: Deploy to AKS
         run: |
-          kubectl set image deployment/APP_NAME \
-            APP_NAME=lingolou.azurecr.io/APP_NAME:${{ github.ref_name }} \
-            -n APP_NAME
-          kubectl rollout status deployment/APP_NAME -n APP_NAME
+          kubectl set image deployment/${{ env.IMAGE_NAME }} \
+            ${{ env.IMAGE_NAME }}=${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }} \
+            -n ${{ env.IMAGE_NAME }}
+          kubectl rollout status deployment/${{ env.IMAGE_NAME }} \
+            -n ${{ env.IMAGE_NAME }} --timeout=120s
+
+      - name: Purge old ACR images
+        run: |
+          az acr run \
+            --cmd "mcr.microsoft.com/acr/acr-cli:0.16 purge \
+              --filter '${{ env.IMAGE_NAME }}:v*' \
+              --keep 3 \
+              --ago 0d \
+              --untagged" \
+            --registry lingolou \
+            /dev/null
 ```
 
-Create the `AZURE_CREDENTIALS` secret once:
-```bash
-az ad sp create-for-rbac --name "github-APP_NAME" \
-  --role contributor \
-  --scopes /subscriptions/$(az account show --query id -o tsv)/resourceGroups/Lingolou \
-  --sdk-auth
-# copy the JSON output → GitHub repo → Settings → Secrets → AZURE_CREDENTIALS
-```
+#### Required GitHub secrets
+
+| Secret | How to get it |
+|---|---|
+| `AZURE_CREDENTIALS` | `az ad sp create-for-rbac --name "github-APP_NAME" --role contributor --scopes /subscriptions/$(az account show --query id -o tsv)/resourceGroups/Lingolou --sdk-auth` |
+| `ACR_USERNAME` | `az acr credential show -n lingolou --query username -o tsv` |
+| `ACR_PASSWORD` | `az acr credential show -n lingolou --query passwords[0].value -o tsv` |
+
+Add all three at GitHub repo → Settings → Secrets and variables → Actions.
 
 ---
 
-### Step 6 — Domain setup
+### Step 7 — Domain setup
 
 #### Option A — New domain at a registrar
 
-1. Register the domain at any registrar (GoDaddy, Namecheap, Cloudflare Registrar, etc.)
-2. Go to the registrar's DNS management panel
-3. Add an **A record**:
-   - Host: `@` (apex) or `www` (subdomain only)
+1. Register the domain (GoDaddy, Namecheap, Cloudflare Registrar, etc.)
+2. In the DNS management panel, add an **A record**:
+   - Host: `@` (apex) or `www`
    - Value: `57.151.44.179`
    - TTL: 3600
 
-**GoDaddy-specific:** You cannot change a CNAME to an A record in-place — delete the CNAME first, then add the A record.
+**GoDaddy-specific:** you cannot convert a CNAME to an A record in-place — delete the CNAME first, then add the A record.
 
-Verify against the authoritative nameserver (bypasses local cache):
+Verify against the authoritative nameserver (bypasses local TTL cache):
 ```bash
-# Find your registrar's authoritative NS:
-dig DOMAIN NS +short
-
-# Verify the A record against it:
-dig DOMAIN A +short @<ns-from-above>
-# Should return: 57.151.44.179
+dig DOMAIN NS +short          # find your registrar's NS
+dig DOMAIN A +short @<ns>     # should return 57.151.44.179
 ```
 
 #### Option B — Subdomain of an existing domain
 
-Add a subdomain record at the existing DNS provider (no registrar change needed):
-- Host: `APP_NAME` (e.g. `myapp` → resolves as `myapp.lingolou.app`)
+Add a single DNS record at the existing provider (no registrar change):
+- Host: `APP_NAME` (e.g. `myapp` → `myapp.lingolou.app`)
 - Value: `57.151.44.179`
 - TTL: 3600
 
-#### TLS — cert-manager handles it automatically
+#### TLS
 
-Once the A record propagates and manifests are applied, cert-manager detects the Ingress annotation and runs an HTTP-01 ACME challenge. No manual cert work needed.
-
-Timeline: DNS propagation is usually 1–5 minutes for existing domains. New registrations at slow registrars can take up to 48h. The ACME challenge completes within ~60 seconds of DNS resolving.
+cert-manager detects the Ingress annotation and runs an HTTP-01 ACME challenge automatically. DNS propagation for existing domains is typically 1–5 minutes. New registrations at slow registrars can take up to 48h.
 
 ---
 
-### Step 7 — Initial deploy
+### Step 8 — Initial deploy
 
-Run in order. All secrets are passed via CLI — never written to disk.
+Run in order. Secrets are passed via CLI — never written to disk.
 
 ```bash
 # 1. Get AKS credentials
-az aks get-credentials -g Lingolou -n lingolou-aks --overwrite-existing
+az aks get-credentials -g Lingolou -n lingolou-aks
 
-# 2. Create namespace first (all other resources reference it)
+# 2. Create namespace first
 kubectl apply -f k8s/namespace.yaml
 
 # 3. Create ACR pull secret scoped to the new namespace
@@ -498,12 +746,14 @@ docker buildx build --platform linux/amd64 \
 kubectl apply -f k8s/
 
 # 6. Wait for rollout
-kubectl rollout status deployment/APP_NAME -n APP_NAME
+kubectl rollout status deployment/APP_NAME -n APP_NAME --timeout=120s
 ```
+
+Subsequent deploys: `make release-patch` (or `release-minor` / `release-major`) bumps the version, commits, pushes the tag, and CI/CD takes over from there.
 
 ---
 
-### Step 8 — Verify TLS and connectivity
+### Step 9 — Verify TLS and connectivity
 
 ```bash
 # Watch for certificate issuance (~30s–2min after DNS propagates)
@@ -511,7 +761,7 @@ kubectl get certificate -n APP_NAME -w
 
 # Once READY=True:
 curl https://DOMAIN/health
-# → {"status":"ok"}
+# → {"status":"ok","version":"0.1.0"}
 
 curl https://DOMAIN/
 # → {"message":"Hello, world!"}
@@ -529,15 +779,17 @@ Common causes: DNS not yet propagated; port 80 LB probe issue (see pitfall #7 in
 
 ## Checklist
 
-- [ ] App scaffolded, tests pass locally
+- [ ] App scaffolded, tests pass locally (`make test`)
+- [ ] `make all` passes (lint + test)
 - [ ] Dockerfile builds cleanly for `linux/amd64`
-- [ ] `k8s/` manifests created with real values (no placeholders)
-- [ ] GitHub Actions workflow added, `AZURE_CREDENTIALS` secret set
+- [ ] `k8s/` manifests written with real values (no placeholders)
+- [ ] Both GitHub Actions workflows added
+- [ ] `AZURE_CREDENTIALS`, `ACR_USERNAME`, `ACR_PASSWORD` secrets set in GitHub
+- [ ] `bump-my-version` installed, config in `pyproject.toml` / `.bumpversion.toml`
 - [ ] Namespace created in cluster
 - [ ] ACR pull secret created in the new namespace
-- [ ] Image built and pushed to `lingolou.azurecr.io/APP_NAME:latest`
+- [ ] Initial image built and pushed to ACR
 - [ ] All manifests applied (`kubectl apply -f k8s/`)
-- [ ] DNS A record `DOMAIN → 57.151.44.179` added at registrar
-- [ ] DNS verified against authoritative nameserver
+- [ ] DNS A record `DOMAIN → 57.151.44.179` added and verified
 - [ ] `kubectl get certificate -n APP_NAME` shows `READY: True`
-- [ ] `curl https://DOMAIN/health` returns `{"status":"ok"}`
+- [ ] `curl https://DOMAIN/health` returns `{"status":"ok","version":"..."}`
