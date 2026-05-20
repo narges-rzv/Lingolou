@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from webapp.models.database import (
@@ -478,7 +478,7 @@ async def download_public_combined_audio(
     story_id: str,
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
-) -> FileResponse:
+) -> Response:
     """Download combined audio for a public/link-only/followers story."""
     story = _get_story_by_identifier(db, story_id)
     if story and story.visibility not in ("public", "link_only", "followers"):
@@ -527,15 +527,14 @@ async def download_public_combined_audio(
 
         if len(local_files) == 1:
             return Response(
-                content=open(local_files[0], "rb").read(),  # noqa: SIM115
+                content=open(local_files[0], "rb").read(),
                 media_type="audio/mpeg",
                 headers={"Content-Disposition": f'attachment; filename="{story.title}.mp3"'},
             )
 
         concat_list = os.path.join(tmp_dir, "concat.txt")
         with open(concat_list, "w") as f:
-            for p in local_files:
-                f.write(f"file '{p}'\n")
+            f.writelines(f"file '{p}'\n" for p in local_files)
 
         output_path = os.path.join(tmp_dir, "combined.mp3")
         result = subprocess.run(  # noqa: S603
@@ -548,7 +547,7 @@ async def download_public_combined_audio(
             raise HTTPException(status_code=500, detail="Failed to combine audio files")
 
         return Response(
-            content=open(output_path, "rb").read(),  # noqa: SIM115
+            content=open(output_path, "rb").read(),
             media_type="audio/mpeg",
             headers={"Content-Disposition": f'attachment; filename="{story.title}.mp3"'},
         )

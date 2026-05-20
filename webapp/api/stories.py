@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Request, status
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from webapp.models.database import (
@@ -616,7 +616,7 @@ async def generate_story_audio(
 @router.get("/{story_id}/audio/combined")
 async def download_combined_audio(
     story_id: str, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)
-) -> FileResponse:
+) -> Response:
     """Combine all chapter audio files into a single MP3 download."""
     story = _get_story_by_identifier(db, story_id, user_id=current_user.id)
 
@@ -649,15 +649,14 @@ async def download_combined_audio(
 
         if len(local_files) == 1:
             return Response(
-                content=open(local_files[0], "rb").read(),  # noqa: SIM115
+                content=open(local_files[0], "rb").read(),
                 media_type="audio/mpeg",
                 headers={"Content-Disposition": f'attachment; filename="{story.title}.mp3"'},
             )
 
         concat_list = os.path.join(tmp_dir, "concat.txt")
         with open(concat_list, "w") as f:
-            for p in local_files:
-                f.write(f"file '{p}'\n")
+            f.writelines(f"file '{p}'\n" for p in local_files)
 
         output_path = os.path.join(tmp_dir, "combined.mp3")
         result = subprocess.run(  # noqa: S603
@@ -670,7 +669,7 @@ async def download_combined_audio(
             raise HTTPException(status_code=500, detail="Failed to combine audio files")
 
         return Response(
-            content=open(output_path, "rb").read(),  # noqa: SIM115
+            content=open(output_path, "rb").read(),
             media_type="audio/mpeg",
             headers={"Content-Disposition": f'attachment; filename="{story.title}.mp3"'},
         )
