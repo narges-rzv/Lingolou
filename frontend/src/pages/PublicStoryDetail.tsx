@@ -275,7 +275,6 @@ export default function PublicStoryDetail({ preloadedStory }: PublicStoryDetailP
                 storyId={story.id}
                 chapterNumber={ch.chapter_number}
                 duration={ch.audio_duration}
-                showDownload={false}
                 isPublic
               />
             </div>

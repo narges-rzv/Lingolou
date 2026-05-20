@@ -60,7 +60,6 @@ export default function PublicChapterList({ chapters, storyId }: PublicChapterLi
                     storyId={storyId}
                     chapterNumber={ch.chapter_number}
                     duration={ch.audio_duration}
-                    showDownload={false}
                     isPublic
                   />
                 )}
