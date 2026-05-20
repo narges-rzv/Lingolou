@@ -6,11 +6,12 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
 from webapp.models.database import (
@@ -506,36 +507,39 @@ async def download_public_combined_audio(
     if not chapters_with_audio:
         raise HTTPException(status_code=404, detail="No audio files available")
 
-    # Use internal integer ID for storage keys
     int_id = story.id
-    if len(chapters_with_audio) == 1:
-        key = f"{int_id}/ch{chapters_with_audio[0].chapter_number}.mp3"
-        with storage.get_path(key) as single:
-            if not single:
-                raise HTTPException(status_code=404, detail="Audio file not found")
-            return FileResponse(
-                str(single),
+
+    # Copy all chapter audio into a local temp dir first so S3/Azure context
+    # managers don't delete the files before ffmpeg can read them.
+    tmp_dir = tempfile.mkdtemp()
+    try:
+        local_files: list[str] = []
+        for ch in chapters_with_audio:
+            key = f"{int_id}/ch{ch.chapter_number}.mp3"
+            dest = os.path.join(tmp_dir, f"ch{ch.chapter_number}.mp3")
+            with storage.get_path(key) as src:
+                if src:
+                    shutil.copy2(str(src), dest)
+                    local_files.append(dest)
+
+        if not local_files:
+            raise HTTPException(status_code=404, detail="No audio files available")
+
+        if len(local_files) == 1:
+            return Response(
+                content=open(local_files[0], "rb").read(),  # noqa: SIM115
                 media_type="audio/mpeg",
-                filename=f"{story.title}.mp3",
+                headers={"Content-Disposition": f'attachment; filename="{story.title}.mp3"'},
             )
 
-    # Build ffmpeg concat file — use get_path to get local files for each chapter
-    concat_list_path = None
-    output_path = None
-    try:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            for ch in chapters_with_audio:
-                key = f"{int_id}/ch{ch.chapter_number}.mp3"
-                with storage.get_path(key) as ch_path:
-                    if ch_path:
-                        f.write(f"file '{ch_path}'\n")
-            concat_list_path = f.name
+        concat_list = os.path.join(tmp_dir, "concat.txt")
+        with open(concat_list, "w") as f:
+            for p in local_files:
+                f.write(f"file '{p}'\n")
 
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-            output_path = tmp.name
-
+        output_path = os.path.join(tmp_dir, "combined.mp3")
         result = subprocess.run(  # noqa: S603
-            ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list_path, "-c", "copy", output_path],
+            ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list, "-c", "copy", output_path],
             capture_output=True,
             text=True,
             timeout=120,
@@ -543,11 +547,10 @@ async def download_public_combined_audio(
         if result.returncode != 0:
             raise HTTPException(status_code=500, detail="Failed to combine audio files")
 
-        return FileResponse(
-            output_path,
+        return Response(
+            content=open(output_path, "rb").read(),  # noqa: SIM115
             media_type="audio/mpeg",
-            filename=f"{story.title}.mp3",
+            headers={"Content-Disposition": f'attachment; filename="{story.title}.mp3"'},
         )
     finally:
-        if concat_list_path:
-            os.unlink(concat_list_path)
+        shutil.rmtree(tmp_dir, ignore_errors=True)
