@@ -1,0 +1,80 @@
+# Use this file instead of k8s/deployment.yaml when the app needs Redis and/or
+# persistent storage (Azure Files PVC). Requires:
+#   - k8s/pvc.yaml applied first
+#   - azure-files-secret created in the namespace (see skill.md Step 3)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: APP_NAME
+  namespace: APP_NAME
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: APP_NAME
+  template:
+    metadata:
+      labels:
+        app: APP_NAME
+    spec:
+      imagePullSecrets:
+        - name: acr-secret
+      containers:
+        - name: APP_NAME
+          image: lingolou.azurecr.io/APP_NAME:latest
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: APP_NAME-secrets
+          env:
+            - name: REDIS_URL
+              value: "redis://localhost:6379"
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 10
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 5
+            failureThreshold: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+        - name: redis
+          image: redis:7-alpine
+          args: ["--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru", "--save", "60 1"]
+          ports:
+            - containerPort: 6379
+          volumeMounts:
+            - name: data
+              mountPath: /data
+              subPath: redis
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: APP_NAME-data

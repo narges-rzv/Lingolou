@@ -1,0 +1,105 @@
+[project]
+name = "APP_NAME"
+version = "0.1.0"
+
+[tool.bumpversion]
+current_version = "0.1.0"
+commit = true
+tag = true
+tag_name = "v{new_version}"
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'current_version = "{current_version}"'
+replace = 'current_version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "webapp/main.py"
+search = 'version="{current_version}"'
+replace = 'version="{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "frontend/package.json"
+search = '"version": "{current_version}"'
+replace = '"version": "{new_version}"'
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "D100",    # Missing docstring in public module
+    "D104",    # Missing docstring in public package
+    "D203",    # conflicts with D211
+    "D213",    # conflicts with D212
+    "ANN401",  # typing.Any allowed
+    "COM812",  # conflicts with ruff formatter
+    "ISC001",  # conflicts with ruff formatter
+    "S101",    # assert in tests
+    "PLR2004", # magic value in comparison
+    "T201",    # print() in CLI tools
+    "B008",    # FastAPI Depends pattern
+    "FAST002", # FastAPI route without response_model
+    "ARG001",  # FastAPI dependency unused arg
+    "FBT001",  # boolean positional arg
+    "FBT002",  # boolean default value
+    "PLR0913", # too many arguments
+    "EM101",   # exception string literal
+    "EM102",   # exception f-string
+    "TRY003",  # long exception message
+    "TRY400",  # logging.exception vs logging.error
+    "ERA001",  # commented-out code
+    "TD002",   # missing TODO author
+    "TD003",   # missing TODO issue link
+    "FIX002",  # line contains TODO
+    "FA100",   # from __future__ import annotations
+    "Q000",    # double quotes (handled by formatter)
+    "E402",    # module import not at top (needed for dotenv)
+    "PLC0415", # import outside top level
+    "D200",    # one-line docstring on one line
+    "D205",    # blank line between summary and description
+    "D400",    # first line should end with period
+    "D415",    # first line should end with period/question mark
+    "D412",    # no blank lines after section
+    "D413",    # missing blank line after last section
+    "C901",    # function too complex
+    "PLR0912", # too many branches
+    "PLR0915", # too many statements
+    "TRY002",  # create your own exception
+    "BLE001",  # blind exception catch
+    "RUF012",  # mutable class variable without ClassVar
+    "S104",    # binding to all interfaces
+    "TC001",   # FastAPI needs runtime imports for validation
+    "TC002",   # FastAPI needs runtime imports for Depends()
+    "TC003",   # Pydantic/SQLAlchemy need runtime types
+    "ANN002",  # *args annotation
+    "ANN003",  # **kwargs annotation
+    "ANN204",  # __init__ return type
+    "INP001",  # implicit namespace package
+]
+
+[tool.ruff.lint.per-file-ignores]
+"webapp/tests/*" = ["D", "ANN", "S", "SLF001", "PT"]
+
+[tool.mypy]
+python_version = "3.12"
+check_untyped_defs = true
+ignore_missing_imports = false
+exclude = ["frontend/"]
+
+[tool.pytest.ini_options]
+testpaths = ["webapp/tests"]
+asyncio_mode = "auto"
+addopts = ""
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning:sqlalchemy",
+    "ignore::ResourceWarning",
+]

@@ -1,0 +1,40 @@
+# Azure Files PVC for persistent storage (SQLite data files, Redis persistence, uploads, etc.)
+#
+# Prerequisites before applying:
+#   1. Create a storage account:
+#        az storage account create --name APP_NAMEdisk --resource-group Lingolou --sku Standard_LRS
+#   2. Create a file share:
+#        STORAGE_KEY=$(az storage account keys list --account-name APP_NAMEdisk --query '[0].value' -o tsv)
+#        az storage share create --account-name APP_NAMEdisk --name APP_NAME-data --account-key "$STORAGE_KEY"
+#   3. Create the Kubernetes secret in the app namespace:
+#        STORAGE_KEY=$(az storage account keys list --account-name APP_NAMEdisk --query '[0].value' -o tsv)
+#        kubectl create secret generic azure-files-secret -n APP_NAME \
+#          --from-literal=azurestorageaccountname=APP_NAMEdisk \
+#          --from-literal=azurestorageaccountkey="$STORAGE_KEY"
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: APP_NAME-data-pv
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  azureFile:
+    secretName: azure-files-secret
+    shareName: APP_NAME-data
+    readOnly: false
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: APP_NAME-data
+  namespace: APP_NAME
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: APP_NAME-data-pv
+  resources:
+    requests:
+      storage: 5Gi

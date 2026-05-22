@@ -1,0 +1,16 @@
+# Ignore everything by default
+*
+
+# Allow only what the Dockerfile needs
+!frontend/
+!webapp/
+!requirements.txt
+!entrypoint.sh
+
+# Re-ignore build artifacts within allowed dirs
+frontend/node_modules
+frontend/dist
+webapp/static/frontend
+webapp/tests
+**/__pycache__
+**/*.pyc

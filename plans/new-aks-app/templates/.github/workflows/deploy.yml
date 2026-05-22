@@ -1,0 +1,77 @@
+name: Build and Deploy to AKS
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  ACR_REGISTRY: lingolou.azurecr.io
+  IMAGE_NAME: APP_NAME
+  RESOURCE_GROUP: Lingolou
+  AKS_CLUSTER: lingolou-aks
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install dependencies and run lint + tests
+        run: make install && make all
+
+      - name: Extract version from tag
+        id: version
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Log in to ACR
+        uses: azure/docker-login@v2
+        with:
+          login-server: ${{ env.ACR_REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and push Docker image
+        run: |
+          docker buildx build --platform linux/amd64 \
+            -t ${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }} \
+            -t ${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            --push .
+
+      - name: Set AKS context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ env.RESOURCE_GROUP }}
+          cluster-name: ${{ env.AKS_CLUSTER }}
+
+      - name: Deploy to AKS
+        run: |
+          kubectl set image deployment/${{ env.IMAGE_NAME }} \
+            ${{ env.IMAGE_NAME }}=${{ env.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }} \
+            -n ${{ env.IMAGE_NAME }}
+          kubectl rollout status deployment/${{ env.IMAGE_NAME }} \
+            -n ${{ env.IMAGE_NAME }} --timeout=120s
+
+      - name: Purge old ACR images
+        run: |
+          az acr run \
+            --cmd "mcr.microsoft.com/acr/acr-cli:0.16 purge \
+              --filter '${{ env.IMAGE_NAME }}:v*' \
+              --keep 3 \
+              --ago 0d \
+              --untagged" \
+            --registry lingolou \
+            /dev/null
