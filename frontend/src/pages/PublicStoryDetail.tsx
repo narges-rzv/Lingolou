@@ -5,7 +5,15 @@ import { publicApiFetch, apiFetch } from '../api';
 import AudioPlayer from '../components/AudioPlayer';
 import FollowButton from '../components/FollowButton';
 import PublicChapterList from '../components/PublicChapterList';
+import ShareButton from '../components/ShareButton';
 import type { PublicStoryResponse } from '../types';
+
+function buildShareUrl(story: PublicStoryResponse): string | null {
+  const origin = window.location.origin;
+  if (story.visibility === 'public') return `${origin}/public/stories/${story.id}`;
+  if (story.share_code) return `${origin}/share/${story.share_code}`;
+  return null;
+}
 
 interface PublicStoryDetailProps {
   preloadedStory?: PublicStoryResponse | null;
@@ -153,6 +161,7 @@ export default function PublicStoryDetail({ preloadedStory }: PublicStoryDetailP
   if (loading) return <div className="loading">Loading story...</div>;
   if (!story) return <div className="error-message">{error || 'Story not found'}</div>;
 
+  const shareUrl = buildShareUrl(story);
   const chapters = story.chapters || [];
   const sorted = [...chapters].sort((a, b) => a.chapter_number - b.chapter_number);
   const audioChapters = sorted.filter((ch) => ch.audio_path);
@@ -181,6 +190,7 @@ export default function PublicStoryDetail({ preloadedStory }: PublicStoryDetailP
             </p>
           )}
         </div>
+        {shareUrl && <ShareButton url={shareUrl} title={story.title} description={story.description} />}
       </div>
 
       {/* Vote controls */}

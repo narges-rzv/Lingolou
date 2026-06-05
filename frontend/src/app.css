@@ -1890,3 +1890,58 @@ a:hover {
   font-size: 0.95rem;
   margin-bottom: 0.5rem;
 }
+
+/* Share button + panel */
+.share-panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 50;
+  width: 280px;
+  max-width: 90vw;
+  padding: 0.85rem;
+  background: var(--color-surface-solid);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.share-panel .share-native {
+  width: 100%;
+}
+
+.share-copy-row {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.share-url-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.8rem;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.share-channels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.share-channels .btn {
+  flex: 1 1 auto;
+}
+
+.share-qr {
+  align-self: center;
+  border-radius: var(--radius);
+  background: #fff;
+  padding: 6px;
+}

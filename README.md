@@ -18,6 +18,7 @@ Designed for kids' language learning with support for multiple characters, 35+ l
 - **Emotion tags** (`[excited]`, `[warm]`, `[concerned]`, etc.) control voice delivery
 - **BYOK (Bring Your Own Key)** — users can add their own API keys, or use the free community tier
 - **Public story library** — share stories, vote, and browse
+- **Social sharing** — one-tap share (native share sheet, WhatsApp/X/Reddit/Facebook/email, copy link, QR code) with rich link previews (server-rendered Open Graph / Twitter Card tags + auto-generated share-card images) so links unfurl beautifully on every channel
 - **Google OAuth** login support
 
 ## Prerequisites
@@ -198,6 +199,7 @@ See `AKS_MIGRATION.md` for the full initial setup procedure (cluster creation, H
 | `ELEVENLABS_API_KEY` | No | - | Platform ElevenLabs key for free tier |
 | `DATABASE_URL` | No | `sqlite:///./lingolou.db` | Database connection string |
 | `FRONTEND_URL` | No | `http://localhost:5173` | Frontend URL for OAuth redirects and share links |
+| `PUBLIC_BASE_URL` | No | falls back to `FRONTEND_URL`, then request host | Absolute base URL used in Open Graph share tags/images (e.g. `https://www.lingolou.app`) |
 | `CORS_ORIGINS` | No | `*` | Comma-separated allowed origins |
 | `PORT` | No | `8000` | Server port |
 | `STORAGE_BACKEND` | No | `local` | `local`, `s3`, or `azure_blob` |

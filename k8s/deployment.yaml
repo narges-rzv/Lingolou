@@ -38,6 +38,8 @@ spec:
               value: "audio"
             - name: FRONTEND_URL
               value: "https://www.lingolou.app"
+            - name: PUBLIC_BASE_URL
+              value: "https://www.lingolou.app"
             - name: VOICES_CONFIG_PATH
               value: "/app/data/voices_config.json"
             - name: VERSION_FILE_PATH

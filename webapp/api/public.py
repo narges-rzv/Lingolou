@@ -37,6 +37,7 @@ from webapp.models.schemas import (
 )
 from webapp.services.auth import get_current_user, get_current_user_optional
 from webapp.services.mnemonic import generate as generate_mnemonic
+from webapp.services.social_image import render_default_card, render_story_card
 from webapp.services.storage import get_storage
 
 from .stories import _get_story_by_identifier
@@ -224,6 +225,25 @@ async def get_shared_story(
         owner_name=story.owner.display_name or story.owner.username,
         owner_id=story.user_id,
     )
+
+
+_OG_IMAGE_CACHE = {"Cache-Control": "public, max-age=86400"}
+
+
+@router.get("/og-image.png")
+async def get_default_og_image() -> Response:
+    """Default branded Open Graph share card (homepage / unknown resources)."""
+    return Response(content=render_default_card(), media_type="image/png", headers=_OG_IMAGE_CACHE)
+
+
+@router.get("/stories/{story_id}/og-image.png")
+async def get_story_og_image(story_id: str, db: Session = Depends(get_db)) -> Response:
+    """Dynamic Open Graph share card for a public or link-only story."""
+    story = _get_story_by_identifier(db, story_id)
+    if not story or story.visibility not in ("public", "link_only"):
+        raise HTTPException(status_code=404, detail="Story not found")
+    png = render_story_card(story.title, story.language, story.language_level)
+    return Response(content=png, media_type="image/png", headers=_OG_IMAGE_CACHE)
 
 
 @router.post("/stories/{story_id}/fork", response_model=StoryResponse, status_code=201)

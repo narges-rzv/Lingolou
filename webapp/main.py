@@ -14,15 +14,17 @@ load_dotenv()  # Load .env before any module reads os.getenv
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
 from webapp.api import auth, blocks, bookmarks, follows, oauth, public, reports, stories, votes, worlds
 from webapp.middleware.etag import ETagMiddleware
-from webapp.models.database import init_db
+from webapp.models.database import get_db, init_db
+from webapp.services import social_meta
 
 
 @contextlib.asynccontextmanager
@@ -141,19 +143,34 @@ async def health_check() -> dict[str, str | None]:
     return {"status": "healthy", "version": app.version, "alembic_head": head, "redis": redis_status}
 
 
+def _serve_spa_shell(request: Request, db: Session, full_path: str) -> Response:
+    """Serve index.html with server-rendered Open Graph meta tags injected.
+
+    Crawlers don't run JS, so we resolve the requested path to a story and inject the
+    right unfurl tags; real users still get the same shell and React hydrates over it.
+    """
+    index = Path(__file__).parent / "static" / "frontend" / "index.html"
+    if not index.exists():
+        return JSONResponse({"detail": "Frontend not built. Run: cd frontend && npm run build"}, status_code=404)
+    base_url = social_meta.get_base_url(request)
+    meta = social_meta.resolve_meta(db, full_path, base_url)
+    html_doc = social_meta.inject_meta(index.read_text(encoding="utf-8"), meta)
+    return HTMLResponse(content=html_doc)
+
+
 # Root endpoint — serve SPA if built, otherwise API info
 @app.get("/", response_model=None)
-async def root() -> FileResponse | dict[str, str]:
+async def root(request: Request, db: Session = Depends(get_db)) -> Response | dict[str, str]:
     """Serve SPA index or API info."""
     index = Path(__file__).parent / "static" / "frontend" / "index.html"
     if index.exists():
-        return FileResponse(str(index))
+        return _serve_spa_shell(request, db, "")
     return {"name": "Lingolou API", "version": "1.0.0", "docs": "/docs"}
 
 
 # SPA catch-all: serve index.html for any non-API, non-static path
 @app.get("/{full_path:path}", response_model=None)
-async def serve_spa(request: Request, full_path: str) -> FileResponse | JSONResponse:
+async def serve_spa(request: Request, full_path: str, db: Session = Depends(get_db)) -> Response:
     """Catch-all route to serve SPA for non-API paths."""
     if full_path.startswith("api/"):
         return JSONResponse({"detail": "Not found"}, status_code=404)
@@ -161,10 +178,7 @@ async def serve_spa(request: Request, full_path: str) -> FileResponse | JSONResp
     static_file = Path(__file__).parent / "static" / "frontend" / full_path
     if static_file.is_file():
         return FileResponse(str(static_file))
-    index = Path(__file__).parent / "static" / "frontend" / "index.html"
-    if index.exists():
-        return FileResponse(str(index))
-    return JSONResponse({"detail": "Frontend not built. Run: cd frontend && npm run build"}, status_code=404)
+    return _serve_spa_shell(request, db, full_path)
 
 
 if __name__ == "__main__":
