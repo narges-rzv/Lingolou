@@ -5,12 +5,39 @@ Covers webapp/services/social_image.py, webapp/services/social_meta.py, the
 by webapp/main.py.
 """
 
+from pathlib import Path
+
+import pytest
+
+import webapp.main as main_module
 from webapp.models.database import Story
 from webapp.services import social_meta
 from webapp.services.mnemonic import generate as generate_mnemonic
 from webapp.services.social_image import render_default_card, render_story_card
 
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+
+
+@pytest.fixture()
+def spa_index():
+    """Ensure a built SPA index.html exists for shell-injection tests.
+
+    CI runs pytest before the frontend is built (that happens in the Docker stage), so
+    the real index.html is absent. Create a minimal one for the duration of the test and
+    remove it only if we created it (don't clobber a real local build).
+    """
+    index = Path(main_module.__file__).parent / "static" / "frontend" / "index.html"
+    created = False
+    if not index.exists():
+        index.parent.mkdir(parents=True, exist_ok=True)
+        index.write_text(
+            '<!DOCTYPE html><html><head><title>Lingolou</title></head><body><div id="root"></div></body></html>',
+            encoding="utf-8",
+        )
+        created = True
+    yield index
+    if created:
+        index.unlink(missing_ok=True)
 
 
 def _make_story(db, user, *, title="Dragon Tale", visibility="public", language="Spanish"):
@@ -126,7 +153,7 @@ def test_render_meta_tags_escapes_html():
 # --- SPA shell injection (integration) ---------------------------------------
 
 
-def test_share_page_injects_story_meta(client, db, test_user):
+def test_share_page_injects_story_meta(client, db, test_user, spa_index):
     story = _make_story(db, test_user, title="The Brave Little Fox")
     resp = client.get(f"/share/{story.share_code}")
     assert resp.status_code == 200
@@ -140,21 +167,21 @@ def test_share_page_injects_story_meta(client, db, test_user):
     assert body.count("<title>") == 1
 
 
-def test_public_story_page_injects_story_meta(client, db, test_user):
+def test_public_story_page_injects_story_meta(client, db, test_user, spa_index):
     story = _make_story(db, test_user, title="Midnight Owl")
     resp = client.get(f"/public/stories/{story.slug}")
     assert resp.status_code == 200
     assert "Midnight Owl · Lingolou" in resp.text
 
 
-def test_unknown_page_injects_default_meta(client):
+def test_unknown_page_injects_default_meta(client, spa_index):
     resp = client.get("/dashboard")
     assert resp.status_code == 200
     assert social_meta._DEFAULT_TITLE in resp.text
     assert "/api/public/og-image.png" in resp.text
 
 
-def test_root_injects_default_meta(client):
+def test_root_injects_default_meta(client, spa_index):
     resp = client.get("/")
     assert resp.status_code == 200
     assert social_meta._DEFAULT_TITLE in resp.text
