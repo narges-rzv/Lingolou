@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Lingolou API", description="Language Learning Audiobook Generator API", version="1.1.8", lifespan=lifespan
+    title="Lingolou API", description="Language Learning Audiobook Generator API", version="1.1.9", lifespan=lifespan
 )
 
 # Session middleware (required by authlib for OAuth state/CSRF)
