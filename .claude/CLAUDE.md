@@ -223,6 +223,8 @@ Before deploying a migration to production:
 - **Release**: `make release-patch` / `release-minor` / `release-major` bumps version, pushes tag, triggers pipeline
 - **Manual targets**: `make az-login`, `make docker-push`, `make aks-context`, `make aks-deploy`, `make aks-logs`, `make aks-status`, `make aks-restart`
 - **Infrastructure**: ACR registry `lingolou.azurecr.io`, AKS cluster `lingolou-aks`, ingress IP `57.151.44.179`, manifests in `k8s/`
+- **Shared single node**: the cluster has one node (`Standard_D2s_v4`, 2 vCPU, ~1900m allocatable) shared with other apps. Pod CPU **requests** are right-sized to actual usage (app `100m`, redis `25m`; real usage is ~3–5m) so a `RollingUpdate` can surge a second pod during deploys. If a deploy hangs with the new pod `Pending` / `Insufficient cpu`, a co-tenant has eaten the headroom — shrink requests further, switch the Deployment to `strategy: Recreate`, or scale the nodepool.
+- **CI does NOT apply manifests** — the deploy step only runs `kubectl set image`. Changes to `k8s/*.yaml` (resources, env, strategy) require a live patch (`kubectl patch` / `kubectl set resources`) to take effect; a release alone won't pick them up. Avoid `kubectl apply -f k8s/deployment.yaml` casually — its image is pinned to `:latest` and would clobber the deployed `v*` tag.
 - **Database**: SQLite on Azure Files (SMB) mounted as a PVC — single replica, `ReadWriteMany`
 - **Redis**: Sidecar container in the same pod (not embedded in the app image)
 - **Secrets**: Stored in Kubernetes (`kubectl create secret`) — never in files or env vars on disk
