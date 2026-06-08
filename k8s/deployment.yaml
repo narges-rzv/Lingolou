@@ -48,8 +48,11 @@ spec:
             - name: data
               mountPath: /app/data
           resources:
+            # Right-sized to actual usage (~3m CPU steady state; app is I/O-bound on
+            # external APIs). Keeps surge room for RollingUpdate on the shared single
+            # node; limit stays high so startup migrations/cache-warm can still burst.
             requests:
-              cpu: 250m
+              cpu: 100m
               memory: 512Mi
             limits:
               cpu: "1"
@@ -82,7 +85,7 @@ spec:
               subPath: redis
           resources:
             requests:
-              cpu: 50m
+              cpu: 25m
               memory: 64Mi
             limits:
               cpu: 100m
